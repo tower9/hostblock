@@ -25,6 +25,9 @@ class Stats{
 	 * Load data about IPs that needs to be perminately included or excluded
 	 */
 	public function loadBlacklist(){
+		// Clear blacklist/whitelist arrays
+		$this->include = array();
+		$this->exclude = array();
 		// Read blacklist
 		if(!is_null($this->permanentBlacklistFile)){
 			$f = @fopen($this->permanentBlacklistFile,"r");
