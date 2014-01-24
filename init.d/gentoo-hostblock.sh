@@ -1,9 +1,10 @@
 #!/sbin/runscript
+
 extra_commands="stats list dlist"
 description="HostBlock analyzes log files and updates access files to deny access"
 description_stats="Shows statistics about blacklisted IPs"
 description_list="Lists all blacklisted IPs"
-description_dlist="Detailed list with all blacklisted IPs (includes count and last activity)
+description_dlist="Detailed list with all blacklisted IPs (includes count and last activity)"
 
 depend() {
 	use logger
@@ -11,7 +12,7 @@ depend() {
 
 start() {
 	ebegin "Starting HostBlock daemon"
-	start-stop-daemon --start -exec /usr/bin/hostblock --daemon --pidfile /var/run/hostblock.pid
+	start-stop-daemon --start -exec /usr/bin/hostblock --pidfile /var/run/hostblock.pid -- --daemon
 	eend $?
 }
 
@@ -30,5 +31,5 @@ list() {
 }
 
 dlist() {
-	/usr/bin/hostblock --list --count --time
+	/usr/bin/hostblock --list --time --count
 }

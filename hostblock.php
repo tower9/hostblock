@@ -450,7 +450,6 @@ if(isset($argv)){
 						$offsets = serialize($offsets);
 						@file_put_contents(WORKDIR_PATH."/offsets", $offsets);
 						$updateOffsets = false;
-						$log->write("Log file offsets updated!");
 					}
 					
 					// Info in log file if we have new pattern matches
