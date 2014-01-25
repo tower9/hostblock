@@ -8,7 +8,13 @@ Script uses regex patterns to match suspicious entries in log files - you should
 
 I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use and now I'm using it as an Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. I didn't wanted anyone to break into my test server, so I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity, before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). You can never know if attacker don't get lucky with bruteforce, especially if you ignore such messages in log files. Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much invalid authorizations you allow.
 
-## /etc/deny.hosts
+## Requirements
+
+### PHP libraries
+
+ - [PCNTL](http://www.php.net/manual/en/pcntl.installation.php)
+
+### /etc/deny.hosts
 
 deny.hosts file allow to secure some services, which are using TCP Wrapper. The blacklist file is /etc/hosts.deny and whitelist file is /etc/hosts.allow. SSHd uses TCP Wrappers (if it is compiled with tcp_wrappers support), which means we can blacklist some IPs we do not like. For example if we see something like this in /var/log/messages - this is an actual entry on one of servers, where someone from Korea is trying bruteforce SSHd:
 ```
@@ -31,8 +37,8 @@ File hosts.deny is used by HostBlock to automatically block access to SSHd, so d
  - Each IP address that has count over defined one is considered evil and stored in access files (/ets/hosts.deny or .htaccess files)
  - Daemon keeps track of parsed file offset to parse only new bytes in file not the whole file each time (until file is rotated)
  - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and date of last attempt
- - Respects blacklist - IP addresses in this file will be considered evil permanently
- - Respects whitelist - IP addresses in this file will never be written in access files
+ - Respects blacklist - IP addresses in this file will be considered as evil permanently
+ - Respects whitelist - IP addresses in this file will be ignored
 
 ## Future plans
 

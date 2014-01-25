@@ -25,6 +25,7 @@ $longopts = array(
 	'parse-ssh-log',// parse SSHd log file
 	'path:',// path to log file for manual parsing
 	'year:',// year for SSHd log parsing - this log file has time without year, to parse older log files this option was introduced
+	'test',// run parsing as test - do not update IP data
 	'daemon',// run script as daemon
 );
 
@@ -136,10 +137,10 @@ if(isset($argv)){
 			}
 			$stats->ipInfo = $ipInfo;
 			
-			echo "Suspicious IPs before processing: ".count($stats->ipInfo)."\n";
-			echo "Blacklisted IPs before processing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Suspicious IP addresses before processing: ".count($stats->ipInfo)."\n";
+			echo "Blacklisted IP addresses before processing: ".$stats->getBlacklistedIpCount()."\n";
 			
-			$apacheAccessLogFile['path'] = $argv[2];
+			$apacheAccessLogFile['path'] = $path;
 			$apacheAccessLogFile['offset'] = 0;
 			$updateHostData = false;
 			$updateOffsets = false;
@@ -147,15 +148,17 @@ if(isset($argv)){
 			
 			// Update IP data
 			$stats->ipInfo = $ipInfo;
-			$data = serialize($ipInfo);
-			@file_put_contents(WORKDIR_PATH."/suspicious_ips", $data);
+			if(!isset($opts['test'])){
+				$data = serialize($ipInfo);
+				@file_put_contents(WORKDIR_PATH."/suspicious_ips", $data);
+			}
 			
 			echo "Pattern match count: ".$matchCount."\n";
-			echo "Suspicious IPs after processing: ".count($stats->ipInfo)."\n";
-			echo "Blacklisted IPs after processing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Suspicious IP addresses after processing: ".count($stats->ipInfo)."\n";
+			echo "Blacklisted IP addresses after processing: ".$stats->getBlacklistedIpCount()."\n";
 			
-			echo "Apache access log file parsing finished and IP data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
-			$log->write("Apache access log file parsing finished and IP data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			echo "Apache access log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
+			$log->write("Apache access log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
 			exit(0);
 			
 		} else{
@@ -185,7 +188,7 @@ if(isset($argv)){
 			}
 			
 			$sshdLogFile = array();
-			$sshdLogFile['path'] = $argv[2];
+			$sshdLogFile['path'] = $path;
 			$sshdLogFile['offset'] = 0;
 			
 			// Info about suspicious IPs
@@ -193,12 +196,12 @@ if(isset($argv)){
 			$data = @file_get_contents(WORKDIR_PATH."/suspicious_ips");
 			if($data != false){
 				$ipInfo = unserialize($data);
-				$log->write("Suspicious IP data loaded!");
+				$log->write("Suspicious IP address data loaded!");
 			}
 			$stats->ipInfo = $ipInfo;
 			
-			echo "Suspicious IPs before processing: ".count($stats->ipInfo)."\n";
-			echo "Blacklisted IPs before processing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Suspicious IP addresses before processing: ".count($stats->ipInfo)."\n";
+			echo "Blacklisted IP addresses before processing: ".$stats->getBlacklistedIpCount()."\n";
 			
 			// Check for entries in SSHd log file
 			$updateHostData = false;
@@ -207,15 +210,17 @@ if(isset($argv)){
 			
 			// Update IP data
 			$stats->ipInfo = $ipInfo;
-			$data = serialize($ipInfo);
-			@file_put_contents(WORKDIR_PATH."/suspicious_ips", $data);
+			if(!isset($opts['test'])){
+				$data = serialize($ipInfo);
+				@file_put_contents(WORKDIR_PATH."/suspicious_ips", $data);
+			}
 			
 			echo "Pattern match count: ".$matchCount."\n";
-			echo "Suspicious IPs after processing: ".count($stats->ipInfo)."\n";
-			echo "Blacklisted IPs after processing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Suspicious IP addresses after processing: ".count($stats->ipInfo)."\n";
+			echo "Blacklisted IP addresses after processing: ".$stats->getBlacklistedIpCount()."\n";
 			
-			echo "SSHd log file parsing finished and IP data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
-			$log->write("SSHd log file parsing finished and IP data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			echo "SSHd log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
+			$log->write("SSHd log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
 			exit(0);
 		} else{
 			echo "Path to log file not provided!\n";
@@ -346,7 +351,7 @@ if(isset($argv)){
 			$data = @file_get_contents(WORKDIR_PATH."/suspicious_ips");
 			if($data != false){
 				$ipInfo = unserialize($data);
-				$log->write("Suspicious IP data loaded!");
+				$log->write("Suspicious IP address data loaded!");
 			}
 			$stats->ipInfo = $ipInfo;
 			
@@ -368,7 +373,7 @@ if(isset($argv)){
 					// Suspicious IP data
 					$ipInfoMTimeNew = filemtime(WORKDIR_PATH."/suspicious_ips");
 					if($ipInfoMTime != $ipInfoMTimeNew){
-						$log->write("Suspicious IP data has been changed, reloading data for deamon!");
+						$log->write("Suspicious IP address data has been changed, reloading data for deamon!");
 						$data = @file_get_contents(WORKDIR_PATH."/suspicious_ips");
 						if($data != false){
 							$ipInfo = unserialize($data);
@@ -435,7 +440,7 @@ if(isset($argv)){
 							$updateAccessFiles = true;
 							$blacklistedIpCount = $stats->getBlacklistedIpCount();
 						}
-						$log->write("Suspicious IP data updated!");
+						$log->write("Suspicious IP address data updated!");
 					}
 					
 					// Update offsets
@@ -493,7 +498,7 @@ if(isset($argv)){
 				// Sleep half a second before next iteration
 				usleep(500000);
 			}
-			$log->write("Total suspicious IPs: ".count($ipInfo));
+			$log->write("Total suspicious IP addresses: ".count($ipInfo));
 			$log->write("Shutdown");
 			exit(0);
 		}
@@ -507,10 +512,10 @@ if(isset($argv)){
 		echo '
 --help                                      - show this help information
 --statistics                                - show statistics
---list                                      - show list of blacklisted IPs
---list --count                              - show list of blacklisted IPs with suspicious activity count
---list --time                               - show list of blacklisted IPs with last suspicious activity time
---list --count --time                       - show list of blacklisted IPs with suspicious activity count and last suspicious activity time
+--list                                      - show list of blacklisted IP addresses
+--list --count                              - show list of blacklisted IP addresses with suspicious activity count
+--list --time                               - show list of blacklisted IP addresses with last suspicious activity time
+--list --count --time                       - show list of blacklisted IP addresses with suspicious activity count and last suspicious activity time
 --parse-apache-log --path=<path>            - parse Apache access log file
 --parse-ssh-log --path=<path> --year=<year> - parse SSHd log file
 --daemon                                    - run as daemon
