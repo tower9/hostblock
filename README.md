@@ -4,6 +4,48 @@ Automatic blocking of remote IP hosts attacking Apache or SSHd. PHP script parse
 
 Script uses regex patterns to match suspicious entries in log files - you should modify them to match your needs. For example, I don't have phpmyadmin, so all HTTP requests with such URL I'm considering as suspicious.
 
+## Setup
+
+Will write this section later
+
+## Usage
+
+To start
+```
+# /etc/init.d/hostblock start
+```
+To stop
+```
+# /etc/init.d/hostblock stop
+```
+Output usage
+```
+# hostblock -h
+```
+Statistics
+```
+# hostblock -s
+```
+List all blacklisted IP addresses
+```
+# hostblock -l
+```
+List all blacklisted IP addresses with suspicious activity count, refused SSH connect count and time of last activity
+```
+# hostblock -lct
+```
+HostBlock also allows to parse old files to increase statistics
+
+Manually parse Apache access log file
+```
+# hostblock -a -p/var/log/apache/access_log
+```
+Manually parse SSHd log file, that has data of 2013 year
+```
+# hostblock -h -p/var/log/messages -y2013
+```
+*Note, that by loading single file twice HostBlock will count same suspicious activity twice!*
+
 ## Story
 
 I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use and now I'm using it as an Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. I didn't wanted anyone to break into my test server, so I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity, before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). You can never know if attacker don't get lucky with bruteforce, especially if you ignore such messages in log files. Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much invalid authorizations you allow.

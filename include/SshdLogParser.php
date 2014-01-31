@@ -7,6 +7,7 @@ class SshdLogParser{
 		'%d' => '(?P<datetime>\S+ \d+ \d+:\d+:\d+)',// Date time
 		'%h' => '(?P<hostname>\S+)',// Hostname of server
 		'%p' => '(?P<pid>\d+)',// Process PID
+		'%s' => '\S+',// Anything, can be used for line end
 	);
 	// Object for log file writing
 	public $log = null;
@@ -14,18 +15,19 @@ class SshdLogParser{
 	public $formats = array(
 		"%d %h sshd\[%p\]: Invalid user %u from %i",
 	);
+	public $refusedFormat = "%d %h sshd\[%p\]: refused connect from %i %s";
 	// Parsed line data
 	private $data = array();
 	
 	/**
 	 * Parse SSHd log file
 	 * 
-	 * @param array $sshdLogFile
-	 * @param array $ipInfo
-	 * @param boolean $updateHostData
-	 * @param boolean $updateOffsets
-	 * @param string $year
-	 * @return number
+	 * @param array $sshdLogFile with information about SSHd log file (path, offset)
+	 * @param array $ipInfo with information about suspicious IP addresses
+	 * @param boolean $updateHostData will be updated to true if $ipInfo is updated
+	 * @param boolean $updateOffsets will be updated to true if new lines were parsed
+	 * @param string $year when activity in SSHd log file is written
+	 * @return integer with suspicious activity pattern match count
 	 */
 	public function parseFile(&$sshdLogFile, &$ipInfo, &$updateHostData, &$updateOffsets, $year=null){
 		$newMatchCount = 0;
@@ -48,13 +50,14 @@ class SshdLogParser{
 					$line = trim($line);
 					// We check only lines with "sshd"
 					if(preg_match("/sshd/", $line)){
-						// If we are able to parse a line and it matches "Invalid user"
-						if($this->parseLine($line) == true){
+						// Parse line
+						$parseResult = $this->parseLine($line);
+						if($parseResult === 1){// If line matches one of defined formats for suspicious activity
 							// Init count for ip if it is first time we see it
 							if(!isset($ipInfo[$this->data['ip']])) $ipInfo[$this->data['ip']] = array(
-									'count' => 0,
+								'count' => 0,
 							);
-							// Increase pattern match count
+							// Increase suspicious activity match count
 							$ipInfo[$this->data['ip']]['count']++;
 							// Try parsing time of request
 							$datetime = substr($this->data['datetime'],0,3)."-".substr($this->data['datetime'],4,2)."-".$year.substr($this->data['datetime'],7);
@@ -64,10 +67,27 @@ class SshdLogParser{
 							$updateHostData = true;
 							// We found new match against pattern
 							$newMatchCount++;
+						} elseif($parseResult === 2){// If line matches refused connect format
+							// Init count for ip if it is first time we see it
+							if(!isset($ipInfo[$this->data['ip']])) $ipInfo[$this->data['ip']] = array(
+								'count' => 0,
+								'refused' => 0,
+							);
+							if(!isset($ipInfo[$this->data['ip']]['refused'])){
+								$ipInfo[$this->data['ip']]['refused'] = 0;
+							}
+							// Increase refused match count
+							$ipInfo[$this->data['ip']]['refused']++;
+							// Try parsing time of request
+							$datetime = substr($this->data['datetime'],0,3)."-".substr($this->data['datetime'],4,2)."-".$year.substr($this->data['datetime'],7);
+							$time = strtotime($datetime);
+							if($time != false && (!isset($ipInfo[$this->data['ip']]['lastactivity']) || $ipInfo[$this->data['ip']]['lastactivity'] < $time)) $ipInfo[$this->data['ip']]['lastactivity'] = $time;
+							// We need to update host data, because we changed IP refused count
+							$updateHostData = true;
 						}
 					}
 				}
-				// Slepp for 1 microsecond (so that we don't take all CPU resources and leave small part for other processes
+				// Slepp for 1 microsecond (so that we don't take all CPU resources and leave small part for other processes in case we need to parse a lot of data
 				usleep(1);
 			}
 			// Get current offset
@@ -94,9 +114,9 @@ class SshdLogParser{
 	private function parseLine($line){
 		// Init data
 		$this->data = array();
+		// Get keys of patterns
+		$tmp = array_keys($this->patterns);
 		foreach($this->formats as &$format){
-			// Get keys of patterns
-			$tmp = array_keys($this->patterns);
 			// Replace format identifiers with regexp patterns to create pattern for whole line
 			$formatPattern = str_replace($tmp, $this->patterns, $format);
 			// Escape quotes in pattern
@@ -113,10 +133,28 @@ class SshdLogParser{
 				if(isset($data['hostname'])) $this->data['hostname'] = $data['hostname'];
 				if(isset($data['pid'])) $this->data['pid'] = $data['pid'];
 			}
-			if(count($this->data) > 0) return true;
+			if(count($this->data) > 0) return 1;
 		}
+		// If suspicious activity not detected, then we check if this line contains refused connect
+		// Replace format identifiers with regexp patterns to create pattern for whole line
+		$formatPattern = str_replace($tmp, $this->patterns, $this->refusedFormat);
+		// Escape quotes in pattern
+		$formatPattern = str_replace("\"", "\\\"", $formatPattern);
+		$formatPattern = "/^".$formatPattern."/";
+		$data = array();
+		// Perform a match on line with format
+		preg_match($formatPattern, $line, $data);
+		// If match succeeded, then we try to get some data
+		if(count($data) > 0){
+			if(isset($data['ip'])) $this->data['ip'] = $data['ip'];
+			if(isset($data['username'])) $this->data['username'] = $data['username'];
+			if(isset($data['datetime'])) $this->data['datetime'] = $data['datetime'];
+			if(isset($data['hostname'])) $this->data['hostname'] = $data['hostname'];
+			if(isset($data['pid'])) $this->data['pid'] = $data['pid'];
+		}
+		if(count($this->data) > 0) return 2;
 		
-		return false;
+		return 0;
 	}
 }
 ?>

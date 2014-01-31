@@ -67,7 +67,7 @@ class AccessUpdate{
 			while(!feof($f)){
 				// Read line
 				$line = fgets($f,4096);
-				// We are interested only in lines that contain "Deny from"
+				// We are interested only in lines that contain "sshd"
 				if(preg_match("/sshd/", $line)){
 					// Trim whitespaces
 					$line = trim($line);
@@ -75,7 +75,7 @@ class AccessUpdate{
 					$parts = preg_split("/\s+/", $line);
 					foreach($parts as &$part){
 						if(ip2long($part) !== false){
-							// Check if ip that is written in access file is in blacklist
+							// If ip that is written in access file is in blacklist
 							if(in_array($part, $blacklistedIps)){
 								$newContents .= $line."\n";
 								$alreadyInFile[] = $part;

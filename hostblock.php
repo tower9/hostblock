@@ -157,8 +157,11 @@ if(isset($argv)){
 			echo "Suspicious IP addresses after processing: ".count($stats->ipInfo)."\n";
 			echo "Blacklisted IP addresses after processing: ".$stats->getBlacklistedIpCount()."\n";
 			
-			echo "Apache access log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
-			$log->write("Apache access log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			$log->write("Apache access log file parsing finished.");
+			if(!isset($opts['test'])){
+				echo "IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
+				$log->write("IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			}
 			exit(0);
 			
 		} else{
@@ -186,6 +189,9 @@ if(isset($argv)){
 			if(isset($config['sshformats']) && count($config['sshformats']) > 0){
 				$sshdLogParser->formats = $config['sshformats'];
 			}
+			if(isset($config['sshrefusedformat']) && !empty($config['sshrefusedformat'])){
+				$sshdLogParser->refusedFormat = $config['sshrefusedformat'];
+			}
 			
 			$sshdLogFile = array();
 			$sshdLogFile['path'] = $path;
@@ -200,8 +206,9 @@ if(isset($argv)){
 			}
 			$stats->ipInfo = $ipInfo;
 			
-			echo "Suspicious IP addresses before processing: ".count($stats->ipInfo)."\n";
-			echo "Blacklisted IP addresses before processing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Suspicious IP addresses before parsing: ".count($stats->ipInfo)."\n";
+			echo "Blacklisted IP addresses before parsing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Total refused SSH authorization count before parsing: ".$stats->getTotalRefusedConnectCount()."\n";
 			
 			// Check for entries in SSHd log file
 			$updateHostData = false;
@@ -216,11 +223,15 @@ if(isset($argv)){
 			}
 			
 			echo "Pattern match count: ".$matchCount."\n";
-			echo "Suspicious IP addresses after processing: ".count($stats->ipInfo)."\n";
-			echo "Blacklisted IP addresses after processing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Suspicious IP addresses after parsing: ".count($stats->ipInfo)."\n";
+			echo "Blacklisted IP addresses after parsing: ".$stats->getBlacklistedIpCount()."\n";
+			echo "Total refused SSH authorization count after parsing: ".$stats->getTotalRefusedConnectCount()."\n";
 			
-			echo "SSHd log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
-			$log->write("SSHd log file parsing finished and IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			$log->write("SSHd log file parsing finished.");
+			if(!isset($opts['test'])){
+				echo "IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
+				$log->write("IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			}
 			exit(0);
 		} else{
 			echo "Path to log file not provided!\n";
@@ -345,6 +356,9 @@ if(isset($argv)){
 			if(isset($config['sshformats']) && count($config['sshformats']) > 0){
 				$sshdLogParser->formats = $config['sshformats'];
 			}
+			if(isset($config['sshrefusedformat']) && !empty($config['sshrefusedformat'])){
+				$sshdLogParser->refusedFormat = $config['sshrefusedformat'];
+			}
 			
 			// Info about suspicious IPs
 			$ipInfo = array();
@@ -364,27 +378,29 @@ if(isset($argv)){
 			$updateAccessFiles = false;
 			$blacklistedIpCount = $stats->getBlacklistedIpCount();
 			$lastFileCheckTime = time();
-			$ipInfoMTime = filemtime(WORKDIR_PATH."/suspicious_ips");
+			if(file_exists(WORKDIR_PATH."/suspicious_ips")) $ipInfoMTime = filemtime(WORKDIR_PATH."/suspicious_ips");
 			if(!is_null($config['blacklist'])) $blacklistMTime = filemtime($config['blacklist']);
 			if(!is_null($config['whitelist'])) $whitelistMTime = filemtime($config['whitelist']);
 			while($running){
 				// Check each 60 seconds if data files are updated and reload if needed
 				if(time() - $lastFileCheckTime >= 60){
 					// Suspicious IP data
-					$ipInfoMTimeNew = filemtime(WORKDIR_PATH."/suspicious_ips");
-					if($ipInfoMTime != $ipInfoMTimeNew){
-						$log->write("Suspicious IP address data has been changed, reloading data for deamon!");
-						$data = @file_get_contents(WORKDIR_PATH."/suspicious_ips");
-						if($data != false){
-							$ipInfo = unserialize($data);
-							$log->write("Suspicious IP data loaded!");
+					if(file_exists(WORKDIR_PATH."/suspicious_ips")){
+						$ipInfoMTimeNew = filemtime(WORKDIR_PATH."/suspicious_ips");
+						if($ipInfoMTime != $ipInfoMTimeNew){
+							$log->write("Suspicious IP address data has been changed, reloading data for deamon!");
+							$data = @file_get_contents(WORKDIR_PATH."/suspicious_ips");
+							if($data != false){
+								$ipInfo = unserialize($data);
+								$log->write("Suspicious IP data loaded!");
+							}
+							$stats->ipInfo = $ipInfo;
+							if($blacklistedIpCount != $stats->getBlacklistedIpCount()){
+								$updateAccessFiles = true;
+								$blacklistedIpCount = $stats->getBlacklistedIpCount();
+							}
+							$ipInfoMTime = $ipInfoMTimeNew;
 						}
-						$stats->ipInfo = $ipInfo;
-						if($blacklistedIpCount != $stats->getBlacklistedIpCount()){
-							$updateAccessFiles = true;
-							$blacklistedIpCount = $stats->getBlacklistedIpCount();
-						}
-						$ipInfoMTime = $ipInfoMTimeNew;
 					}
 					// Blacklist/whitelist
 					$reloadStatsBlacklist = false;

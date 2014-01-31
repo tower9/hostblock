@@ -89,14 +89,18 @@ class Stats{
 			$this->data['top5'] = array();
 			$this->data['top5']['ip'] = array();
 			$this->data['top5']['count'] = array();
+			$this->data['top5']['refused'] = array();
 			$this->data['top5']['lastactivity'] = array();
 			$this->data['last5'] = array();
 			$this->data['last5']['ip'] = array();
 			$this->data['last5']['count'] = array();
+			$this->data['last5']['refused'] = array();
 			$this->data['last5']['lastactivity'] = array();
 			
 			// Loop through all IPs
 			foreach($this->ipInfo as $k => $v){
+				if(!isset($v['refused'])) $v['refused'] = 0;
+				
 				// Blacklisted IP count
 				if($v['count'] >= $this->suspiciousEntryMatchCount && (($currentTime - $v['lastactivity']) <= $this->blacklistTime || $this->blacklistTime == 0) && !in_array($k,$this->exclude)){
 					$this->data['blacklisted_ip_count']++;
@@ -106,6 +110,7 @@ class Stats{
 				if(count($this->data['last5']['ip']) < 5){// First we fill up last5 array
 					$this->data['last5']['ip'][] = $k;
 					$this->data['last5']['count'][] = $v['count'];
+					$this->data['last5']['refused'][] = $v['refused'];
 					$this->data['last5']['lastactivity'][] = $v['lastactivity'];
 				} else{// Then we update with IPs that have more recent activity
 					$keys = array_keys($this->data['last5']['lastactivity'],min($this->data['last5']['lastactivity']));
@@ -113,6 +118,7 @@ class Stats{
 						if($this->data['last5']['lastactivity'][$keys[0]] < $v['lastactivity']){
 							$this->data['last5']['ip'][$keys[0]] = $k;
 							$this->data['last5']['count'][$keys[0]] = $v['count'];
+							$this->data['last5']['refused'][$keys[0]] = $v['refused'];
 							$this->data['last5']['lastactivity'][$keys[0]] = $v['lastactivity'];
 						}
 					}
@@ -122,6 +128,7 @@ class Stats{
 				if(count($this->data['top5']['ip']) < 5){// First we fill up top5 array
 					$this->data['top5']['ip'][] = $k;
 					$this->data['top5']['count'][] = $v['count'];
+					$this->data['top5']['refused'][] = $v['refused'];
 					$this->data['top5']['lastactivity'][] = $v['lastactivity'];
 				} else{// Then we update with IPs that have more counts
 					$keys = array_keys($this->data['top5']['count'],min($this->data['top5']['count']));
@@ -129,6 +136,7 @@ class Stats{
 						if($this->data['top5']['count'][$keys[0]] < $v['count']){
 							$this->data['top5']['ip'][$keys[0]] = $k;
 							$this->data['top5']['count'][$keys[0]] = $v['count'];
+							$this->data['top5']['refused'][$keys[0]] = $v['refused'];
 							$this->data['top5']['lastactivity'][$keys[0]] = $v['lastactivity'];
 						}
 					}
@@ -136,10 +144,10 @@ class Stats{
 			}
 			
 			// Sort top 5 array
-			array_multisort($this->data['top5']['count'], SORT_DESC, $this->data['top5']['ip'], $this->data['top5']['lastactivity']);
+			array_multisort($this->data['top5']['count'], SORT_DESC, $this->data['top5']['ip'], $this->data['top5']['lastactivity'], $this->data['top5']['refused']);
 			
 			// Sort last 5 array
-			array_multisort($this->data['last5']['lastactivity'], SORT_DESC, $this->data['last5']['ip'], $this->data['last5']['count']);
+			array_multisort($this->data['last5']['lastactivity'], SORT_DESC, $this->data['last5']['ip'], $this->data['last5']['count'], $this->data['last5']['refused']);
 		}
 	}
 	
@@ -149,30 +157,38 @@ class Stats{
 	public function output(){
 		if(count($this->ipInfo) > 0){
 			echo "\n";
-			echo "Total suspicious IPs: ".count($this->ipInfo)."\n";
-			echo "Blacklisted IPs: ".$this->data['blacklisted_ip_count']."\n";
+			echo "Total suspicious IP address count: ".count($this->ipInfo)."\n";
+			echo "Blacklisted IP address count: ".$this->data['blacklisted_ip_count']."\n";
 			echo "\n";
-			echo "Top 5 most active IPs:\n";
+			echo "Top 5 most active IP addresses:\n";
 			$countPadLength = strlen($this->data['top5']['count'][0]);
 			if($countPadLength < 5) $countPadLength = 5;
-			echo "-------------------".str_repeat("-", $countPadLength)."-----------------------\n";
-			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." |   Last activity\n";
-			echo "-------------------".str_repeat("-", $countPadLength)."-----------------------\n";
-			foreach($this->data['top5']['ip'] as $k => $v){
-				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['top5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".date("d.m.Y H:i:s", $this->data['top5']['lastactivity'][$k])."\n";
+			$refusedPadLength = 7;
+			foreach($this->data['top5']['refused'] as &$refusedCount){
+				if(strlen($refusedCount) > $refusedPadLength) $refusedPadLength = strlen($refusedCount);
 			}
-			echo "-------------------".str_repeat("-", $countPadLength)."-----------------------\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." | ".str_pad("Refused",$refusedPadLength," ",STR_PAD_BOTH)." |   Last activity\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			foreach($this->data['top5']['ip'] as $k => $v){
+				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['top5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".str_pad($this->data['top5']['refused'][$k],$refusedPadLength," ",STR_PAD_BOTH)." | ".date("d.m.Y H:i:s", $this->data['top5']['lastactivity'][$k])."\n";
+			}
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
 			echo "\n";
-			echo "Last 5 IPs:\n";
+			echo "Last activity:\n";
 			$countPadLength = strlen($this->data['last5']['count'][0]);
 			if($countPadLength < 5) $countPadLength = 5;
-			echo "-------------------".str_repeat("-", $countPadLength)."-----------------------\n";
-			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." |   Last activity\n";
-			echo "-------------------".str_repeat("-", $countPadLength)."-----------------------\n";
-			foreach($this->data['last5']['ip'] as $k => $v){
-				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['last5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".date("d.m.Y H:i:s", $this->data['last5']['lastactivity'][$k])."\n";
+			$refusedPadLength = 7;
+			foreach($this->data['last5']['refused'] as &$refusedCount){
+				if(strlen($refusedCount) > $refusedPadLength) $refusedPadLength = strlen($refusedCount);
 			}
-			echo "-------------------".str_repeat("-", $countPadLength)."-----------------------\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." | ".str_pad("Refused",$refusedPadLength," ",STR_PAD_BOTH)." |   Last activity\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			foreach($this->data['last5']['ip'] as $k => $v){
+				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['last5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".str_pad($this->data['last5']['refused'][$k],$refusedPadLength," ",STR_PAD_BOTH)." | ".date("d.m.Y H:i:s", $this->data['last5']['lastactivity'][$k])."\n";
+			}
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
 			echo "\n";
 		} else{
 			echo "No data!\n";
@@ -187,13 +203,17 @@ class Stats{
 		if(count($this->ipInfo) > 0){
 			// Find max count value
 			$maxCount = 0;
+			$maxRefused = 0;
 			foreach($this->ipInfo as &$ip){
 				if($ip['count'] > $maxCount) $maxCount = $ip['count'];
+				if(isset($ip['refused']) && $ip['refused'] > $maxRefused) $maxRefused = $ip['refused'];
 			}
 			$countPadLength = strlen($maxCount);
+			$refusedPadLength = strlen($maxRefused);
 			// Loop through all suspicious IPs
 			foreach($this->ipInfo as $k => $v){
 				if($v['count'] >= $this->suspiciousEntryMatchCount && (($currentTime - $v['lastactivity']) <= $this->blacklistTime || $this->blacklistTime == 0) && !in_array($k,$this->exclude)){
+					echo "a ";
 					if(in_array($k,$this->include)){
 						$this->log->write("IP address ".$k." is blacklisted by hostblock and is also included in permanent blacklist! Consider removing duplicate from permanent blacklist!");
 						continue;
@@ -201,6 +221,8 @@ class Stats{
 					echo str_pad($k,15);
 					if($count == true){
 						echo " ".str_pad($v['count'],$countPadLength," ");
+						if(isset($v['refused'])) echo " ".str_pad($v['refused'],$refusedPadLength," ");
+						else echo " ".str_pad("0",$refusedPadLength," ");
 					}
 					if($time == true){
 						echo " ".date("d.m.Y H:i:s", $v['lastactivity']);
@@ -208,10 +230,25 @@ class Stats{
 					echo "\n";
 				}
 			}
-			foreach($this->include as $ip){
+			foreach($this->include as &$ip){
+				echo "m ";
 				echo str_pad($ip,15);
-				if($count == true || $time == true){
-					echo " manual entry";
+				if($count == true){
+					if(isset($this->ipInfo[$ip])){
+						echo " ".str_pad($this->ipInfo[$ip]['count'],$countPadLength," ");
+						if(isset($this->ipInfo[$ip]['refused'])) echo " ".str_pad($this->ipInfo[$ip]['refused'],$refusedPadLength," ");
+						else echo " ".str_pad("0",$refusedPadLength," ");
+					} else{
+						echo " ".str_pad("0",$countPadLength," ");
+						echo " ".str_pad("0",$refusedPadLength," ");
+					}
+				}
+				if($time == true){
+					if(isset($this->ipInfo[$ip])){
+						echo " ".date("d.m.Y H:i:s", $this->ipInfo[$ip]['lastactivity']);
+					} else{
+						echo "                    ";
+					}
 				}
 				echo "\n";
 			}
@@ -259,6 +296,22 @@ class Stats{
 						continue;
 					}
 					$count++;
+				}
+			}
+		}
+		return $count;
+	}
+	
+	/**
+	 * Get total refused connect count
+	 * @return number
+	 */
+	public function getTotalRefusedConnectCount(){
+		$count = 0;
+		if(count($this->ipInfo) > 0){
+			foreach($this->ipInfo as $ip){
+				if(isset($ip['refused'])){
+					$count += $ip['refused'];
 				}
 			}
 		}
