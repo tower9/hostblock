@@ -1,25 +1,33 @@
 <?php
+/**
+ * Access file (.htaccess and hosts.deny) update class.
+ * 
+ * @author Rolands Kusiņš
+ * @license GPL
+ * 
+ */
 class AccessUpdate{
 	// Log object to write some info in log files
 	public $log = null;
 	
 	/**
 	 * Update Apache access file with "Deny from" entries
+	 * 
 	 * @param string $path
 	 * @param array $blacklistedIps
 	 */
 	public function updateApacheAccessFile(&$path, &$blacklistedIps){
 		$newContents = "";
 		$alreadyInFile = array();
-		// Open file
+		// Open access file
 		$f = @fopen($path,"r");
 		if($f){
 			// Check which lines we need to keep and which ones we need to remove
 			while(!feof($f)){
 				// Read line
 				$line = fgets($f,4096);
-				// We are interested only in lines that contain "Deny from"
-				if(preg_match("/Deny from/", $line)){
+				// We are interested only in lines that contain "deny from"
+				if(preg_match("/deny from/i", $line)){
 					// Trim whitespaces
 					$line = trim($line);
 					// Split by space or whitespace
@@ -54,13 +62,14 @@ class AccessUpdate{
 	
 	/**
 	 * Update hosts.deny file with "sshd: " entries
+	 * 
 	 * @param string $path
 	 * @param array $blacklistedIps
 	 */
 	public function updateHostsDenyFile(&$path, &$blacklistedIps){
 		$newContents = "";
 		$alreadyInFile = array();
-		// Open file
+		// Open hosts.deny file
 		$f = @fopen($path,"r");
 		if($f){
 			// Check which lines we need to keep and which ones we need to remove
@@ -68,7 +77,7 @@ class AccessUpdate{
 				// Read line
 				$line = fgets($f,4096);
 				// We are interested only in lines that contain "sshd"
-				if(preg_match("/sshd/", $line)){
+				if(preg_match("/sshd/i", $line)){
 					// Trim whitespaces
 					$line = trim($line);
 					// Split by space or whitespace

@@ -1,13 +1,22 @@
 <?php
+/**
+ * Log writing class
+ * 
+ * @author Rolands Kusiņš
+ * @license GPL
+ *
+ */
 class Log{
 	// Array with file handlers that are currently open, we keep the files open while this class is used
-	public $files = array();
+	private $files = array();
+	// Directory where to write log files
 	public $logDirectory = "/var/log";
 	
 	/**
-	 * On destruct we close all open file handlers
+	 * On destruct
 	 */
 	public function __destruct(){
+		// Close all open files
 		foreach($this->files as &$file){
 			@fclose($file);
 		}
@@ -19,7 +28,7 @@ class Log{
 	 * @param string $log
 	 */
 	public function write($message, $log="main"){
-		// Check if file is open
+		// If file is not open
 		if(!isset($this->files[$log]) || !$this->files[$log]){
 			if($log == "main"){
 				$this->files["main"] = @fopen($this->logDirectory."/hostblock.log", "a");

@@ -6,7 +6,7 @@ Script uses regex patterns to match suspicious entries in log files - you should
 
 ## Setup
 
- - Download hostblock sources from [GitHub](https://github.com/tower9/hostblock/archive/master.zip) and extract in some temporary directory
+ - Download hostblock sources from [GitHub](https://github.com/tower9/hostblock/archive/master.zip) or [PHP classes](http://www.phpclasses.org/browse/package/8458/download/targz.html) and extract in some temporary directory
  - In PHP include path directory (include_path directive in php.ini file) create directory hostblock and copy all files from include directory to newly created directory
 ```
 # mkdir /usr/share/php5/hostblock
@@ -51,6 +51,10 @@ Script uses regex patterns to match suspicious entries in log files - you should
  - Change init script permissions to 755
 ```
 # chmod 755 /etc/init.d/hostblock
+```
+ - Start daemon, note that it might take some time to start for a first time if specified log files are big
+```
+# /etc/init.d/hostblock start
 ```
 
 ## Usage

@@ -1,4 +1,11 @@
 <?php
+/**
+ * Apache access_log file parser.
+ * 
+ * @author Rolands Kusiņš
+ * @license GPL
+ *
+ */
 class ApacheAccessLogParser{
 	// Regex patterns for log file format
 	private $patterns = array(
@@ -23,6 +30,7 @@ class ApacheAccessLogParser{
 	
 	/**
 	 * Check Apache access log file for new entries and match against patterns
+	 * 
 	 * @param array $apacheAccessLogFile
 	 * @param $ipInfo
 	 * @param $updateHostData
@@ -36,7 +44,7 @@ class ApacheAccessLogParser{
 		if($fileSize < $apacheAccessLogFile['offset']){
 			$apacheAccessLogFile['offset'] = 0;
 		}
-		// Open apache log file for reading
+		// Open apache access log file for reading
 		$f = @fopen($apacheAccessLogFile['path'],"r");
 		if($f){
 			// Seek to last position we know
@@ -72,7 +80,7 @@ class ApacheAccessLogParser{
 						$this->log->write("Unable to parse line! ".$apacheAccessLogFile['path'].": ".$line,"error");
 					}
 				}
-				// Slepp for 10 microseconds (so that we don't take all CPU resources and leave small part for other processes
+				// Slepp for 10 microseconds (so that we don't take all CPU resources and leave small part to other processes
 				usleep(10);
 			}
 			// Get current offset
@@ -91,6 +99,7 @@ class ApacheAccessLogParser{
 	
 	/**
 	 * Parse single line
+	 * 
 	 * @param string $line
 	 * @return boolean
 	 */
@@ -126,6 +135,7 @@ class ApacheAccessLogParser{
 	
 	/**
 	 * Match patterns against request to find suspicious activities
+	 * 
 	 * @return boolean
 	 */
 	private function matchSuspiciousPatterns(){

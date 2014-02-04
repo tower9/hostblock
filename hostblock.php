@@ -5,6 +5,9 @@
  * 
  * Simple utility that parses log files and updates access files to deny access
  * to suspicious hosts.
+ * 
+ * @author Rolands Kusiņš
+ * @license GPL
  */
 
 // Allow execution only from console
@@ -486,7 +489,7 @@ if(isset($argv)){
 				// If it is time to check if update to blacklist is needed
 				if(time() - $lastUpdateTime >= $config['blacklistupdateinterval']){
 					if($updateAccessFiles == true){
-						// Update white&black lists
+						// Get white&black lists
 						$stats->loadBlacklist();
 						// Get blacklisted IPs
 						$blacklistedIps = $stats->getBlacklistedIps();

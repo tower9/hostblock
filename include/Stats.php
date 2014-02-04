@@ -1,4 +1,11 @@
 <?php
+/**
+ * HostBlock statistics calculation and output class
+ * 
+ * @author Rolands Kusiņš
+ * @license GPL
+ *
+ */
 class Stats{
 	// Path to file with IP info
 	public $suspiciousIpsPath = "";
@@ -22,7 +29,7 @@ class Stats{
 	private $exclude = array();
 	
 	/**
-	 * Load data about IPs that needs to be perminately included or excluded
+	 * Load IP addresses that we need to perminately include or exclude from blacklist
 	 */
 	public function loadBlacklist(){
 		// Clear blacklist/whitelist arrays
@@ -65,7 +72,7 @@ class Stats{
 	}
 	
 	/**
-	 * Load data about suspicious IPs
+	 * Load data about suspicious IP addresses
 	 */
 	public function load(){
 		// Read IP data
@@ -84,7 +91,7 @@ class Stats{
 		$this->data = array();
 		$currentTime = time();
 		if(count($this->ipInfo) > 0){
-			// Init data
+			// Init array
 			$this->data['blacklisted_ip_count'] = count($this->include);
 			$this->data['top5'] = array();
 			$this->data['top5']['ip'] = array();
@@ -97,22 +104,22 @@ class Stats{
 			$this->data['last5']['refused'] = array();
 			$this->data['last5']['lastactivity'] = array();
 			
-			// Loop through all IPs
+			// Loop through all IP addresses
 			foreach($this->ipInfo as $k => $v){
 				if(!isset($v['refused'])) $v['refused'] = 0;
 				
-				// Blacklisted IP count
+				// Blacklisted IP address count
 				if($v['count'] >= $this->suspiciousEntryMatchCount && (($currentTime - $v['lastactivity']) <= $this->blacklistTime || $this->blacklistTime == 0) && !in_array($k,$this->exclude)){
 					$this->data['blacklisted_ip_count']++;
 				}
 				
-				// Last 5 IPs
+				// Last 5 IP addresses
 				if(count($this->data['last5']['ip']) < 5){// First we fill up last5 array
 					$this->data['last5']['ip'][] = $k;
 					$this->data['last5']['count'][] = $v['count'];
 					$this->data['last5']['refused'][] = $v['refused'];
 					$this->data['last5']['lastactivity'][] = $v['lastactivity'];
-				} else{// Then we update with IPs that have more recent activity
+				} else{// Then we update with IP addresses that have more recent activity
 					$keys = array_keys($this->data['last5']['lastactivity'],min($this->data['last5']['lastactivity']));
 					if(count($keys) > 0){
 						if($this->data['last5']['lastactivity'][$keys[0]] < $v['lastactivity']){
@@ -124,13 +131,13 @@ class Stats{
 					}
 				}
 				
-				// Get top 5 IPs by count
+				// Get top 5 IP addresses by count
 				if(count($this->data['top5']['ip']) < 5){// First we fill up top5 array
 					$this->data['top5']['ip'][] = $k;
 					$this->data['top5']['count'][] = $v['count'];
 					$this->data['top5']['refused'][] = $v['refused'];
 					$this->data['top5']['lastactivity'][] = $v['lastactivity'];
-				} else{// Then we update with IPs that have more counts
+				} else{// Then we update with IP addresses that have more counts
 					$keys = array_keys($this->data['top5']['count'],min($this->data['top5']['count']));
 					if(count($keys) > 0){
 						if($this->data['top5']['count'][$keys[0]] < $v['count']){
@@ -210,7 +217,7 @@ class Stats{
 			}
 			$countPadLength = strlen($maxCount);
 			$refusedPadLength = strlen($maxRefused);
-			// Loop through all suspicious IPs
+			// Loop through all suspicious IP addresses
 			foreach($this->ipInfo as $k => $v){
 				if($v['count'] >= $this->suspiciousEntryMatchCount && (($currentTime - $v['lastactivity']) <= $this->blacklistTime || $this->blacklistTime == 0) && !in_array($k,$this->exclude)){
 					echo "a ";
@@ -230,6 +237,7 @@ class Stats{
 					echo "\n";
 				}
 			}
+			// Loop through all perminately blacklisted IP addresses
 			foreach($this->include as &$ip){
 				echo "m ";
 				echo str_pad($ip,15);
@@ -258,7 +266,7 @@ class Stats{
 	}
 	
 	/**
-	 * Get blacklisted IPs
+	 * Get blacklisted IP addresses
 	 * @return array
 	 */
 	public function getBlacklistedIps(){
@@ -282,7 +290,7 @@ class Stats{
 	}
 	
 	/**
-	 * Get blacklisted IP count
+	 * Get blacklisted IP address count
 	 * @return number
 	 */
 	public function getBlacklistedIpCount(){

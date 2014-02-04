@@ -1,4 +1,11 @@
 <?php
+/**
+ * SSHd log file parser
+ * 
+ * @author Rolands Kusiņš
+ * @license GPL
+ *
+ */
 class SshdLogParser{
 	// Regex patterns for log file format
 	private $patterns = array(
@@ -15,6 +22,7 @@ class SshdLogParser{
 	public $formats = array(
 		"%d %h sshd\[%p\]: Invalid user %u from %i",
 	);
+	// Refused connect line format
 	public $refusedFormat = "%d %h sshd\[%p\]: refused connect from %i %s";
 	// Parsed line data
 	private $data = array();
