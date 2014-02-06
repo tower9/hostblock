@@ -67,16 +67,19 @@ class SshdLogParser{
 							);
 							// Increase suspicious activity match count
 							$ipInfo[$this->data['ip']]['count']++;
-							// Try parsing time of request
-							$datetime = substr($this->data['datetime'],0,3)."-".substr($this->data['datetime'],4,2)."-".$year.substr($this->data['datetime'],7);
+							// Try parsing time of activity
+							$day = (int)substr($this->data['datetime'],4,2);
+							if(strlen($day) == 1) $day = "0".$day;
+							$datetime = substr($this->data['datetime'],0,3)."-".$day."-".$year." ".substr($this->data['datetime'],7);
 							$time = strtotime($datetime);
+							if($time != false && date("Y",$time) != $year) $time = false;// Ignore time, if datetime parsing failed
 							if($time != false && (!isset($ipInfo[$this->data['ip']]['lastactivity']) || $ipInfo[$this->data['ip']]['lastactivity'] < $time)) $ipInfo[$this->data['ip']]['lastactivity'] = $time;
-							// We need to update host data, because we changed IP match count
+							// We need to update host data, because we changed match count
 							$updateHostData = true;
 							// We found new match against pattern
 							$newMatchCount++;
 						} elseif($parseResult === 2){// If line matches refused connect format
-							// Init count for ip if it is first time we see it
+							// Init count for IP address if it is first time we see it
 							if(!isset($ipInfo[$this->data['ip']])) $ipInfo[$this->data['ip']] = array(
 								'count' => 0,
 								'refused' => 0,
@@ -87,10 +90,13 @@ class SshdLogParser{
 							// Increase refused match count
 							$ipInfo[$this->data['ip']]['refused']++;
 							// Try parsing time of request
-							$datetime = substr($this->data['datetime'],0,3)."-".substr($this->data['datetime'],4,2)."-".$year.substr($this->data['datetime'],7);
+							$day = (int)substr($this->data['datetime'],4,2);
+							if(strlen($day) == 1) $day = "0".$day;
+							$datetime = substr($this->data['datetime'],0,3)."-".$day."-".$year." ".substr($this->data['datetime'],7);
 							$time = strtotime($datetime);
+							if($time != false && date("Y",$time) != $year) $time = false;// Ignore time, if datetime parsing failed
 							if($time != false && (!isset($ipInfo[$this->data['ip']]['lastactivity']) || $ipInfo[$this->data['ip']]['lastactivity'] < $time)) $ipInfo[$this->data['ip']]['lastactivity'] = $time;
-							// We need to update host data, because we changed IP refused count
+							// We need to update host data, because we changed refused count
 							$updateHostData = true;
 						}
 					}
