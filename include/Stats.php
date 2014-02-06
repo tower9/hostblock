@@ -220,11 +220,11 @@ class Stats{
 			// Loop through all suspicious IP addresses
 			foreach($this->ipInfo as $k => $v){
 				if($v['count'] >= $this->suspiciousEntryMatchCount && (($currentTime - $v['lastactivity']) <= $this->blacklistTime || $this->blacklistTime == 0) && !in_array($k,$this->exclude)){
-					echo "a ";
 					if(in_array($k,$this->include)){
 						$this->log->write("IP address ".$k." is blacklisted by hostblock and is also included in permanent blacklist! Consider removing duplicate from permanent blacklist!");
 						continue;
 					}
+					echo "a ";
 					echo str_pad($k,15);
 					if($count == true){
 						echo " ".str_pad($v['count'],$countPadLength," ");
