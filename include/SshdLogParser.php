@@ -11,7 +11,7 @@ class SshdLogParser{
 	private $patterns = array(
 		'%i' => '(?P<ip>\d+\.\d+\.\d+\.\d+)',// IP address of client
 		'%u' => '(?P<username>\S+)',// User name
-		'%d' => '(?P<datetime>\S+ \d+ \d+:\d+:\d+)',// Date time
+		'%d' => '(?P<datetime>\S+\s*\d+ \d+:\d+:\d+)',// Date time
 		'%h' => '(?P<hostname>\S+)',// Hostname of server
 		'%p' => '(?P<pid>\d+)',// Process PID
 		'%s' => '\S+',// Anything, can be used for line end
