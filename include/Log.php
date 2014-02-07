@@ -11,6 +11,8 @@ class Log{
 	private $files = array();
 	// Directory where to write log files
 	public $logDirectory = "/var/log";
+	// Datetime format
+	public $dateTimeFormat = "Y-m-d H:i:s";
 	
 	/**
 	 * On destruct
@@ -38,7 +40,7 @@ class Log{
 		}
 		// Write to log file
 		if($this->files[$log]){
-			@fwrite($this->files[$log],"[".date("d.m.Y H:i:s")."] ".$message."\n");
+			@fwrite($this->files[$log],"[".date($this->dateTimeFormat)."] ".$message."\n");
 		}
 	}
 }

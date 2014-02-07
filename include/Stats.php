@@ -27,6 +27,8 @@ class Stats{
 	private $include = array();
 	// IPs from whitelist file
 	private $exclude = array();
+	// Datetime format
+	public $dateTimeFormat = "Y-m-d H:i:s";
 	
 	/**
 	 * Load IP addresses that we need to perminately include or exclude from blacklist
@@ -171,31 +173,35 @@ class Stats{
 			$countPadLength = strlen($this->data['top5']['count'][0]);
 			if($countPadLength < 5) $countPadLength = 5;
 			$refusedPadLength = 7;
-			foreach($this->data['top5']['refused'] as &$refusedCount){
-				if(strlen($refusedCount) > $refusedPadLength) $refusedPadLength = strlen($refusedCount);
+			$dateTimePadLength = 13;
+			foreach($this->data['top5']['refused'] as $k => $v){
+				if(strlen($v) > $refusedPadLength) $refusedPadLength = strlen($v);
+				if(strlen(date($this->dateTimeFormat, $this->data['top5']['lastactivity'][$k])) > $dateTimePadLength) $dateTimePadLength = strlen(date($this->dateTimeFormat, $this->data['top5']['lastactivity'][$k]));
 			}
-			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
-			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." | ".str_pad("Refused",$refusedPadLength," ",STR_PAD_BOTH)." |   Last activity\n";
-			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength).str_repeat("-", $dateTimePadLength)."-------\n";
+			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." | ".str_pad("Refused",$refusedPadLength," ",STR_PAD_BOTH)." | ".str_pad("Last activity",$dateTimePadLength," ",STR_PAD_BOTH)."\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength).str_repeat("-", $dateTimePadLength)."-------\n";
 			foreach($this->data['top5']['ip'] as $k => $v){
-				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['top5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".str_pad($this->data['top5']['refused'][$k],$refusedPadLength," ",STR_PAD_BOTH)." | ".date("d.m.Y H:i:s", $this->data['top5']['lastactivity'][$k])."\n";
+				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['top5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".str_pad($this->data['top5']['refused'][$k],$refusedPadLength," ",STR_PAD_BOTH)." | ".str_pad(date($this->dateTimeFormat, $this->data['top5']['lastactivity'][$k]),$dateTimePadLength," ")."\n";
 			}
-			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength).str_repeat("-", $dateTimePadLength)."-------\n";
 			echo "\n";
 			echo "Last activity:\n";
 			$countPadLength = strlen($this->data['last5']['count'][0]);
 			if($countPadLength < 5) $countPadLength = 5;
 			$refusedPadLength = 7;
-			foreach($this->data['last5']['refused'] as &$refusedCount){
-				if(strlen($refusedCount) > $refusedPadLength) $refusedPadLength = strlen($refusedCount);
+			$dateTimePadLength = 13;
+			foreach($this->data['last5']['refused'] as $k => $v){
+				if(strlen($v) > $refusedPadLength) $refusedPadLength = strlen($v);
+				if(strlen(date($this->dateTimeFormat, $this->data['last5']['lastactivity'][$k])) > $dateTimePadLength) $dateTimePadLength = strlen(date($this->dateTimeFormat, $this->data['last5']['lastactivity'][$k]));
 			}
-			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
-			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." | ".str_pad("Refused",$refusedPadLength," ",STR_PAD_BOTH)." |   Last activity\n";
-			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength).str_repeat("-", $dateTimePadLength)."-------\n";
+			echo "       IP        | ".str_pad("Count",$countPadLength," ",STR_PAD_BOTH)." | ".str_pad("Refused",$refusedPadLength," ",STR_PAD_BOTH)." | ".str_pad("Last activity",$dateTimePadLength," ",STR_PAD_BOTH)."\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength).str_repeat("-", $dateTimePadLength)."-------\n";
 			foreach($this->data['last5']['ip'] as $k => $v){
-				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['last5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".str_pad($this->data['last5']['refused'][$k],$refusedPadLength," ",STR_PAD_BOTH)." | ".date("d.m.Y H:i:s", $this->data['last5']['lastactivity'][$k])."\n";
+				echo " ".str_pad($v,15," ")." | ".str_pad($this->data['last5']['count'][$k],$countPadLength," ",STR_PAD_BOTH)." | ".str_pad($this->data['last5']['refused'][$k],$refusedPadLength," ",STR_PAD_BOTH)." | ".str_pad(date($this->dateTimeFormat, $this->data['last5']['lastactivity'][$k]),$dateTimePadLength," ")."\n";
 			}
-			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength)."--------------------------\n";
+			echo "-------------------".str_repeat("-", $countPadLength).str_repeat("-", $refusedPadLength).str_repeat("-", $dateTimePadLength)."-------\n";
 			echo "\n";
 		} else{
 			echo "No data!\n";
@@ -207,6 +213,11 @@ class Stats{
 	 */
 	public function outputBlacklist($count = false, $time = false){
 		$currentTime = time();
+		if(count($this->ipInfo) == 0 && count($this->include) == 0){
+			echo "No data!\n";
+			return;
+		}
+		// All automatically blacklisted IP addresses
 		if(count($this->ipInfo) > 0){
 			// Find max count value
 			$maxCount = 0;
@@ -232,12 +243,14 @@ class Stats{
 						else echo " ".str_pad("0",$refusedPadLength," ");
 					}
 					if($time == true){
-						echo " ".date("d.m.Y H:i:s", $v['lastactivity']);
+						echo " ".date($this->dateTimeFormat, $v['lastactivity']);
 					}
 					echo "\n";
 				}
 			}
-			// Loop through all perminately blacklisted IP addresses
+		}
+		// All manually blacklisted IP addresses
+		if(count($this->include) > 0){
 			foreach($this->include as &$ip){
 				echo "m ";
 				echo str_pad($ip,15);
@@ -253,15 +266,11 @@ class Stats{
 				}
 				if($time == true){
 					if(isset($this->ipInfo[$ip])){
-						echo " ".date("d.m.Y H:i:s", $this->ipInfo[$ip]['lastactivity']);
-					} else{
-						echo "                    ";
+						echo " ".date($this->dateTimeFormat, $this->ipInfo[$ip]['lastactivity']);
 					}
 				}
 				echo "\n";
 			}
-		} else{
-			echo "No data!\n";
 		}
 	}
 	
@@ -282,9 +291,9 @@ class Stats{
 					$result[] = $k;
 				}
 			}
-			foreach($this->include as $ip){
-				$result[] = $ip;
-			}
+		}
+		foreach($this->include as $ip){
+			$result[] = $ip;
 		}
 		return $result;
 	}

@@ -53,6 +53,8 @@ if(isset($argv)){
 		include_once "hostblock/SshdLogParser.php";
 		$config = parse_ini_file(CONFIG_PATH);
 		
+		if(isset($config['datetimeformat'])) $log->dateTimeFormat = $config['datetimeformat'];
+		
 		// Suspicious entry match count
 		if(!isset($config['suspiciousentrymatchcount'])) $config['suspiciousentrymatchcount'] = 10;
 		else $config['suspiciousentrymatchcount'] = (int)$config['suspiciousentrymatchcount'];
@@ -79,6 +81,7 @@ if(isset($argv)){
 		$stats->blacklistTime = $config['blacklisttime'];
 		$stats->permanentBlacklistFile = $config['blacklist'];
 		$stats->permanentWhitelistFile = $config['whitelist'];
+		if(isset($config['datetimeformat'])) $stats->dateTimeFormat = $config['datetimeformat'];
 		$stats->loadBlacklist();
 	}
 	
@@ -96,8 +99,8 @@ if(isset($argv)){
 		$log->write("Statistics calculated");
 		exit(0);
 	} elseif(isset($opts['list']) || isset($opts['l'])){
-		// Output blacklisted IPs
-		$log->write("Preparing list of blacklisted IPs...");
+		// Output blacklisted IP addresses
+		$log->write("Preparing list of blacklisted IP addresses...");
 		$count = false;
 		$time = false;
 		if(isset($opts['count']) || isset($opts['c'])) $count = true;
@@ -131,7 +134,7 @@ if(isset($argv)){
 			$apacheAccessLogParser->log = $log;
 			$apacheAccessLogParser->suspiciousPatterns = $config['apacheaccesspaterns'];
 			
-			// Info about suspicious IPs
+			// Load info about suspicious IPs
 			$ipInfo = array();
 			$data = @file_get_contents(WORKDIR_PATH."/suspicious_ips");
 			if($data != false){
@@ -143,6 +146,7 @@ if(isset($argv)){
 			echo "Suspicious IP addresses before processing: ".count($stats->ipInfo)."\n";
 			echo "Blacklisted IP addresses before processing: ".$stats->getBlacklistedIpCount()."\n";
 			
+			// Parse file
 			$apacheAccessLogFile['path'] = $path;
 			$apacheAccessLogFile['offset'] = 0;
 			$updateHostData = false;

@@ -6,6 +6,8 @@ Script uses regex patterns to match suspicious entries in log files - you should
 
 ## Setup
 
+All provided commands are example - you might want to install this tool in your own directories.
+
  - Download hostblock sources from [GitHub](https://github.com/tower9/hostblock/archive/master.zip) or [PHP classes](http://www.phpclasses.org/browse/package/8458/download/targz.html) and extract in some temporary directory
  - In PHP include path directory (include_path directive in php.ini file) create directory hostblock and copy all files from include directory to newly created directory
 ```
@@ -97,7 +99,7 @@ Manually parse SSHd log file, that has data of 2013 year
 
 ## Story
 
-I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use - I'm using it as an Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. Although there wasn't much interesting on this test server, I still didn't wanted for anyone to break into it. I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check Apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity, before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much invalid authorizations you allow.
+I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use - I'm using it as a Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. Although there wasn't much interesting on this test server, I still didn't wanted for anyone to break into it. I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check Apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much invalid authorizations you allow.
 
 ## Requirements
 
@@ -111,19 +113,19 @@ deny.hosts file allow to secure services, that are using TCP Wrapper. TCP Wrappe
 ```
 Oct  2 09:16:15 keny sshd[12125]: Invalid user rootbull from 1.234.45.178
 ```
-We can add this IP to /etc/hosts.deny and all ssh connections from that IP address will be rejected.
+We can add this IP to /etc/hosts.deny and all further ssh connections from that IP address will be rejected.
 
-*Note, that your SSH server might not respect entries in hosts.deny. Haven't investigated why, but un-commenting line ListenAddress 0.0.0.0 and /etc/init.d/sshd restart helped me.*
+*Note, that your SSH server might not respect entries in hosts.deny. Haven't investigated why, but un-commenting line ListenAddress 0.0.0.0 and /etc/init.d/sshd restart did the trick for me.*
 
-To check if SSHd is actually respecting hosts.deny file, just add "sshd: 127.0.0.1" to this file and try to establish connection from localhost ($ ssh localhost). If you got something like this "ssh: Could not resolve hostname localhsot: Name or service not known", then all is fine and your sshd is respecting hosts.deny file.
+To check if SSHd is actually respecting hosts.deny file, just add "sshd: 127.0.0.1" to this file and try to establish connection from localhost ($ ssh localhost). If you got something like this "ssh: Could not resolve hostname localhsot: Name or service not known", then all is fine and your SSHd is respecting hosts.deny file.
 
 File hosts.deny is used by HostBlock to automatically block access to SSHd, so do test if your SSHd server actually respects this file.
 
 ### .htaccess
 
-.htaccess files allow to deny access to some parts of your site. .htaccess is just a default name of this file, it can be changed with Apache [AccessFileName](http://httpd.apache.org/docs/2.2/mod/core.html#accessfilename) directive. Access files are meant to be used for per-directory configuration. Access file, containing one or more configuration directives, is placed in directory and directives apply to that directory, including all subdirectories. While this file allows to change a lot of configuration directives, HostBlock is currently interested only in "Deny from x.x.x.x", where x.x.x.x is suspicious IP address. Directive "Deny from" is self-explanatory, it denys access from specified IP address - Apache will return HTTP code 403 - Forbidden.
+.htaccess files allow to deny access to some parts of your site. .htaccess is just a default name of this file, it can be changed with Apache [AccessFileName](http://httpd.apache.org/docs/2.2/mod/core.html#accessfilename) directive. Access files are meant to be used for per-directory configuration. Access file, containing one or more configuration directives, is placed in directory and directives apply to that directory, including all subdirectories. While this file allows to change a lot of configuration directives, HostBlock is currently interested only in "Deny from x.x.x.x", where x.x.x.x is suspicious IP address. Directive "Deny from" is self-explanatory, it denys access from specified IP address - Apache will return HTTP code 403 Forbidden.
 
-Script finds all lines that start with "Deny from" and checks if this IP address in in blacklist, if it is not in blacklist - line gets removed. And the other way around, if blacklisted IP address is not found in access file, then new line "Deny from" is added at the end of file.
+Script searches for all lines that start with "Deny from" and checks if this IP address written in each line in in blacklist. If it is not in blacklist - line is removed. And the other way around, if blacklisted IP address is not found in access file, then new line "Deny from" is added at the end of file.
 
 ## Contribution
 
@@ -131,13 +133,13 @@ Source code is available on [GitHub](https://github.com/tower9/hostblock). Just 
 
 ## Features
 
- - Parses access_log files to find suspicious activity
- - Parses /var/log/messages to find failed login attempts
+ - Parses Apache access_log files to find suspicious activity
+ - Parses SSHd log file to find failed login attempts
  - Runs as daemon
  - Counts failed logins and suspicious activity for each offending IP address
  - Counts refused SSHd connection count for each IP address
- - Each IP address that has count over defined one is considered evil and stored in access files (/ets/hosts.deny or .htaccess files)
- - Daemon keeps track of parsed file offset to parse only new bytes in file not the whole file each time (until file is rotated)
+ - Each IP address that has suspicious activity count over configured one is considered evil and is added to access files (/ets/hosts.deny or .htaccess files)
+ - Daemon keeps track of parsed file size to parse only new bytes in file not the whole file each time (until file is rotated)
  - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and date of last attempt
  - Respects blacklist - IP addresses in this file will be considered as evil permanently
  - Respects whitelist - IP addresses in this file will be ignored
