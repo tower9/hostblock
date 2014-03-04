@@ -15,7 +15,7 @@ class Log{
 	public $dateTimeFormat = "Y-m-d H:i:s";
 	
 	/**
-	 * On destruct
+	 * Destruct
 	 */
 	public function __destruct(){
 		// Close all open files
@@ -26,8 +26,9 @@ class Log{
 	
 	/**
 	 * Write to log file
-	 * @param string $message
-	 * @param string $log
+	 * 
+	 * @param string $message is text to write in log file
+	 * @param string $log optional, log file will be called hostblock.log, if this argumet is passed, then log file will be called hosblock-[$log].log
 	 */
 	public function write($message, $log="main"){
 		// If file is not open

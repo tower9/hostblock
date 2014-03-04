@@ -31,11 +31,11 @@ class ApacheAccessLogParser{
 	/**
 	 * Check Apache access log file for new entries and match against patterns
 	 * 
-	 * @param array $apacheAccessLogFile
-	 * @param $ipInfo
-	 * @param $updateHostData
-	 * @param $updateOffsets
-	 * @return integer
+	 * @param array $apacheAccessLogFile with information about Apache access log file (path, offset, format)
+	 * @param array $ipInfo with information about suspicious IP addresses
+	 * @param boolean $updateHostData will be updated to true if $ipInfo is updated
+	 * @param boolean $updateOffsets will be updated to true if new lines were parsed
+	 * @return integer with suspicious activity pattern match count
 	 */
 	public function parseFile(&$apacheAccessLogFile, &$ipInfo, &$updateHostData, &$updateOffsets){
 		$newMatchCount = 0;

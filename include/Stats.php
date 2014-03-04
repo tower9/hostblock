@@ -116,12 +116,14 @@ class Stats{
 				}
 				
 				// Last 5 IP addresses
-				if(count($this->data['last5']['ip']) < 5){// First we fill up last5 array
+				if(count($this->data['last5']['ip']) < 5){
+					// First we fill up last5 array
 					$this->data['last5']['ip'][] = $k;
 					$this->data['last5']['count'][] = $v['count'];
 					$this->data['last5']['refused'][] = $v['refused'];
 					$this->data['last5']['lastactivity'][] = $v['lastactivity'];
-				} else{// Then we update with IP addresses that have more recent activity
+				} else{
+					// Then we update with IP addresses that have more recent activity
 					$keys = array_keys($this->data['last5']['lastactivity'],min($this->data['last5']['lastactivity']));
 					if(count($keys) > 0){
 						if($this->data['last5']['lastactivity'][$keys[0]] < $v['lastactivity']){
@@ -134,12 +136,14 @@ class Stats{
 				}
 				
 				// Get top 5 IP addresses by count
-				if(count($this->data['top5']['ip']) < 5){// First we fill up top5 array
+				if(count($this->data['top5']['ip']) < 5){
+					// First we fill up top5 array
 					$this->data['top5']['ip'][] = $k;
 					$this->data['top5']['count'][] = $v['count'];
 					$this->data['top5']['refused'][] = $v['refused'];
 					$this->data['top5']['lastactivity'][] = $v['lastactivity'];
-				} else{// Then we update with IP addresses that have more counts
+				} else{
+					// Then we update with IP addresses that have more suspicious activity
 					$keys = array_keys($this->data['top5']['count'],min($this->data['top5']['count']));
 					if(count($keys) > 0){
 						if($this->data['top5']['count'][$keys[0]] < $v['count']){
@@ -209,7 +213,7 @@ class Stats{
 	}
 	
 	/**
-	 * Echo all blacklisted IPs
+	 * Echo all blacklisted IP addresses
 	 */
 	public function outputBlacklist($count = false, $time = false){
 		$currentTime = time();
@@ -276,6 +280,7 @@ class Stats{
 	
 	/**
 	 * Get blacklisted IP addresses
+	 * 
 	 * @return array
 	 */
 	public function getBlacklistedIps(){
@@ -300,6 +305,7 @@ class Stats{
 	
 	/**
 	 * Get blacklisted IP address count
+	 * 
 	 * @return number
 	 */
 	public function getBlacklistedIpCount(){
@@ -321,6 +327,7 @@ class Stats{
 	
 	/**
 	 * Get total refused connect count
+	 * 
 	 * @return number
 	 */
 	public function getTotalRefusedConnectCount(){
