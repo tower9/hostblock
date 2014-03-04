@@ -1,8 +1,21 @@
 # HostBlock
 
-Automatic blocking of remote IP hosts attacking Apache or SSHd. PHP script parses Apache access log files and SSHd log file to find suspicious activity and create blacklist of IP addresses to deny further access. Access to HTTPd is limited with .htaccess files (Apache will return 403 Forbidden) and access to SSHd is limited with /etc/hosts.deny (SSHd will refuse connect).
+Automatic blocking of remote IP hosts attacking Apache Web server or SSH server. PHP script parses Apache access log files and SSHd log file to find suspicious activity and create blacklist of IP addresses to deny further access. Access to HTTPd is limited with .htaccess files (Apache will return 403 Forbidden) and access to SSHd is limited with /etc/hosts.deny (SSHd will refuse connect).
 
 Script uses regex patterns to match suspicious entries in log files - you should modify them to match your needs. For example, I don't have phpmyadmin, so all HTTP requests with such URL I'm considering as suspicious.
+
+## Features
+
+ - Parses Apache access_log files to find suspicious activity
+ - Parses SSHd log file to find failed login attempts
+ - Runs as daemon
+ - Counts failed logins and suspicious activity for each offending IP address
+ - Counts refused SSHd connection count for each IP address
+ - Each IP address that has suspicious activity count over configured one is considered evil and is added to access files (/ets/hosts.deny or .htaccess files)
+ - Daemon keeps track of parsed file size to parse only new bytes in file not the whole file each time (until file is rotated)
+ - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and date of last attempt
+ - Respects blacklist - IP addresses in this file will be considered as evil permanently
+ - Respects whitelist - IP addresses in this file will be ignored
 
 ## Setup
 
@@ -125,24 +138,11 @@ File hosts.deny is used by HostBlock to automatically block access to SSHd, so d
 
 .htaccess files allow to deny access to some parts of your site. .htaccess is just a default name of this file, it can be changed with Apache [AccessFileName](http://httpd.apache.org/docs/2.2/mod/core.html#accessfilename) directive. Access files are meant to be used for per-directory configuration. Access file, containing one or more configuration directives, is placed in directory and directives apply to that directory, including all subdirectories. While this file allows to change a lot of configuration directives, HostBlock is currently interested only in "Deny from x.x.x.x", where x.x.x.x is suspicious IP address. Directive "Deny from" is self-explanatory, it denys access from specified IP address - Apache will return HTTP code 403 Forbidden.
 
-Script searches for all lines that start with "Deny from" and checks if this IP address written in each line in in blacklist. If it is not in blacklist - line is removed. And the other way around, if blacklisted IP address is not found in access file, then new line "Deny from" is added at the end of file.
+Script searches for all lines that start with "Deny from" and checks if this IP address written in each line is in blacklist. If it is not in blacklist - line is removed. And the other way around, if blacklisted IP address is not found in access file, then new line "Deny from" is added at the end of file.
 
 ## Contribution
 
 Source code is available on [GitHub](https://github.com/tower9/hostblock). Just fork, edit and submit pull request. Please be clear on commit messages.
-
-## Features
-
- - Parses Apache access_log files to find suspicious activity
- - Parses SSHd log file to find failed login attempts
- - Runs as daemon
- - Counts failed logins and suspicious activity for each offending IP address
- - Counts refused SSHd connection count for each IP address
- - Each IP address that has suspicious activity count over configured one is considered evil and is added to access files (/ets/hosts.deny or .htaccess files)
- - Daemon keeps track of parsed file size to parse only new bytes in file not the whole file each time (until file is rotated)
- - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and date of last attempt
- - Respects blacklist - IP addresses in this file will be considered as evil permanently
- - Respects whitelist - IP addresses in this file will be ignored
 
 ## Future plans
 

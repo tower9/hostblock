@@ -14,6 +14,7 @@ class SshdLogParser{
 		'%d' => '(?P<datetime>\S+\s*\d+ \d+:\d+:\d+)',// Date time
 		'%h' => '(?P<hostname>\S+)',// Hostname of server
 		'%p' => '(?P<pid>\d+)',// Process PID
+		'%o' => '(?P<port>\d+)',// Port
 		'%s' => '\S+',// Anything, can be used for line end
 	);
 	// Object for log file writing
