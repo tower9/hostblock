@@ -17,7 +17,7 @@ if(php_sapi_name() !== "cli"){
 }
 
 // Define allowed command line arguments
-$shortopts = "hslctahp:y:d";
+$shortopts = "hslctahp:y:r:d";
 $longopts = array(
 	'help',// usage
 	'statistics',// statistics
@@ -29,6 +29,7 @@ $longopts = array(
 	'path:',// path to log file for manual parsing
 	'year:',// year for SSHd log parsing - this log file has time without year, to parse older log files this option was introduced
 	'test',// run parsing as test - do not update IP data
+	'remove:',// remove IP address from data file
 	'daemon',// run script as daemon
 );
 
@@ -41,7 +42,8 @@ if(isset($argv)){
 	// Include needed classes, config, initialize needed variables and objects
 	if(isset($opts['statistics']) || isset($opts['s']) || isset($opts['list'])
 		|| isset($opts['l']) || isset($opts['parse-apache-log']) || isset($opts['a'])
-		|| isset($opts['parse-ssh-log'])  || isset($opts['h']) || isset($opts['daemon'])
+		|| isset($opts['parse-ssh-log'])  || isset($opts['h'])
+		|| isset($opts['remove'])|| isset($opts['r']) || isset($opts['daemon'])
 		|| isset($opts['d'])){
 		include_once "hostblock/dist-cfg.php";
 		include_once "hostblock/Log.php";
@@ -244,13 +246,46 @@ if(isset($argv)){
 			echo "Path to log file not provided!\n";
 			$showUsage = true;
 		}
+	} elseif(isset($opts['remove'])  || isset($opts['r'])){
+		// Remove IP address from data file
+		$ipToRemove = null;
+		if(isset($opts['remove'])) $ipToRemove = $opts['remove'];
+		if(isset($opts['r'])) $ipToRemove = $opts['r'];
+		// Load data
+		$stats->load();
+		if(count($stats->ipInfo) > 0){
+			if(isset($stats->ipInfo[$ipToRemove])){
+				// Show some stats if IP address found
+				echo "Removing IP address from data file.\n";
+				echo "Suspicious activity count: ".$stats->ipInfo[$ipToRemove]['count']."\n";
+				echo "Refused SSH authorization count: ";
+				if(isset($stats->ipInfo[$ipToRemove]['refused'])) echo $stats->ipInfo[$ipToRemove]['refused']."\n";
+				else echo "0\n";
+				echo "Last activity: ".date($stats->dateTimeFormat, $stats->ipInfo[$ipToRemove]['lastactivity'])."\n";
+				// Unset information about this IP address
+				unset($stats->ipInfo[$ipToRemove]);
+				// Update data file
+				$data = serialize($stats->ipInfo);
+				@file_put_contents(WORKDIR_PATH."/suspicious_ips", $data);
+				echo "IP address data updated! Please wait for daemon to reload IP data and update access files if needed.\n";
+				$log->write("IP address data updated! Please wait for daemon to reload IP data and update access files if needed.");
+			} else{
+				echo "IP address not found!\n";
+				$log->write("Trying to remove unknown IP address from data file! IP address: ".$ipToRemove,"error");
+				exit(1);
+			}
+		} else{
+			echo "No data!\n";
+			exit(1);
+		}
+		exit(0);
 	} elseif(isset($opts['daemon']) || isset($opts['d'])){
 		// Start as daemon process
 		$log->write("Starting daemon process...");
 		
 		// Check if process is already running
 		if(file_exists(PID_PATH)){
-			echo "Another instance of hostblock is already running!";
+			echo "Another instance of hostblock is already running!\n";
 			$log->write("Another instance of hostblock is already running!","error");
 			exit(1);
 		}
@@ -258,7 +293,7 @@ if(isset($argv)){
 		// Fork currently running process
 		$pid = pcntl_fork();
 		if($pid == -1){// Fork failed
-			echo "Failed to fork process!";
+			echo "Failed to fork process!\n";
 			$log->write("Failed to fork process!","error");
 			exit(1);
 		} elseif($pid){// We are parent (pid>0)
@@ -531,7 +566,7 @@ if(isset($argv)){
 	if($showUsage){
 		echo "HostBlock v.0.1\n\n";
 		echo "Usage:\n";
-		echo "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-a -p<path> | --parse-apache-access-log --path=<path>] [-h -p<path> -y<year> | --parse-ssh-log --path=<path> --year=<year>] [-d | --daemon]\n";
+		echo "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-a -p<path> | --parse-apache-access-log --path=<path>] [-h -p<path> -y<year> | --parse-ssh-log --path=<path> --year=<year>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]\n";
 		echo '
 --help                                      - show this help information
 --statistics                                - show statistics
@@ -541,6 +576,7 @@ if(isset($argv)){
 --list --count --time                       - show list of blacklisted IP addresses with suspicious activity count and last suspicious activity time
 --parse-apache-log --path=<path>            - parse Apache access log file
 --parse-ssh-log --path=<path> --year=<year> - parse SSHd log file
+--remove=<ip_address>                       - remove IP address from data file
 --daemon                                    - run as daemon
 ';
 	}

@@ -14,8 +14,9 @@ Script uses regex patterns to match suspicious entries in log files - you should
  - Each IP address that has suspicious activity count over configured one is considered evil and is added to access files (/ets/hosts.deny or .htaccess files)
  - Daemon keeps track of parsed file size to parse only new bytes in file not the whole file each time (until file is rotated)
  - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and time of last attempt
- - Respects blacklist - IP addresses in this file will be considered as evil permanently, will add all these IP addresses in access files even if no suspicious activity is counted for any of them
- - Respects whitelist - IP addresses in this file will be ignored, will not add IP addresses to access files that are in whitelist (suspicious activity is still counted)
+ - Respects blacklist - IP addresses in this file will be considered as evil permanently, will add all these IP addresses to access files even if no suspicious activity is counted for any of them
+ - Respects whitelist - IP addresses in this file will be ignored, will not add these IP addresses to access files (suspicious activity is still counted)
+ - Allows to manually remove IP address from data file
 
 ## Setup
 
@@ -98,6 +99,10 @@ List all blacklisted IP addresses with suspicious activity count, refused SSH co
 ```
 # hostblock -lct
 ```
+Remove IP address from data file (removes suspicious activity count, refused SSH connect count and time of last activity)
+```
+# hostblock -r10.10.10.10
+```
 HostBlock also allows to parse old files to increase statistics
 
 Manually parse Apache access log file
@@ -148,6 +153,5 @@ Source code is available on [GitHub](https://github.com/tower9/hostblock). Just 
 
  - Write init.d scripts and test on other distros
  - Add blacklisted IP addresses to iptables
- - Add functionality to remove suspicious IP addresses from data files
  - Implement other server log file parsing, for example FTPd or email server
  - Create centralised repository with suspicious IP addresses, could also store more information about IP addresses there, such as suspicious activities (RAW data about activities), more statistics, etc
