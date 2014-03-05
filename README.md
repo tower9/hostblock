@@ -6,16 +6,16 @@ Script uses regex patterns to match suspicious entries in log files - you should
 
 ## Features
 
- - Parses Apache access_log files to find suspicious activity
- - Parses SSHd log file to find failed login attempts
+ - Parses Apache Web server access_log files to find suspicious activity
+ - Parses SSH server log file to find failed login attempts
  - Runs as daemon
  - Counts failed logins and suspicious activity for each offending IP address
- - Counts refused SSHd connection count for each IP address
+ - Counts refused SSH connections for each IP address
  - Each IP address that has suspicious activity count over configured one is considered evil and is added to access files (/ets/hosts.deny or .htaccess files)
  - Daemon keeps track of parsed file size to parse only new bytes in file not the whole file each time (until file is rotated)
- - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and date of last attempt
- - Respects blacklist - IP addresses in this file will be considered as evil permanently
- - Respects whitelist - IP addresses in this file will be ignored
+ - Keeps data of all suspicious IP addresses with suspicious/failed login attempt count and time of last attempt
+ - Respects blacklist - IP addresses in this file will be considered as evil permanently, will add all these IP addresses in access files even if no suspicious activity is counted for any of them
+ - Respects whitelist - IP addresses in this file will be ignored, will not add IP addresses to access files that are in whitelist (suspicious activity is still counted)
 
 ## Setup
 
@@ -112,7 +112,7 @@ Manually parse SSHd log file, that has data of 2013 year
 
 ## Story
 
-I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use - I'm using it as a Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. Although there wasn't much interesting on this test server, I still didn't wanted for anyone to break into it. I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check Apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much invalid authorizations you allow.
+I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use - I'm using it as a Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. Although there wasn't much interesting on this test server, I still didn't wanted for anyone to break into it. I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check Apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much failed authorizations you allow.
 
 ## Requirements
 
@@ -122,7 +122,7 @@ I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with 
 
 ### /etc/deny.hosts
 
-deny.hosts file allow to secure services, that are using TCP Wrapper. TCP Wrapper is a host based Access Control List system, used to filter access to a Unix like server. It uses blacklist /etc/hosts.deny and whitelist /etc/hosts.allow. SSHd uses TCP Wrappers, if it is compiled with tcp_wrappers support, which means we can blacklist some IPs we do not like. For example if we see something like this in /var/log/messages - this is an actual entry on one of servers, where someone from Korea (or through Korea) is trying bruteforce against my SSHd:
+deny.hosts file allow to secure services, that are using TCP Wrapper. TCP Wrapper is a host based Access Control List system, used to filter access to a Unix like server. It uses blacklist /etc/hosts.deny and whitelist /etc/hosts.allow. SSHd uses TCP Wrappers, if it is compiled with tcp_wrappers support, which means we can blacklist some IP addresses we do not like. For example if we see something like this in /var/log/messages - this is an actual entry on one of servers, where someone from Korea (or through Korea) is trying bruteforce against my SSHd:
 ```
 Oct  2 09:16:15 keny sshd[12125]: Invalid user rootbull from 1.234.45.178
 ```
