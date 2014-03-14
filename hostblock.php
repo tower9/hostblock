@@ -198,9 +198,12 @@ if(isset($argv)){
 			if(isset($config['sshformats']) && count($config['sshformats']) > 0){
 				$sshdLogParser->formats = $config['sshformats'];
 			}
-			if(isset($config['sshrefusedformat']) && !empty($config['sshrefusedformat'])){
-				$sshdLogParser->refusedFormat = $config['sshrefusedformat'];
+			if(isset($config['sshrefusedformats']) && count($config['sshrefusedformats']) > 0){
+				$sshdLogParser->refusedFormats = $config['sshrefusedformats'];
 			}
+			/* if(isset($config['sshrefusedformat']) && !empty($config['sshrefusedformat'])){
+				$sshdLogParser->refusedFormat = $config['sshrefusedformat'];
+			} */
 			
 			$sshdLogFile = array();
 			$sshdLogFile['path'] = $path;
@@ -398,9 +401,12 @@ if(isset($argv)){
 			if(isset($config['sshformats']) && count($config['sshformats']) > 0){
 				$sshdLogParser->formats = $config['sshformats'];
 			}
-			if(isset($config['sshrefusedformat']) && !empty($config['sshrefusedformat'])){
-				$sshdLogParser->refusedFormat = $config['sshrefusedformat'];
+			if(isset($config['sshrefusedformats']) && count($config['sshrefusedformats']) > 0){
+				$sshdLogParser->refusedFormats = $config['sshrefusedformats'];
 			}
+			/* if(isset($config['sshrefusedformat']) && !empty($config['sshrefusedformat'])){
+				$sshdLogParser->refusedFormat = $config['sshrefusedformat'];
+			} */
 			
 			// Info about suspicious IPs
 			$ipInfo = array();

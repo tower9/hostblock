@@ -15,7 +15,7 @@ class SshdLogParser{
 		'%h' => '(?P<hostname>\S+)',// Hostname of server
 		'%p' => '(?P<pid>\d+)',// Process PID
 		'%o' => '(?P<port>\d+)',// Port
-		'%s' => '\S+',// Anything, can be used for line end
+		'%s' => '\S+',// Anything
 	);
 	// Object for log file writing
 	public $log = null;
@@ -24,7 +24,11 @@ class SshdLogParser{
 		"%d %h sshd\[%p\]: Invalid user %u from %i",
 	);
 	// Refused connect line format
-	public $refusedFormat = "%d %h sshd\[%p\]: refused connect from %i %s";
+// 	public $refusedFormat = "%d %h sshd\[%p\]: refused connect from %i %s";
+	public $refusedFormats = array(
+		'%d %h sshd\[%p\]: refused connect from %i %s',
+		'%d %h sshd\[%p\]: refused connect from %s (%i)',
+	);
 	// Parsed line data
 	private $data = array();
 	
@@ -151,23 +155,25 @@ class SshdLogParser{
 			if(count($this->data) > 0) return 1;
 		}
 		// If suspicious activity not detected, then we check if this line contains refused connect
-		// Replace format identifiers with regexp patterns to create pattern for whole line
-		$formatPattern = str_replace($tmp, $this->patterns, $this->refusedFormat);
-		// Escape quotes in pattern
-		$formatPattern = str_replace("\"", "\\\"", $formatPattern);
-		$formatPattern = "/^".$formatPattern."/";
-		$data = array();
-		// Perform a match on line with format
-		preg_match($formatPattern, $line, $data);
-		// If match succeeded, then we try to get some data
-		if(count($data) > 0){
-			if(isset($data['ip'])) $this->data['ip'] = $data['ip'];
-			if(isset($data['username'])) $this->data['username'] = $data['username'];
-			if(isset($data['datetime'])) $this->data['datetime'] = $data['datetime'];
-			if(isset($data['hostname'])) $this->data['hostname'] = $data['hostname'];
-			if(isset($data['pid'])) $this->data['pid'] = $data['pid'];
+		foreach($this->refusedFormats as &$format){
+			// Replace format identifiers with regexp patterns to create pattern for whole line
+			$formatPattern = str_replace($tmp, $this->patterns, $format);
+			// Escape quotes in pattern
+			$formatPattern = str_replace("\"", "\\\"", $formatPattern);
+			$formatPattern = "/^".$formatPattern."/";
+			$data = array();
+			// Perform a match on line with format
+			preg_match($formatPattern, $line, $data);
+			// If match succeeded, then we try to get some data
+			if(count($data) > 0){
+				if(isset($data['ip'])) $this->data['ip'] = $data['ip'];
+				if(isset($data['username'])) $this->data['username'] = $data['username'];
+				if(isset($data['datetime'])) $this->data['datetime'] = $data['datetime'];
+				if(isset($data['hostname'])) $this->data['hostname'] = $data['hostname'];
+				if(isset($data['pid'])) $this->data['pid'] = $data['pid'];
+			}
+			if(count($this->data) > 0) return 2;
 		}
-		if(count($this->data) > 0) return 2;
 		
 		return 0;
 	}
