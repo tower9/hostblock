@@ -17,7 +17,7 @@ if(php_sapi_name() !== "cli"){
 }
 
 // Define allowed command line arguments
-$shortopts = "hslctahp:y:r:d";
+$shortopts = "hslctaep:y:r:d";
 $longopts = array(
 	'help',// usage
 	'statistics',// statistics
@@ -177,7 +177,7 @@ if(isset($argv)){
 			echo "Path to log file not provided!\n";
 			$showUsage = true;
 		}
-	} elseif(isset($opts['parse-ssh-log'])  || isset($opts['h'])){
+	} elseif(isset($opts['parse-ssh-log'])  || isset($opts['e'])){
 		if(isset($opts['path']) || isset($opts['p'])){
 			// Parse SSHd log file
 			$path = null;
@@ -572,7 +572,7 @@ if(isset($argv)){
 	if($showUsage){
 		echo "HostBlock v.0.1\n\n";
 		echo "Usage:\n";
-		echo "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-a -p<path> | --parse-apache-access-log --path=<path>] [-h -p<path> -y<year> | --parse-ssh-log --path=<path> --year=<year>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]\n";
+		echo "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-a -p<path> | --parse-apache-access-log --path=<path>] [-e -p<path> -y<year> | --parse-ssh-log --path=<path> --year=<year>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]\n";
 		echo '
 --help                                      - show this help information
 --statistics                                - show statistics

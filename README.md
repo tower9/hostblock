@@ -111,7 +111,7 @@ Manually parse Apache access log file
 ```
 Manually parse SSHd log file, that has data of 2013 year
 ```
-# hostblock -h -p/var/log/messages -y2013
+# hostblock -e -p/var/log/messages -y2013
 ```
 *Note, that by loading single file twice HostBlock will count same suspicious activity twice!*
 
