@@ -60,6 +60,9 @@ All provided commands are example - you might want to install this tool in your 
 ```
 # ln -s /var/lib/hostblock/hostblock.php /usr/bin/hostblock
 ```
+
+### Gentoo init script
+
  - Copy init script to /etc/init.d/
 ```
 # cp init.d/gentoo-hostblock.sh /etc/init.d/hostblock
@@ -72,16 +75,43 @@ All provided commands are example - you might want to install this tool in your 
 ```
 # /etc/init.d/hostblock start
 ```
+ - To start hostblock automatically during system boot
+```
+# rc-update add hostblock default
+```
+
+### Systemd service file (RHEL7, OEL7, etc)
+
+ - Copy systemd service file to /usr/lib/systemd/system/
+```
+# cp init.d/hostblock.service /usr/lib/systemd/system/hostblock.service
+```
+ - Start daemon (it might take some time to start)
+```
+# systemctl start hostblock
+```
+ - To start automatically during system boot
+```
+# systemctl enable hostblock.service
+```
 
 ## Usage
 
-To start
+To start (Gentoo)
 ```
 # /etc/init.d/hostblock start
 ```
-To stop
+To start (RHEL7, OEL7, etc)
+```
+# systemctl start hostblock
+```
+To stop (Gentoo)
 ```
 # /etc/init.d/hostblock stop
+```
+To stop (RHEL7, OEL7, etc)
+```
+# systemctl stop hostblock
 ```
 Output usage
 ```
