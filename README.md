@@ -1,10 +1,12 @@
-# HostBlock
+HostBlock
+=========
 
 Automatic blocking of remote IP hosts attacking Apache Web server or SSH server. PHP script parses Apache access log files and SSHd log file to find suspicious activity and create blacklist of IP addresses to deny further access. Access to HTTPd is limited with .htaccess files (Apache will return 403 Forbidden) and access to SSHd is limited with /etc/hosts.deny (SSHd will refuse connect).
 
 Script uses regex patterns to match suspicious entries in log files - you should modify them to match your needs. For example, I don't have phpmyadmin, so all HTTP requests with such URL I'm considering as suspicious.
 
-## Features
+Features
+--------
 
  - Parses Apache Web server access_log files to find suspicious activity
  - Parses SSH server log file to find failed login attempts
@@ -18,7 +20,8 @@ Script uses regex patterns to match suspicious entries in log files - you should
  - Respects whitelist - IP addresses in this file will be ignored, will not add these IP addresses to access files (suspicious activity is still counted)
  - Allows to manually remove IP address from data file
 
-## Setup
+Setup
+-----
 
 All provided commands are example - you might want to install this tool in your own directories.
 
@@ -145,11 +148,13 @@ Manually parse SSHd log file, that has data of 2013 year
 ```
 *Note, that by loading single file twice HostBlock will count same suspicious activity twice!*
 
-## Story
+Story
+-----
 
 I have an old laptop - HDD with bad blocks, keyboard without all keys, LCD with black areas over, etc. and I decided to put it in use - I'm using it as a Web server for tests. Didn't had to wait for a long time to start receiving suspicious HTTP requests and SSH authorizations on unexisting users - Internet never sleeps and guys are scanning it to find vulnerabilities all the time. Although there wasn't much interesting on this test server, I still didn't wanted for anyone to break into it. I started to look for some tools that would automatically deny access to such IP hosts. I found a very good tool called [DenyHosts](http://denyhosts.sourceforge.net). It monitors SSHd log file and automatically adds an entry in /etc/hosts.deny file after 3 failed login attempts from a single IP address. As I also wanted to check Apache access_log and deny access to my test pages I decided to write my own script. [DenyHosts](http://denyhosts.sourceforge.net) is written in Python and as I'm more familiar with PHP, I wrote from scratch in PHP. Also implemented functionality to load old log files and got nice statistics about suspicious activity before HostBlock was running. Found over 10k invalid SSH authorizations from some IP addresses in a few month period (small bruteforce attacks). Now that I have HostBlock running I usually don't get more than 20 invalid SSH authorizations from single IP address. With configuration, invalid authorization count can be limited even to 1, so it is up to you to decide how much failed authorizations you allow.
 
-## Requirements
+Requirements
+------------
 
 ### PHP libraries
 
@@ -175,11 +180,13 @@ File hosts.deny is used by HostBlock to automatically block access to SSHd, so d
 
 Script searches for all lines that start with "Deny from" and checks if this IP address written in each line is in blacklist. If it is not in blacklist - line is removed. And the other way around, if blacklisted IP address is not found in access file, then new line "Deny from" is added at the end of file.
 
-## Contribution
+Contribution
+------------
 
 Source code is available on [GitHub](https://github.com/tower9/hostblock). Just fork, edit and submit pull request. Please be clear on commit messages.
 
-## Future plans
+Future plans
+------------
 
  - Write init.d scripts and test on other distros
  - Add blacklisted IP addresses to iptables
