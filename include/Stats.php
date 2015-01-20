@@ -116,21 +116,23 @@ class Stats{
 				}
 				
 				// Last 5 IP addresses
-				if(count($this->data['last5']['ip']) < 5){
-					// First we fill up last5 array
-					$this->data['last5']['ip'][] = $k;
-					$this->data['last5']['count'][] = $v['count'];
-					$this->data['last5']['refused'][] = $v['refused'];
-					$this->data['last5']['lastactivity'][] = $v['lastactivity'];
-				} else{
-					// Then we update with IP addresses that have more recent activity
-					$keys = array_keys($this->data['last5']['lastactivity'],min($this->data['last5']['lastactivity']));
-					if(count($keys) > 0){
-						if($this->data['last5']['lastactivity'][$keys[0]] < $v['lastactivity']){
-							$this->data['last5']['ip'][$keys[0]] = $k;
-							$this->data['last5']['count'][$keys[0]] = $v['count'];
-							$this->data['last5']['refused'][$keys[0]] = $v['refused'];
-							$this->data['last5']['lastactivity'][$keys[0]] = $v['lastactivity'];
+				if(isset($v['lastactivity'])){
+					if(count($this->data['last5']['ip']) < 5){
+						// First we fill up last5 array
+						$this->data['last5']['ip'][] = $k;
+						$this->data['last5']['count'][] = $v['count'];
+						$this->data['last5']['refused'][] = $v['refused'];
+						$this->data['last5']['lastactivity'][] = $v['lastactivity'];
+					} else{
+						// Then we update with IP addresses that have more recent activity
+						$keys = array_keys($this->data['last5']['lastactivity'],min($this->data['last5']['lastactivity']));
+						if(count($keys) > 0){
+							if($this->data['last5']['lastactivity'][$keys[0]] < $v['lastactivity']){
+								$this->data['last5']['ip'][$keys[0]] = $k;
+								$this->data['last5']['count'][$keys[0]] = $v['count'];
+								$this->data['last5']['refused'][$keys[0]] = $v['refused'];
+								$this->data['last5']['lastactivity'][$keys[0]] = $v['lastactivity'];
+							}
 						}
 					}
 				}
