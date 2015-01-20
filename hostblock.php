@@ -1,7 +1,7 @@
 #!/usr/bin/php -q
 <?php
 /**
- * HostBlock v.0.1
+ * HostBlock v.0.2
  * 
  * Simple utility that parses log files and updates access files to deny access
  * to suspicious hosts.
@@ -570,7 +570,7 @@ if(isset($argv)){
 		$showUsage = true;
 	}
 	if($showUsage){
-		echo "HostBlock v.0.1\n\n";
+		echo "HostBlock v.0.2\n\n";
 		echo "Usage:\n";
 		echo "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-a -p<path> | --parse-apache-access-log --path=<path>] [-e -p<path> -y<year> | --parse-ssh-log --path=<path> --year=<year>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]\n";
 		echo '
