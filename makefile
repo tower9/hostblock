@@ -1,5 +1,5 @@
 OBJS = 
-CC = g++-4.9
+CC = g++
 DEBUG = -g
 CFLAGS = -std=c++11 -Wall -c $(DEBUG)
 LFLAGS = -std=c++11 -Wall $(DEBUG)
