@@ -10,7 +10,7 @@ namespace csyslog{
 }
 // Logger
 #include "../src/logger.h"
-// Logger
+// Iptables
 #include "../src/iptables.h"
 
 int main(int argc, char *argv[])
