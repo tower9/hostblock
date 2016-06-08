@@ -1,14 +1,18 @@
-OBJS = 
+OBJS = logger.o
+TOBJS = test.o
 CC = g++
 DEBUG = -g
 CFLAGS = -std=c++11 -Wall -c $(DEBUG)
 LFLAGS = -std=c++11 -Wall $(DEBUG)
 
-logger.o : hb/src/logger.h hb/src/logger.cpp
+logger.o: hb/src/logger.h hb/src/logger.cpp
 	$(CC) $(CFLAGS) hb/src/logger.cpp
 
-#test:
+test: $(OBJS) $(TOBJS)
+	$(CC) $(LFLAGS) $(OBJS) $(TOBJS) -o test
 
+test.o: hb/test/test.cpp
+	$(CC) $(CFLAGS) hb/test/test.cpp
 
 clean:
-	rm -f *.o hostblock
+	rm -f *.o hostblock test
