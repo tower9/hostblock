@@ -65,13 +65,11 @@ class Config{
 		/*
 		 * Log groups
 		 */
-		// std::vector<hb::LogGroup> logGroups;
 		std::vector<hb::LogGroup>* logGroups;
 
 		/*
 		 * Data about suspicious, whitelisted and blacklisted addresses
 		 */
-		// std::map<std::string, SuspiciosAddressType> suspiciousAddresses;
 		std::map<std::string, hb::SuspiciosAddressType>* suspiciousAddresses;
 
 		/*

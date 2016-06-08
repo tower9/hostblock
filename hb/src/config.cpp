@@ -75,7 +75,6 @@ bool Config::load()
 						hb::LogGroup logGroup;
 						logGroup.name = line.substr(5,line.length()-6);
 						if (logDetails) this->log->debug("Log file group: " + logGroup.name);
-						// itlg = this->logGroups.insert(itlg, logGroup);
 						itlg = this->logGroups->insert(itlg, logGroup);
 					}
 				}
@@ -168,7 +167,6 @@ void Config::print()
 	std::vector<LogGroup>::iterator itlg;
 	std::vector<LogFile>::iterator itlf;
 	std::vector<Pattern>::iterator itpa;
-	// for (itlg = this->logGroups.begin(); itlg != this->logGroups.end(); ++itlg) {
 	for (itlg = this->logGroups->begin(); itlg != this->logGroups->end(); ++itlg) {
 		std::cout << std::endl << "## Pattern and log file configuration for " << itlg->name << std::endl;
 		std::cout << "[Log." << itlg->name << "]" << std::endl << std::endl;
