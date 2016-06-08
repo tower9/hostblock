@@ -1,8 +1,5 @@
 /* 
  * Class to work with hostblock config file.
- * 
- * Default config file location: /etc/hostblock
- * Can be changed with environment variable $HOSTBLOCK_CONFIG
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog, etc)
