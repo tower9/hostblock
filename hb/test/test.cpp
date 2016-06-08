@@ -4,6 +4,8 @@
 #include <time.h>
 // Standard map library
 #include <map>
+// Standard vector library
+#include <vector>
 // Syslog
 namespace csyslog{
 	#include <syslog.h>
@@ -12,6 +14,8 @@ namespace csyslog{
 #include "../src/logger.h"
 // Iptables
 #include "../src/iptables.h"
+// Config
+#include "../src/config.h"
 
 int main(int argc, char *argv[])
 {
@@ -19,7 +23,8 @@ int main(int argc, char *argv[])
 	clock_t end;
 
 	bool testSyslog = false;
-	bool testIptables = true;
+	bool testIptables = false;
+	bool testConfig = true;
 
 	try{
 		// Syslog
@@ -45,6 +50,7 @@ int main(int argc, char *argv[])
 			log.debug("Syslog test - level: LOG_DEBUG msg type: debug");
 		}
 		log.setLevel(LOG_DEBUG);
+
 		// iptables
 		if (testIptables){
 			std::cout << "Creating Iptables object..." << std::endl;
@@ -56,7 +62,7 @@ int main(int argc, char *argv[])
 			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
 				std::cout << "Rule: " << ruleIt->second << std::endl;
 			}
-			std::cout << "Adding rule to drop all connections from 10.10.10.0..." << std::endl;
+			std::cout << "Adding rule to drop all connections from 10.10.10.10..." << std::endl;
 			if(iptbl.append("INPUT","-s 10.10.10.10 -j DROP") == false){
 				std::cerr << "Failed to add rule for address 10.10.10.10" << std::endl;
 			}
@@ -75,6 +81,21 @@ int main(int argc, char *argv[])
 				std::cout << "Rule: " << ruleIt->second << std::endl;
 			}
 		}
+
+		// Config
+		if (testConfig){
+			std::cout << "Creating Config object..." << std::endl;
+			hb::Config cfg = hb::Config(log, "config/hostblock.conf");
+			std::vector<hb::LogGroup> logGroups =  std::vector<hb::LogGroup>();
+			std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses = std::map<std::string, hb::SuspiciosAddressType>();
+			cfg.logGroups = &logGroups;
+			cfg.suspiciousAddresses = &suspiciousAddresses;
+			std::cout << "Loading configuration file..." << std::endl;
+			cfg.load();
+			std::cout << "Printing configuration to stdout..." << std::endl;
+			cfg.print();
+		}
+
 	} catch (std::exception& e){
 		std::cerr << e.what() << std::endl;
 		end = clock();
