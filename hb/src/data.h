@@ -4,6 +4,10 @@
 #ifndef HBDATA_H
 #define HBDATA_H
 
+// Map
+#include <map>
+// String
+#include <string>
 // Logger
 #include "logger.h"
 // Config
@@ -15,26 +19,27 @@ namespace hb{
 
 class Data{
 	private:
+
+	public:
 		/*
 		 * Logger object
 		 */
-		Logger* log;
+		hb::Logger* log;
 
 		/*
 		 * Config object
 		 */
-		Config* conf;
+		hb::Config* config;
 
-	public:
 		/*
 		 * Data about suspicious, whitelisted and blacklisted addresses
 		 */
-		std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses = std::map<std::string, hb::SuspiciosAddressType>();
+		std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses;
 
 		/*
 		 * Constructor
 		 */
-		Data(Logger log, Config conf);
+		Data(hb::Logger* log, hb::Config* config);
 
 		/*
 		 * Read data file and store results in this->suspiciousAddresses

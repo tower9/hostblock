@@ -1,9 +1,12 @@
-OBJS = logger.o iptables.o util.o config.o
+OBJS = logger.o iptables.o util.o config.o data.o
 TOBJS = test.o
 CC = g++
 DEBUG = -g
 CFLAGS = -std=c++11 -Wall -c $(DEBUG)
 LFLAGS = -std=c++11 -Wall $(DEBUG)
+
+data.o: util.o config.o hb/src/data.h hb/src/data.cpp
+	$(CC) $(CFLAGS) hb/src/data.cpp
 
 config.o: util.o hb/src/config.h hb/src/config.cpp
 	$(CC) $(CFLAGS) hb/src/config.cpp

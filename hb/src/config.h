@@ -70,8 +70,8 @@ class Config{
 		/*
 		 * Constructor
 		 */
-		Config(hb::Logger log);
-		Config(hb::Logger log, std::string configPath);
+		Config(hb::Logger* log);
+		Config(hb::Logger* log, std::string configPath);
 
 		/*
 		 * Load configuration from file

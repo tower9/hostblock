@@ -23,15 +23,16 @@ using namespace hb;
 /*
  * Constructor
  */
-Config::Config(hb::Logger log)
-: log(&log)
+Config::Config(hb::Logger* log)
+: log(log)
 {
 
 }
-Config::Config(hb::Logger log, std::string configPath)
-: log(&log), configPath(configPath)
+Config::Config(hb::Logger* log, std::string configPath)
+: log(log), configPath(configPath)
 {
-
+	// this->log = &log;
+	// this->configPath = configPath;
 }
 
 /*
@@ -39,109 +40,114 @@ Config::Config(hb::Logger log, std::string configPath)
  */
 bool Config::load()
 {
-	this->log->debug("Loading config from " + this->configPath);
+	this->log->info("Loading config from " + this->configPath);
 	std::ifstream f(this->configPath);
-	std::string line;
-	int group = 0;// 0 Global group, 1 Log group
-	std::vector<hb::LogGroup>::iterator itlg;
-	std::vector<hb::Pattern>::iterator itp;
-	size_t pos;
-	bool logDetails = true;
+	if (f.is_open()){
+		std::string line;
+		int group = 0;// 0 Global group, 1 Log group
+		std::vector<hb::LogGroup>::iterator itlg;
+		std::vector<hb::Pattern>::iterator itp;
+		size_t pos;
+		bool logDetails = true;
 
-	try{
-		std::smatch groupSearchResults;
-		std::regex groupSearchPattern("\\[\\S+\\]");
+		try{
+			std::smatch groupSearchResults;
+			std::regex groupSearchPattern("\\[\\S+\\]");
 
-		// Read config file line by line
-		while (getline(f, line)) {
-			// Trim spaces from line
-			line = hb::Util::rtrim(hb::Util::ltrim(line));
+			// Read config file line by line
+			while (getline(f, line)) {
+				// Trim spaces from line
+				line = hb::Util::rtrim(hb::Util::ltrim(line));
 
-			// Skip lines that start with # (comments)
-			if (line.length() > 0 && line[0] != '#') {
+				// Skip lines that start with # (comments)
+				if (line.length() > 0 && line[0] != '#') {
 
-				// Remove comment if it is on same line
-				pos = line.find_first_of("#");
-				if (pos != std::string::npos) {
-					line = hb::Util::rtrim(line.substr(0, pos - 1));
-				}
-
-				// Group handling - Gobal and Log.*
-				if (regex_search(line, groupSearchResults, groupSearchPattern) && groupSearchResults.size() == 1) {
-					if (line.substr(1,6) == "Global") {
-						group = 0;
-					} else if (line.substr(1,4) == "Log.") {
-						group = 1;
-						hb::LogGroup logGroup;
-						logGroup.name = line.substr(5,line.length()-6);
-						if (logDetails) this->log->debug("Log file group: " + logGroup.name);
-						itlg = this->logGroups.insert(itlg, logGroup);
+					// Remove comment if it is on same line
+					pos = line.find_first_of("#");
+					if (pos != std::string::npos) {
+						line = hb::Util::rtrim(line.substr(0, pos - 1));
 					}
-				}
 
-				if (group == 0) {// Global section
-					if (line.substr(0,18) == "log.check.interval") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							line = hb::Util::ltrim(line.substr(pos+1));
-							this->logCheckInterval = strtoul(line.c_str(), NULL, 10);
-							if (logDetails) this->log->debug("Interval for log file check: " + std::to_string(this->logCheckInterval));
-						}
-					} else if (line.substr(0,19) == "address.block.score") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							line = hb::Util::ltrim(line.substr(pos+1));
-							this->activityScoreToBlock = strtoul(line.c_str(), NULL, 10);
-							if (logDetails) this->log->debug("Needed score to block IP address: " + std::to_string(this->activityScoreToBlock));
-						}
-					} else if (line.substr(0,24) == "address.block.multiplier") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							line = hb::Util::ltrim(line.substr(pos+1));
-							this->keepBlockedScoreMultiplier = strtoul(line.c_str(), NULL, 10);
-							if (logDetails) this->log->debug("Score multiplier for rule keeping: " + std::to_string(this->keepBlockedScoreMultiplier));
-						}
-					} else if (line.substr(0,13) == "datafile.path") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							this->dataFilePath = hb::Util::ltrim(line.substr(pos+1));
-							if (logDetails) this->log->debug("Datafile path: " + this->dataFilePath);
+					// Group handling - Gobal and Log.*
+					if (regex_search(line, groupSearchResults, groupSearchPattern) && groupSearchResults.size() == 1) {
+						if (line.substr(1,6) == "Global") {
+							group = 0;
+						} else if (line.substr(1,4) == "Log.") {
+							group = 1;
+							hb::LogGroup logGroup;
+							logGroup.name = line.substr(5,line.length()-6);
+							if (logDetails) this->log->debug("Log file group: " + logGroup.name);
+							itlg = this->logGroups.insert(itlg, logGroup);
 						}
 					}
-				} else if (group == 1) {// Log group section
-					if (line.substr(0,8) == "log.path") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							hb::LogFile logFile;
-							logFile.path = hb::Util::ltrim(line.substr(pos+1));
-							itlg->logFiles.push_back(logFile);
-							if (logDetails) this->log->debug("Logfile path: " + hb::Util::ltrim(line.substr(pos+1)));
+
+					if (group == 0) {// Global section
+						if (line.substr(0,18) == "log.check.interval") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								this->logCheckInterval = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("Interval for log file check: " + std::to_string(this->logCheckInterval));
+							}
+						} else if (line.substr(0,19) == "address.block.score") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								this->activityScoreToBlock = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("Needed score to block IP address: " + std::to_string(this->activityScoreToBlock));
+							}
+						} else if (line.substr(0,24) == "address.block.multiplier") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								this->keepBlockedScoreMultiplier = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("Score multiplier for rule keeping: " + std::to_string(this->keepBlockedScoreMultiplier));
+							}
+						} else if (line.substr(0,13) == "datafile.path") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								this->dataFilePath = hb::Util::ltrim(line.substr(pos+1));
+								if (logDetails) this->log->debug("Datafile path: " + this->dataFilePath);
+							}
 						}
-					} else if (line.substr(0,11) == "log.pattern") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							hb::Pattern pattern;
-							pattern.pattern = hb::Util::ltrim(line.substr(pos+1));
-							// TODO, %i is mandatory in pattern, if not present then skip that rule and write warning to syslog
-							itp = itlg->patterns.end();
-							itp = itlg->patterns.insert(itp,pattern);
-							if (logDetails) this->log->debug("Pattern to match: " + pattern.pattern);
-						}
-					} else if (line.substr(0,9) == "log.score") {
-						pos = line.find_first_of("=");
-						if (pos != std::string::npos) {
-							line = hb::Util::ltrim(line.substr(pos+1));
-							itp->score = strtoul(line.c_str(), NULL, 10);
-							if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
+					} else if (group == 1) {// Log group section
+						if (line.substr(0,8) == "log.path") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								hb::LogFile logFile;
+								logFile.path = hb::Util::ltrim(line.substr(pos+1));
+								itlg->logFiles.push_back(logFile);
+								if (logDetails) this->log->debug("Logfile path: " + hb::Util::ltrim(line.substr(pos+1)));
+							}
+						} else if (line.substr(0,11) == "log.pattern") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								hb::Pattern pattern;
+								pattern.pattern = hb::Util::ltrim(line.substr(pos+1));
+								// TODO, %i is mandatory in pattern, if not present then skip that rule and write warning to syslog
+								itp = itlg->patterns.end();
+								itp = itlg->patterns.insert(itp,pattern);
+								if (logDetails) this->log->debug("Pattern to match: " + pattern.pattern);
+							}
+						} else if (line.substr(0,9) == "log.score") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								itp->score = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
+							}
 						}
 					}
 				}
 			}
+		} catch (std::regex_error& e){
+			std::string message = e.what();
+			this->log->error(message + ": " + std::to_string(e.code()));
+			this->log->error(Util::regexErrorCode2Text(e.code()));
+			return false;
 		}
-	} catch (std::regex_error& e){
-		std::string message = e.what();
-		this->log->error(message + ": " + std::to_string(e.code()));
-		this->log->error(Util::regexErrorCode2Text(e.code()));
+	} else {
+		throw std::runtime_error("Error, failed to open configuration file!");
 	}
 	return true;
 }

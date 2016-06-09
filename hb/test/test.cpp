@@ -16,6 +16,8 @@ namespace csyslog{
 #include "../src/iptables.h"
 // Config
 #include "../src/config.h"
+// Data
+#include "../src/data.h"
 
 int main(int argc, char *argv[])
 {
@@ -85,17 +87,26 @@ int main(int argc, char *argv[])
 
 		// Config
 		std::cout << "Creating Config object..." << std::endl;
-		hb::Config cfg = hb::Config(log, "config/hostblock.conf");
+		hb::Config cfg = hb::Config(&log, "config/hostblock.conf");
 		std::cout << "Loading configuration file..." << std::endl;
-		cfg.load();
+		if (!cfg.load()){
+			std::cerr << "Failed to load configuration!" << std::endl;
+		}
 		if (testConfig){
 			std::cout << "Printing configuration to stdout..." << std::endl;
 			cfg.print();
 		}
 
 		// Data
+		std::cout << "Creating Data object..." << std::endl;
+		hb::Data data = hb::Data(&log, &cfg);
+		cfg.dataFilePath = "hb/test/test_data";
+		std::cout << "Loading data..." << std::endl;
+		if (!data.loadData()){
+			std::cerr << "Failed to load data!" << std::endl;
+		}
 		if (testData){
-			cfg.dataFilePath = "hb/test/test_data";
+			
 		}
 
 	} catch (std::exception& e){
