@@ -65,7 +65,7 @@ class Config{
 		/*
 		 * Log groups
 		 */
-		std::vector<hb::LogGroup>* logGroups;
+		std::vector<hb::LogGroup> logGroups = std::vector<hb::LogGroup>();
 
 		/*
 		 * Data about suspicious, whitelisted and blacklisted addresses

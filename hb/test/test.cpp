@@ -86,9 +86,9 @@ int main(int argc, char *argv[])
 		if (testConfig){
 			std::cout << "Creating Config object..." << std::endl;
 			hb::Config cfg = hb::Config(log, "config/hostblock.conf");
-			std::vector<hb::LogGroup> logGroups =  std::vector<hb::LogGroup>();
+			// std::vector<hb::LogGroup> logGroups =  std::vector<hb::LogGroup>();
 			std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses = std::map<std::string, hb::SuspiciosAddressType>();
-			cfg.logGroups = &logGroups;
+			// cfg.logGroups = &logGroups;
 			cfg.suspiciousAddresses = &suspiciousAddresses;
 			std::cout << "Loading configuration file..." << std::endl;
 			cfg.load();
