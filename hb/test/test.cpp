@@ -24,7 +24,8 @@ int main(int argc, char *argv[])
 
 	bool testSyslog = false;
 	bool testIptables = false;
-	bool testConfig = true;
+	bool testConfig = false;
+	bool testData = true;
 
 	try{
 		// Syslog
@@ -83,17 +84,18 @@ int main(int argc, char *argv[])
 		}
 
 		// Config
+		std::cout << "Creating Config object..." << std::endl;
+		hb::Config cfg = hb::Config(log, "config/hostblock.conf");
+		std::cout << "Loading configuration file..." << std::endl;
+		cfg.load();
 		if (testConfig){
-			std::cout << "Creating Config object..." << std::endl;
-			hb::Config cfg = hb::Config(log, "config/hostblock.conf");
-			// std::vector<hb::LogGroup> logGroups =  std::vector<hb::LogGroup>();
-			// std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses = std::map<std::string, hb::SuspiciosAddressType>();
-			// cfg.logGroups = &logGroups;
-			// cfg.suspiciousAddresses = &suspiciousAddresses;
-			std::cout << "Loading configuration file..." << std::endl;
-			cfg.load();
 			std::cout << "Printing configuration to stdout..." << std::endl;
 			cfg.print();
+		}
+
+		// Data
+		if (testData){
+			cfg.dataFilePath = "hb/test/test_data";
 		}
 
 	} catch (std::exception& e){
