@@ -70,7 +70,7 @@ class Config{
 		/*
 		 * Data about suspicious, whitelisted and blacklisted addresses
 		 */
-		std::map<std::string, hb::SuspiciosAddressType>* suspiciousAddresses;
+		// std::map<std::string, hb::SuspiciosAddressType>* suspiciousAddresses;
 
 		/*
 		 * Constructor
