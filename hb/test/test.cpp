@@ -102,11 +102,28 @@ int main(int argc, char *argv[])
 		hb::Data data = hb::Data(&log, &cfg);
 		cfg.dataFilePath = "hb/test/test_data";
 		std::cout << "Loading data..." << std::endl;
-		if (!data.loadData()){
+		if (!data.loadData()) {
 			std::cerr << "Failed to load data!" << std::endl;
 		}
 		if (testData){
-			
+			// Create new data file
+			std::cout << "Creating new data file..." << std::endl;
+			cfg.dataFilePath = "test_data_tmp";
+			if (!data.saveData()) {
+				std::cerr << "Failed to save data to datafile!" << std::endl;
+			}
+			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
+			// std::map<std::string, hb::SuspiciosAddressType> suspiciousAddressesOrig = data.suspiciousAddresses;
+			// Load newly created data file
+			std::cout << "Loading data from new datafile..." << std::endl;
+			if (!data.loadData()) {
+				std::cerr << "Failed to load data!" << std::endl;
+			}
+			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
+			// Remove newly created data file
+			if (std::remove(cfg.dataFilePath.c_str()) != 0) {
+				std::cerr << "Failed to remove temporary data file!" << std::endl;
+			}
 		}
 
 	} catch (std::exception& e){

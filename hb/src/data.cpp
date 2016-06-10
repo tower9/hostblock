@@ -46,6 +46,8 @@
 #include <string>
 // File stream library (ifstream)
 #include <fstream>
+// Parametric manipulators (setw, setfill)
+#include <iomanip>
 // Linux stat
 namespace cstat{
 	#include <errno.h>
@@ -79,7 +81,7 @@ bool Data::loadData()
 {
 	this->log->info("Loading data from " + this->config->dataFilePath);
 	std::ifstream f(this->config->dataFilePath.c_str());
-	if (f.is_open()){
+	if (f.is_open()) {
 		std::string line;
 		std::string recordType;
 		std::string address;
@@ -92,6 +94,9 @@ bool Data::loadData()
 		bool logFileFound = false;
 		std::vector<hb::LogGroup>::iterator itlg;
 		std::vector<hb::LogFile>::iterator itlf;
+
+		// Clear this->suspiciousAddresses
+		this->suspiciousAddresses.clear();
 
 		// Read data file line by line
 		while (getline(f, line)) {
@@ -115,7 +120,7 @@ bool Data::loadData()
 				if (line.substr(91,1) == "y") data.blacklisted = true;
 				else data.blacklisted = false;
 				// If IP address is in both, whitelist and blacklist, remove it from blacklist
-				if(data.whitelisted == true && data.blacklisted == true){
+				if (data.whitelisted == true && data.blacklisted == true) {
 					this->log->warning("Address " + address + " is in whitelist and at the same time in blacklist! Removing address from blacklist...");
 					data.blacklisted = false;
 				}
@@ -123,10 +128,11 @@ bool Data::loadData()
 				data.iptableRule = false;
 				// Store in this->suspiciousAddresses
 				chk = this->suspiciousAddresses.insert(std::pair<std::string, hb::SuspiciosAddressType>(address, data));
-				if(chk.second == false){
+				if (chk.second == false) {
+					this->log->warning("Address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
 					duplicatesFound = true;
 				}
-			} else if(recordType == "b"){// Log file bookmarks
+			} else if (recordType == "b") {// Log file bookmarks
 				// Bookmark
 				bookmark = strtoull(hb::Util::ltrim(line.substr(1,20)).c_str(), NULL, 10);
 				// Last known size to detect if log file has been rotated
@@ -141,6 +147,7 @@ bool Data::loadData()
 							itlf->bookmark = bookmark;
 							itlf->size = size;
 							logFileFound = true;
+							this->log->debug("Bookmark: " + std::to_string(bookmark) + " Size: " + std::to_string(size) + " Path: " + logFilePath);
 							break;
 						}
 					}
@@ -152,6 +159,9 @@ bool Data::loadData()
 				}
 			}
 		}
+
+		// Finished reading file, close it
+		f.close();
 
 		// If duplicates found, rename current data file to serve as backup and save new data file without duplicates
 		if (duplicatesFound) {
@@ -173,8 +183,8 @@ bool Data::loadData()
 			std::string newDataFileName = this->config->dataFilePath + "_" + std::to_string(itime->tm_year + 1900) + month + day + hour + minute + second + ".bck";
 			// Check if new filename doesn't exist (so that it is not overwritten)
 			struct cstat::stat buffer;
-			if(cstat::stat(newDataFileName.c_str(), &buffer) != 0){
-				if(rename(this->config->dataFilePath.c_str(), newDataFileName.c_str()) != 0){
+			if (cstat::stat(newDataFileName.c_str(), &buffer) != 0) {
+				if (std::rename(this->config->dataFilePath.c_str(), newDataFileName.c_str()) != 0) {
 					this->log->error("Current data file contains duplicate entries and backup creation failed (file rename failure)!");
 					return false;
 				}
@@ -183,7 +193,7 @@ bool Data::loadData()
 				return false;
 			}
 			// Save data without duplicates to data file (create new data file)
-			if(this->saveData() == false){
+			if (this->saveData() == false) {
 				this->log->error("Current data file contains duplicate entries, renamed data file successfully, but failed to save new data file!");
 				return false;
 			}
@@ -197,8 +207,8 @@ bool Data::loadData()
 			this->log->error("Unable to create new empty data file!");
 			return false;
 		}
-		return true;
 	}
+
 	return true;
 }
 
@@ -207,12 +217,51 @@ bool Data::loadData()
  */
 bool Data::saveData()
 {
+	this->log->info("Updating data in " + this->config->dataFilePath);
+	std::ofstream f(this->config->dataFilePath.c_str());
+	if (f.is_open()) {
+		// Loop through all addresses
+		std::map<std::string, SuspiciosAddressType>::iterator it;
+		for (it = this->suspiciousAddresses.begin(); it!=this->suspiciousAddresses.end(); ++it) {
+			f << "d";
+			f << std::right << std::setw(39) << it->first;// Address, left padded with spaces
+			f << std::right << std::setw(20) << it->second.lastActivity;// Last activity, left padded with spaces
+			f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
+			f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
+			f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
+			if(it->second.whitelisted == true) f << "y";
+			else f << "n";
+			if(it->second.blacklisted == true) f << "y";
+			else f << "n";
+			// f << std::endl;// endl should flush buffer
+			f << "\n";// \n should not flush buffer
+		}
 
-	return false;
+		// Loop all log files
+		std::vector<hb::LogGroup>::iterator itlg;
+		std::vector<hb::LogFile>::iterator itlf;
+		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+				f << "b";
+				f << std::right << std::setw(20) << itlf->bookmark;
+				f << std::right << std::setw(20) << itlf->size;
+				f << itlf->path;
+				// f << std::endl;// endl should flush buffer
+				f << "\n";// \n should not flush buffer
+			}
+		}
+
+		// Close datafile
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for writting!");
+		return false;
+	}
+	return true;
 }
 
 /*
- * Add new record to datafile based on this->suspiciousAddresses
+ * Add new record to datafile end based on this->suspiciousAddresses
  */
 bool Data::saveAddress(std::string address)
 {
