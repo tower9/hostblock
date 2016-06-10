@@ -24,6 +24,9 @@ int main(int argc, char *argv[])
 	clock_t start = clock();
 	clock_t end;
 
+	time_t currentTime;
+	time(&currentTime);
+
 	bool testSyslog = false;
 	bool testIptables = false;
 	bool testConfig = false;
@@ -113,8 +116,38 @@ int main(int argc, char *argv[])
 				std::cerr << "Failed to save data to datafile!" << std::endl;
 			}
 			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
-			// std::map<std::string, hb::SuspiciosAddressType> suspiciousAddressesOrig = data.suspiciousAddresses;
-			// Load newly created data file
+			// Append single record to datafile
+			std::cout << "Adding 10.10.10.15 to data file..." << std::endl;
+			hb::SuspiciosAddressType rec;
+			rec.lastActivity = (unsigned long long int)currentTime;
+			rec.activityScore = 99;
+			rec.activityCount = 3;
+			rec.refusedCount = 2;
+			rec.whitelisted = false;
+			rec.blacklisted = true;
+			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>("10.10.10.15",rec));
+			if (!data.addAddress("10.10.10.15")) {
+				std::cerr << "Failed to add new record to datafile!" << std::endl;
+			}
+			// Update single record in datafile
+			std::cout << "Updating 10.10.10.15 in data file..." << std::endl;
+			data.suspiciousAddresses["10.10.10.15"].activityScore += 10;
+			data.suspiciousAddresses["10.10.10.15"].activityCount++;
+			data.suspiciousAddresses["10.10.10.15"].lastActivity = (unsigned long long int)currentTime;
+			if (!data.updateAddress("10.10.10.15")) {
+				std::cerr << "Failed to update record in datafile!" << std::endl;
+			}
+			std::cout << "Updating 10.10.10.14 in data file..." << std::endl;
+			data.suspiciousAddresses["10.10.10.14"].lastActivity = (unsigned long long int)currentTime;
+			if (!data.updateAddress("10.10.10.14")) {
+				std::cerr << "Failed to update record in datafile!" << std::endl;
+			}
+			// Remove single record from datafile
+			std::cout << "Removing 10.10.10.13 from data file..." << std::endl;
+			if (!data.removeAddress("10.10.10.13")) {
+				std::cerr << "Failed to remove record from datafile!" << std::endl;
+			}
+			// Load data file
 			std::cout << "Loading data from new datafile..." << std::endl;
 			if (!data.loadData()) {
 				std::cerr << "Failed to load data!" << std::endl;

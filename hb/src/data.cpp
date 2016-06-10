@@ -218,6 +218,7 @@ bool Data::loadData()
 bool Data::saveData()
 {
 	this->log->info("Updating data in " + this->config->dataFilePath);
+	// Open file
 	std::ofstream f(this->config->dataFilePath.c_str());
 	if (f.is_open()) {
 		// Loop through all addresses
@@ -263,10 +264,32 @@ bool Data::saveData()
 /*
  * Add new record to datafile end based on this->suspiciousAddresses
  */
-bool Data::saveAddress(std::string address)
+bool Data::addAddress(std::string address)
 {
+	this->log->debug("Adding record to " + this->config->dataFilePath + ", adding address " + address);
+	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
+	if (f.is_open()) {
+		// Write record to datafile end
+		f << "d";
+		f << std::right << std::setw(39) << address;// Address, left padded with spaces
+		f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
+		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
+		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
+		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
+		if(this->suspiciousAddresses[address].whitelisted == true) f << "y";
+		else f << "n";
+		if(this->suspiciousAddresses[address].blacklisted == true) f << "y";
+		else f << "n";
+		// f << std::endl;// endl should flush buffer
+		f << "\n";// \n should not flush buffer
+		// Close datafile
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for writting!");
+		return false;
+	}
 
-	return false;
+	return true;
 }
 
 /*
@@ -274,8 +297,61 @@ bool Data::saveAddress(std::string address)
  */
 bool Data::updateAddress(std::string address)
 {
+	bool recordFound = false;
+	char c;
+	char fAddress[40];
+	// std:string buffer;
+	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating address " + address);
+	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
+	if (f.is_open()) {
+		while (f.get(c)) {
+			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+			if (c == 'd') {// Data record, check if IP matches
+				// Get address
+				f.get(fAddress, 40);
+				// If we have found address that we need to update
+				if (hb::Util::ltrim(std::string(fAddress)) == address) {
+					f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
+					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
+					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
+					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
+					if(this->suspiciousAddresses[address].whitelisted == true) f << "y";
+					else f << "n";
+					if(this->suspiciousAddresses[address].blacklisted == true) f << "y";
+					else f << "n";
+					// f << std::endl;// endl should flush buffer
+					f << "\n";// \n should not flush buffer
+					recordFound = true;
+					break;// No need to continue reading file
+				}
+				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
+				f.seekg(53, f.cur);
+			} else {// Other type of record (bookmark or removed record)
+				// We can skip at min 41 pos
+				f.seekg(41, f.cur);
+				// Read until end of line
+				while (f.get(c)) {
+					if (c == '\n') {
+						break;
+					}
+				}
+			}
+		}
 
-	return false;
+		// Close data file
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	if (!recordFound) {
+		this->log->error("Unable to update " + address + " in data file, record not found in data file!");
+		// Maybe better write warning, backup existing datafile and create new one based on data in memory?
+		return false;
+	} else {
+		return true;
+	}
 }
 
 /*
@@ -283,14 +359,60 @@ bool Data::updateAddress(std::string address)
  */
 bool Data::removeAddress(std::string address)
 {
+	bool recordFound = false;
+	char c;
+	char fAddress[40];
+	// std:string buffer;
+	this->log->debug("Removing record from " + this->config->dataFilePath + ", removing address " + address);
+	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
+	if (f.is_open()) {
+		while (f.get(c)) {
+			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+			if (c == 'd') {// Data record, check if IP matches
+				// Get address
+				f.get(fAddress, 40);
+				// If we have found address that we need to remove
+				if (hb::Util::ltrim(std::string(fAddress)) == address) {
+					f.seekg(-40, f.cur);
+					f << "r";
+					recordFound = true;
+					break;// No need to continue reading file
+				}
+				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
+				f.seekg(53, f.cur);
+			} else {// Other type of record (bookmark or removed record)
+				// We can skip at min 41 pos
+				f.seekg(41, f.cur);
+				// Read until end of line
+				while (f.get(c)) {
+					if (c == '\n') {
+						break;
+					}
+				}
+			}
+		}
 
+		// Close data file
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	if (!recordFound) {
+		this->log->error("Tried removing address " + address + " from datafile, but record is not present in datafile!");
+		// Maybe better write warning, backup existing datafile and create new one based on data in memory?
+		return false;
+	} else {
+		return true;
+	}
 	return false;
 }
 
 /*
  * Add new log file bookmark record to datafile
  */
-bool Data::saveFile(std::string filePath)
+bool Data::addFile(std::string filePath)
 {
 
 	return false;

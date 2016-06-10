@@ -57,7 +57,7 @@ class Data{
 		/*
 		 * Add new record to datafile based on this->suspiciousAddresses
 		 */
-		bool saveAddress(std::string address);
+		bool addAddress(std::string address);
 
 		/*
 		 * Update record in datafile based on this->suspiciousAddresses
@@ -72,7 +72,7 @@ class Data{
 		/*
 		 * Add new log file bookmark record to datafile
 		 */
-		bool saveFile(std::string filePath);
+		bool addFile(std::string filePath);
 
 		/*
 		 * Update log file bookmark record in datafile
