@@ -414,8 +414,44 @@ bool Data::removeAddress(std::string address)
  */
 bool Data::addFile(std::string filePath)
 {
+	this->log->debug("Adding record to " + this->config->dataFilePath + ", adding log file " + filePath);
+	// Open datafile
+	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
+	if (f.is_open()) {
+		// Find log file in config
+		std::vector<hb::LogGroup>::iterator itlg;
+		std::vector<hb::LogFile>::iterator itlf;
+		bool logFileFound = false;
+		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+				if (itlf->path == filePath) {
+					// Write record to datafile end
+					f << "b";
+					f << std::right << std::setw(20) << itlf->bookmark;
+					f << std::right << std::setw(20) << itlf->size;
+					f << itlf->path;
+					// f << std::endl;// endl should flush buffer
+					f << "\n";// \n should not flush buffer
+					logFileFound = true;
+					break;
+				}
+			}
+		}
 
-	return false;
+		// Report error if log file not found in config
+		if (!logFileFound) {
+			this->log->error("Unable to add log file to data file, log file not found in configuration!");
+			return false;
+		}
+
+		// Close datafile
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for writting!");
+		return false;
+	}
+
+	return true;
 }
 
 /*

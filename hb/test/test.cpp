@@ -147,6 +147,23 @@ int main(int argc, char *argv[])
 			if (!data.removeAddress("10.10.10.13")) {
 				std::cerr << "Failed to remove record from datafile!" << std::endl;
 			}
+			// Add new log file to datafile
+			std::cout << "Adding /var/log/messages to data file..." << std::endl;
+			std::vector<hb::LogGroup>::iterator itlg;
+			std::vector<hb::LogFile>::iterator itlf;
+			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
+				if (itlg->name == "OpenSSH") {
+					hb::LogFile logFile;
+					logFile.path = "/var/log/messages";
+					logFile.bookmark = 800;
+					logFile.size = 800;
+					itlg->logFiles.push_back(logFile);
+					break;
+				}
+			}
+			if (!data.addFile("/var/log/messages")) {
+				std::cerr << "Failed to add new record to datafile!" << std::endl;
+			}
 			// Load data file
 			std::cout << "Loading data from new datafile..." << std::endl;
 			if (!data.loadData()) {

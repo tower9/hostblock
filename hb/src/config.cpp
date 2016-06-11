@@ -114,6 +114,7 @@ bool Config::load()
 						if (line.substr(0,8) == "log.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
+								// TODO, check if file exists
 								hb::LogFile logFile;
 								logFile.path = hb::Util::ltrim(line.substr(pos+1));
 								itlg->logFiles.push_back(logFile);
