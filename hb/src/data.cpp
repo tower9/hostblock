@@ -48,6 +48,8 @@
 #include <fstream>
 // Parametric manipulators (setw, setfill)
 #include <iomanip>
+// RegEx
+#include <regex>
 // Linux stat
 namespace cstat{
 	#include <errno.h>
@@ -67,8 +69,8 @@ using namespace hb;
 /*
  * Constructor
  */
-Data::Data(hb::Logger* log, hb::Config* config)
-: log(log), config(config)
+Data::Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables)
+: log(log), config(config), iptables(iptables)
 {
 
 }
@@ -257,6 +259,128 @@ bool Data::saveData()
 	} else {
 		this->log->error("Unable to open datafile for writting!");
 		return false;
+	}
+	return true;
+}
+
+/*
+ * Compare data with iptables rules and update iptables rules if needed
+ */
+bool Data::checkIptables()
+{
+	this->log->info("Checking iptables rules...");
+	std::map<unsigned int, std::string> rules = this->iptables->listRules("INPUT");
+	try {
+		// Regex to search for IP address
+		std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+
+		// Loop through current rules and mark suspcious addresses which have iptables rule
+		std::map<unsigned int, std::string>::iterator rit;
+		size_t checkStart = 0;
+		size_t checkEnd = 0;
+		std::map<std::string, SuspiciosAddressType>::iterator sait;
+		std::smatch ipSearchResults;
+		for(rit=rules.begin(); rit!=rules.end(); ++rit){
+			// Looking at rules like -A INPUT -s X.X.X.X/32 -j DROP
+			checkStart = rit->second.find("-A INPUT -s");
+			checkEnd = rit->second.find("-j DROP");
+			if(checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos){
+				// Find address in rule
+				if(regex_search(rit->second, ipSearchResults, ipSearchPattern)){
+					if(ipSearchResults.size() == 1){
+						// Search for address in map
+						sait = this->suspiciousAddresses.find(ipSearchResults[0]);
+						if(sait != this->suspiciousAddresses.end()){
+							if(sait->second.iptableRule == false){
+								sait->second.iptableRule = true;
+							} else {
+								this->log->warning("Found duplicate iptables rule for " + sait->first + ", consider:");
+								this->log->warning("$ sudo iptables --list-rules INPUT | grep " + sait->first);
+								this->log->warning("$ sudo iptables -D INPUT -s " + sait->first + " -j DROP");
+							}
+						} else {
+							this->log->warning("Found iptables rule for " + ipSearchResults[0].str() + " but don't have any information about this address in datafile, please review manually.");
+							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + ipSearchResults[0].str());
+						}
+					}
+				}
+			}
+		}
+
+		// Loop through all suspicious address and add iptables rules that are missing
+		bool createRule = false;
+		bool removeRule = false;
+		time_t currentRawTime;
+		time(&currentRawTime);
+		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
+		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait){
+			if (!sait->second.iptableRule){// If this address doesn't have rule then check if it needs one
+				// Whitelisted addresses must not have rule
+				if (sait->second.whitelisted) {
+					continue;
+				}
+
+				// Blacklisted addresses must have rule
+				if (sait->second.blacklisted) {
+					createRule = true;
+				}
+
+				if(this->config->keepBlockedScoreMultiplier > 0){
+					// Score multiplier configured, recheck if score is enough to create rule
+					if(sait->second.activityScore > 0
+							&& sait->second.lastActivity + sait->second.activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier
+							&& currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)){
+						createRule = true;
+					}
+				} else {
+					// Without multiplier rules are kept forever for cases where there is enough score
+					if(sait->second.activityScore >= this->config->activityScoreToBlock){
+						createRule = true;
+					}
+				}
+			} else {// If this address has rule then check if rule has expired or address is manually added to whitelist so rule should be removed
+				// Blacklisted addresses must have rule
+				if(sait->second.blacklisted == true){
+					continue;
+				}
+				// Whitelisted addresses must not have rule
+				if(sait->second.whitelisted == true){
+					removeRule = true;
+				}
+
+				if(this->config->keepBlockedScoreMultiplier > 0){
+					// Score multiplier configured, recheck if score is no longer enough to keep this rule
+					if(currentTime > sait->second.lastActivity + sait->second.activityScore){
+						removeRule = true;
+					}
+				} else {
+					// Without multiplier rules are kept until core is manually reduced under activityScoreToBlock
+					if(sait->second.activityScore < this->config->activityScoreToBlock){
+						removeRule = true;
+					}
+				}
+			}
+			if(createRule == true){
+				this->log->warning("Address " + sait->first + " is missing iptables rule, adding...");
+				if(this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false){
+					this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
+				} else {
+					sait->second.iptableRule = true;
+				}
+			}
+			if(removeRule == true){
+				this->log->warning("Address " + sait->first + " no longer needs iptables rule, removing...");
+				if(this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false){
+					this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
+				} else {
+					sait->second.iptableRule = false;
+				}
+			}
+		}
+	} catch (std::regex_error& e){
+		std::string message = e.what();
+		this->log->error(message + ": " + std::to_string(e.code()));
+		this->log->error(hb::Util::regexErrorCode2Text(e.code()));
 	}
 	return true;
 }

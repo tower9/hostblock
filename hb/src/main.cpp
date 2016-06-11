@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Init object to work with datafile
-		hb::Data data = hb::Data(&log, &config);
+		hb::Data data = hb::Data(&log, &config, &iptables);
 
 		// Load datafile
 		if (!data.loadData()) {
@@ -236,8 +236,13 @@ int main(int argc, char *argv[])
 				}
 				exit(0);
 			} else {// Child (pid == 0), daemon process
-				// For main loop
+				// To keep main loop running
 				running = true;
+
+				// Compare data with iptables rules and add/remove rules if needed
+				if (!data.checkIptables()) {
+					log.error("Failed to compare data with iptables...");
+				}
 
 				// Register signal handler
 				csignal::signal(SIGTERM, signalHandler);// Stop daemon

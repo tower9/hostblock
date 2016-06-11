@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 	time(&currentTime);
 
 	bool testSyslog = false;
-	bool testIptables = false;
+	bool testIptables = true;
 	bool testConfig = false;
 	bool testData = true;
 	bool removeTempData = true;
@@ -72,9 +72,9 @@ int main(int argc, char *argv[])
 		log.setLevel(LOG_DEBUG);
 
 		// iptables
+		std::cout << "Creating Iptables object..." << std::endl;
+		hb::Iptables iptbl = hb::Iptables();
 		if (testIptables){
-			std::cout << "Creating Iptables object..." << std::endl;
-			hb::Iptables iptbl = hb::Iptables();
 			std::map<unsigned int, std::string> rules;
 			std::map<unsigned int, std::string>::iterator ruleIt;
 			std::cout << "iptable rules (INPUT):" << std::endl;
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 
 		// Data
 		std::cout << "Creating Data object..." << std::endl;
-		hb::Data data = hb::Data(&log, &cfg);
+		hb::Data data = hb::Data(&log, &cfg, &iptbl);
 		cfg.dataFilePath = "hb/test/test_data";
 		std::cout << "Loading data..." << std::endl;
 		if (!data.loadData()) {
@@ -207,6 +207,13 @@ int main(int argc, char *argv[])
 			// Remove newly created data file
 			if (removeTempData && std::remove(cfg.dataFilePath.c_str()) != 0) {
 				std::cerr << "Failed to remove temporary data file!" << std::endl;
+			}
+			// Compare data with iptables
+			if (testIptables) {
+				std::cout << "Comparing data with iptables..." << std::endl;
+				if (!data.checkIptables()) {
+					std::cerr << "Failed to compare data with iptables!" << std::endl;
+				}
 			}
 		}
 

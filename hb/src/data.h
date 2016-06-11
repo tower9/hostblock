@@ -12,6 +12,8 @@
 #include "logger.h"
 // Config
 #include "config.h"
+// Iptables
+#include "iptables.h"
 // Util
 #include "util.h"
 
@@ -32,6 +34,11 @@ class Data{
 		hb::Config* config;
 
 		/*
+		 * Iptables object
+		 */
+		hb::Iptables* iptables;
+
+		/*
 		 * Data about suspicious, whitelisted and blacklisted addresses
 		 */
 		std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses;
@@ -39,7 +46,7 @@ class Data{
 		/*
 		 * Constructor
 		 */
-		Data(hb::Logger* log, hb::Config* config);
+		Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables);
 
 		/*
 		 * Read data file and store results in this->suspiciousAddresses
@@ -53,6 +60,11 @@ class Data{
 		 * This method is intended only to keep data file cleaner, to use this on normal shutdown
 		 */
 		bool saveData();
+
+		/*
+		 * Compare data with iptables rules
+		 */
+		bool checkIptables();
 
 		/*
 		 * Add new record to datafile based on this->suspiciousAddresses

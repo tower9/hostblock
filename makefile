@@ -11,7 +11,7 @@ hostblock: $(OBJS)
 main.o: hb/src/main.cpp
 	$(CC) $(CFLAGS) hb/src/main.cpp
 
-data.o: util.o config.o hb/src/data.h hb/src/data.cpp
+data.o: util.o config.o iptables.o hb/src/data.h hb/src/data.cpp
 	$(CC) $(CFLAGS) hb/src/data.cpp
 
 config.o: util.o hb/src/config.h hb/src/config.cpp
