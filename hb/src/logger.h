@@ -13,6 +13,8 @@ namespace hb{
 			Logger(int facility);
 			// Destructor
 			~Logger();
+			// Open log
+			void openLog(int facility);
 			// Change log level (syslog priority code for level)
 			void setLevel(int level);
 			// Log info message

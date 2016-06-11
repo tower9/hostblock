@@ -14,7 +14,22 @@
 namespace cgetopt{
 	#include <getopt.h>
 }
+// Syslog
+namespace csyslog{
+	#include <syslog.h>
+}
+// Logger
+#include "logger.h"
+// Iptables
+#include "iptables.h"
+// Config
+#include "config.h"
+// Data
+#include "data.h"
 
+/*
+ * Output short help
+ */
 void printUsage()
 {
 	std::cout << "Hostblock v.2.0" << std::endl << std::endl;
@@ -36,6 +51,13 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 	int c;
+	bool statisticsFlag = false;
+	bool listFlag = false;
+	bool countFlag = false;
+	bool timeFlag = false;
+	bool removeFlag = false;
+	std::string removeAddress = "";
+	bool daemonFlag = false;
 	// Options
 	static struct cgetopt::option long_options[] = 
 	{
@@ -57,26 +79,72 @@ int main(int argc, char *argv[])
 				exit(0);
 				break;
 			case 's':
-				// Statistics option
+				statisticsFlag = true;
 				break;
 			case 'l':
-				// List option
+				listFlag = true;
 				break;
 			case 'c':
-				// Count option
+				countFlag = true;
 				break;
 			case 't':
-				// Time option
+				timeFlag = true;
 				break;
 			case 'r':
-				// Address remove option
+				removeFlag = true;
+				removeAddress = cgetopt::optarg;
 				break;
 			case 'd':
-				// Daemon option
+				daemonFlag = true;
 				break;
 			default:
 				printUsage();
 				exit(0);
 		}
 
+		// Init writter to syslog
+		hb::Logger log = hb::Logger(LOG_USER);
+
+		// Init object to work with iptables
+		hb::Iptables iptables = hb::Iptables();
+
+		// Init config, default path to config file is /etc/hostblock.conf
+		hb::Config config = hb::Config(&log, "/etc/hostblock.conf");
+		// If env variable $HOSTBLOCK_CONFIG is set, then use value from it as path to config
+		if (const char* env_cp = std::getenv("HOSTBLOCK_CONFIG")) {
+			config.configPath = std::string(env_cp);
+		}
+
+		// Load config
+		if (!config.load()) {
+			std::cerr << "Failed to load configuration file!" << std::endl;
+			exit(1);
+		}
+
+		// Init object to work with datafile
+		hb::Data data = hb::Data(&log, &config);
+
+		// Load datafile
+		if (!data.loadData()) {
+			std::cerr << "Failed to load data!" << std::endl;
+			exit(1);
+		}
+
+		if (statisticsFlag) {// Output statistics
+
+			exit(0);
+		} else if (listFlag) {// Output list of suspicious addresses
+
+			exit(0);
+		} else if (removeFlag) {// Remove address from datafile
+
+			exit(0);
+		} else if (daemonFlag) {// Run as daemon
+			log.openLog(LOG_DAEMON);
+
+			exit(0);
+		} else {
+			printUsage();
+			exit(0);
+		}
 }

@@ -1,5 +1,5 @@
 OBJS = logger.o iptables.o util.o config.o data.o main.o
-TOBJS = test.o
+TOBJS = logger.o iptables.o util.o config.o data.o test.o
 CC = g++
 DEBUG = -g
 CFLAGS = -std=c++11 -Wall -c $(DEBUG)
@@ -26,8 +26,8 @@ logger.o: hb/src/logger.h hb/src/logger.cpp
 util.o: hb/src/util.h hb/src/util.cpp
 	$(CC) $(CFLAGS) hb/src/util.cpp
 
-test: $(OBJS) $(TOBJS)
-	$(CC) $(LFLAGS) $(OBJS) $(TOBJS) -o test
+test: $(TOBJS)
+	$(CC) $(LFLAGS) $(TOBJS) -o test
 
 test.o: hb/test/test.cpp
 	$(CC) $(CFLAGS) hb/test/test.cpp

@@ -17,12 +17,17 @@ using namespace hb;
 Logger::Logger(int facility)
 {
 	csyslog::openlog("hostblock", LOG_CONS|LOG_PID, facility);
-	csyslog::setlogmask(LOG_UPTO(LOG_ERR));
+	csyslog::setlogmask(LOG_UPTO(LOG_INFO));
 }
 
 Logger::~Logger()
 {
 	csyslog::closelog();
+}
+
+void Logger::openLog(int facility)
+{
+	csyslog::openlog("hostblock", LOG_CONS|LOG_PID, facility);
 }
 
 void Logger::setLevel(int level)

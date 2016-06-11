@@ -2,6 +2,9 @@
  * Simple class to work with iptables
  */
 
+// Map
+#include <map>
+
 #ifndef HBIPTABLES_H
 #define HBIPTABLES_H
 

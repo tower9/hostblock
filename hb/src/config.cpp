@@ -16,6 +16,10 @@
 #include "util.h"
 // Header
 #include "config.h"
+// Syslog
+namespace csyslog{
+	#include <syslog.h>
+}
 
 // Hostblock namespace
 using namespace hb;
@@ -31,8 +35,7 @@ Config::Config(hb::Logger* log)
 Config::Config(hb::Logger* log, std::string configPath)
 : log(log), configPath(configPath)
 {
-	// this->log = &log;
-	// this->configPath = configPath;
+
 }
 
 /*
@@ -82,7 +85,23 @@ bool Config::load()
 					}
 
 					if (group == 0) {// Global section
-						if (line.substr(0,18) == "log.check.interval") {
+						if (line.substr(0,9) == "log.level") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								if (line == "ERROR") {
+									this->log->setLevel(LOG_ERR);
+								} else if (line == "WARNING") {
+									this->log->setLevel(LOG_WARNING);
+								} else if (line == "INFO") {
+									this->log->setLevel(LOG_INFO);
+								} else if (line == "DEBUG") {
+									this->log->setLevel(LOG_DEBUG);
+								}
+								this->logCheckInterval = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("Log level: " + line);
+							}
+						} else if (line.substr(0,18) == "log.check.interval") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								line = hb::Util::ltrim(line.substr(pos+1));

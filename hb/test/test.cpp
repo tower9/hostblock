@@ -36,19 +36,32 @@ int main(int argc, char *argv[])
 	try{
 		// Syslog
 		std::cout << "Creating Logger object..." << std::endl;
-		hb::Logger log = hb::Logger(LOG_USER);
+		hb::Logger log = hb::Logger(LOG_USER);// LOG_USER is facility, priority is changed by setlevel
 		if (testSyslog){
-			std::cout << "Writting to syslog with level LOG_USER..." << std::endl;
-			log.info("Syslog test - level: LOG_USER msg type: info");
-			log.warning("Syslog test - level: LOG_USER msg type: warning");
-			log.error("Syslog test - level: LOG_USER msg type: error");
-			log.debug("Syslog test - level: LOG_USER msg type: debug");
-			log.setLevel(LOG_DAEMON);
-			std::cout << "Writting to syslog with level LOG_DAEMON..." << std::endl;
-			log.info("Syslog test - level: LOG_DAEMON msg type: info");
-			log.warning("Syslog test - level: LOG_DAEMON msg type: warning");	
-			log.error("Syslog test - level: LOG_DAEMON msg type: error");
-			log.debug("Syslog test - level: LOG_DAEMON msg type: debug");
+			log.setLevel(LOG_ERR);
+			std::cout << "Writting to syslog with level LOG_ERR..." << std::endl;
+			log.info("Syslog test - level: LOG_ERR msg type: info");
+			log.warning("Syslog test - level: LOG_ERR msg type: warning");
+			log.error("Syslog test - level: LOG_ERR msg type: error");
+			log.debug("Syslog test - level: LOG_ERR msg type: debug");
+			log.setLevel(LOG_WARNING);
+			std::cout << "Writting to syslog with level LOG_WARNING..." << std::endl;
+			log.info("Syslog test - level: LOG_WARNING msg type: info");
+			log.warning("Syslog test - level: LOG_WARNING msg type: warning");
+			log.error("Syslog test - level: LOG_WARNING msg type: error");
+			log.debug("Syslog test - level: LOG_WARNING msg type: debug");
+			log.setLevel(LOG_NOTICE);
+			std::cout << "Writting to syslog with level LOG_NOTICE..." << std::endl;
+			log.info("Syslog test - level: LOG_NOTICE msg type: info");
+			log.warning("Syslog test - level: LOG_NOTICE msg type: warning");
+			log.error("Syslog test - level: LOG_NOTICE msg type: error");
+			log.debug("Syslog test - level: LOG_NOTICE msg type: debug");
+			log.setLevel(LOG_INFO);
+			std::cout << "Writting to syslog with level LOG_INFO..." << std::endl;
+			log.info("Syslog test - level: LOG_INFO msg type: info");
+			log.warning("Syslog test - level: LOG_INFO msg type: warning");
+			log.error("Syslog test - level: LOG_INFO msg type: error");
+			log.debug("Syslog test - level: LOG_INFO msg type: debug");
 			log.setLevel(LOG_DEBUG);
 			std::cout << "Writting to syslog with level LOG_DEBUG..." << std::endl;
 			log.info("Syslog test - level: LOG_DEBUG msg type: info");
