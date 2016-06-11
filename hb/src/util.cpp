@@ -39,7 +39,7 @@ std::string Util::rtrim(std::string str)
  */
 std::string Util::regexErrorCode2Text(std::regex_constants::error_type code)
 {
-	switch(code){
+	switch(code) {
 		case std::regex_constants::error_collate:
 			return "The expression contained an invalid collating element name.";
 			break;
