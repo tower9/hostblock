@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
 	bool testIptables = false;
 	bool testConfig = false;
 	bool testData = true;
+	bool removeTempData = true;
 
 	try{
 		// Syslog
@@ -150,7 +151,6 @@ int main(int argc, char *argv[])
 			// Add new log file to datafile
 			std::cout << "Adding /var/log/messages to data file..." << std::endl;
 			std::vector<hb::LogGroup>::iterator itlg;
-			std::vector<hb::LogFile>::iterator itlf;
 			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
 				if (itlg->name == "OpenSSH") {
 					hb::LogFile logFile;
@@ -164,6 +164,27 @@ int main(int argc, char *argv[])
 			if (!data.addFile("/var/log/messages")) {
 				std::cerr << "Failed to add new record to datafile!" << std::endl;
 			}
+			// Update bookmark and size for log file in datafile
+			std::cout << "Updating /var/log/messages in data file..." << std::endl;
+			// std::vector<hb::LogGroup>::iterator itlg;
+			std::vector<hb::LogFile>::iterator itlf;
+			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
+				for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+					if (itlf->path == "/var/log/messages") {
+						itlf->bookmark += 100;
+						itlf->size += 100;
+						break;
+					}
+				}
+			}
+			if (!data.updateFile("/var/log/messages")) {
+				std::cerr << "Failed to update record in datafile!" << std::endl;
+			}
+			// Remove log file record from datafile
+			std::cout << "Removing /var/log/auth.log from data file..." << std::endl;
+			if (!data.removeFile("/var/log/auth.log")) {
+				std::cerr << "Failed to remove record from datafile!" << std::endl;
+			}
 			// Load data file
 			std::cout << "Loading data from new datafile..." << std::endl;
 			if (!data.loadData()) {
@@ -171,7 +192,7 @@ int main(int argc, char *argv[])
 			}
 			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
 			// Remove newly created data file
-			if (std::remove(cfg.dataFilePath.c_str()) != 0) {
+			if (removeTempData && std::remove(cfg.dataFilePath.c_str()) != 0) {
 				std::cerr << "Failed to remove temporary data file!" << std::endl;
 			}
 		}

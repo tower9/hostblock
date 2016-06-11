@@ -83,7 +83,7 @@ bool Data::loadData()
 	std::ifstream f(this->config->dataFilePath.c_str());
 	if (f.is_open()) {
 		std::string line;
-		std::string recordType;
+		char recordType;
 		std::string address;
 		hb::SuspiciosAddressType data;
 		std::pair<std::map<std::string, hb::SuspiciosAddressType>::iterator,bool> chk;
@@ -101,8 +101,8 @@ bool Data::loadData()
 		// Read data file line by line
 		while (getline(f, line)) {
 			// First position is record type
-			recordType = line.substr(0,1);
-			if(recordType == "d" && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
+			recordType = line[0];
+			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
 				// IP address
 				address = hb::Util::ltrim(line.substr(1,39));
 				// Timestamp of last activity
@@ -114,10 +114,10 @@ bool Data::loadData()
 				// Refused connection count
 				data.refusedCount = strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
 				// Whether IP address is in whitelist
-				if (line.substr(90,1) == "y") data.whitelisted = true;
+				if (line[90] == 'y') data.whitelisted = true;
 				else data.whitelisted = false;
 				// Whether IP address in in blacklist
-				if (line.substr(91,1) == "y") data.blacklisted = true;
+				if (line[91] == 'y') data.blacklisted = true;
 				else data.blacklisted = false;
 				// If IP address is in both, whitelist and blacklist, remove it from blacklist
 				if (data.whitelisted == true && data.blacklisted == true) {
@@ -132,7 +132,7 @@ bool Data::loadData()
 					this->log->warning("Address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
 					duplicatesFound = true;
 				}
-			} else if (recordType == "b") {// Log file bookmarks
+			} else if (recordType == 'b') {// Log file bookmarks
 				// Bookmark
 				bookmark = strtoull(hb::Util::ltrim(line.substr(1,20)).c_str(), NULL, 10);
 				// Last known size to detect if log file has been rotated
@@ -224,16 +224,16 @@ bool Data::saveData()
 		// Loop through all addresses
 		std::map<std::string, SuspiciosAddressType>::iterator it;
 		for (it = this->suspiciousAddresses.begin(); it!=this->suspiciousAddresses.end(); ++it) {
-			f << "d";
+			f << 'd';
 			f << std::right << std::setw(39) << it->first;// Address, left padded with spaces
 			f << std::right << std::setw(20) << it->second.lastActivity;// Last activity, left padded with spaces
 			f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
 			f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
 			f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
-			if(it->second.whitelisted == true) f << "y";
-			else f << "n";
-			if(it->second.blacklisted == true) f << "y";
-			else f << "n";
+			if(it->second.whitelisted == true) f << 'y';
+			else f << 'n';
+			if(it->second.blacklisted == true) f << 'y';
+			else f << 'n';
 			// f << std::endl;// endl should flush buffer
 			f << "\n";// \n should not flush buffer
 		}
@@ -243,7 +243,7 @@ bool Data::saveData()
 		std::vector<hb::LogFile>::iterator itlf;
 		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
 			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-				f << "b";
+				f << 'b';
 				f << std::right << std::setw(20) << itlf->bookmark;
 				f << std::right << std::setw(20) << itlf->size;
 				f << itlf->path;
@@ -270,16 +270,16 @@ bool Data::addAddress(std::string address)
 	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
 	if (f.is_open()) {
 		// Write record to datafile end
-		f << "d";
+		f << 'd';
 		f << std::right << std::setw(39) << address;// Address, left padded with spaces
 		f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
-		if(this->suspiciousAddresses[address].whitelisted == true) f << "y";
-		else f << "n";
-		if(this->suspiciousAddresses[address].blacklisted == true) f << "y";
-		else f << "n";
+		if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
+		else f << 'n';
+		if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
+		else f << 'n';
 		// f << std::endl;// endl should flush buffer
 		f << "\n";// \n should not flush buffer
 		// Close datafile
@@ -300,7 +300,6 @@ bool Data::updateAddress(std::string address)
 	bool recordFound = false;
 	char c;
 	char fAddress[40];
-	// std:string buffer;
 	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating address " + address);
 	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
 	if (f.is_open()) {
@@ -315,10 +314,10 @@ bool Data::updateAddress(std::string address)
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
-					if(this->suspiciousAddresses[address].whitelisted == true) f << "y";
-					else f << "n";
-					if(this->suspiciousAddresses[address].blacklisted == true) f << "y";
-					else f << "n";
+					if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
+					else f << 'n';
+					if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
+					else f << 'n';
 					// f << std::endl;// endl should flush buffer
 					f << "\n";// \n should not flush buffer
 					recordFound = true;
@@ -374,13 +373,13 @@ bool Data::removeAddress(std::string address)
 				// If we have found address that we need to remove
 				if (hb::Util::ltrim(std::string(fAddress)) == address) {
 					f.seekg(-40, f.cur);
-					f << "r";
+					f << 'r';
 					recordFound = true;
 					break;// No need to continue reading file
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
 				f.seekg(53, f.cur);
-			} else {// Other type of record (bookmark or removed record)
+			} else {// Variable length record (bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
 				// Read until end of line
@@ -426,7 +425,7 @@ bool Data::addFile(std::string filePath)
 			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
 				if (itlf->path == filePath) {
 					// Write record to datafile end
-					f << "b";
+					f << 'b';
 					f << std::right << std::setw(20) << itlf->bookmark;
 					f << std::right << std::setw(20) << itlf->size;
 					f << itlf->path;
@@ -436,11 +435,12 @@ bool Data::addFile(std::string filePath)
 					break;
 				}
 			}
+			if (logFileFound) break;
 		}
 
 		// Report error if log file not found in config
 		if (!logFileFound) {
-			this->log->error("Unable to add log file to data file, log file not found in configuration!");
+			this->log->error("Unable to add " + filePath + " to data file, log file not found in configuration!");
 			return false;
 		}
 
@@ -459,8 +459,74 @@ bool Data::addFile(std::string filePath)
  */
 bool Data::updateFile(std::string filePath)
 {
+	bool recordFound = false;
+	bool logFileFound = false;
+	char c;
+	std::string fPath;
+	int tmppos;// To temporarly store current position in file
+	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating log file " + filePath);
+	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
+	if (f.is_open()) {
+		while (f.get(c)) {
+			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+			if (c == 'd') {// Address record, skip to next one
+				f.seekg(92, f.cur);
+			} else if (c == 'b') {// Log file record, check if path matches needed one
+				// Save current position, will need later if file path will match needed one
+				tmppos = f.tellg();
+				// Skip bookmark and size
+				f.seekg(40, f.cur);
+				getline(f, fPath);
+				if (fPath == filePath) {
+					// Go back to bookmark position
+					f.seekg(tmppos, f.beg);
+					// Find log file in config
+					std::vector<hb::LogGroup>::iterator itlg;
+					std::vector<hb::LogFile>::iterator itlf;
+					for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+						for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+							if (itlf->path == filePath) {
+								// Update bookmark and size in datafile
+								f << std::right << std::setw(20) << itlf->bookmark;
+								f << std::right << std::setw(20) << itlf->size;
+								logFileFound = true;
+								break;
+							}
+						}
+						if (logFileFound) break;
+					}
+					recordFound = true;
+					break;// No need to continue work with file
+				}
+			} else {// Variable length record (removed)
+				// We can skip at min 41 pos
+				f.seekg(41, f.cur);
+				// Read until end of line
+				while (f.get(c)) {
+					if (c == '\n') {
+						break;
+					}
+				}
+			}
+		}
 
-	return false;
+		// Close file
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	if (!recordFound) {
+		this->log->error("Unable to update " + filePath + " in data file, record not found in data file!");
+		// Maybe better write warning, backup existing datafile and create new one based on data in memory?
+		return false;
+	} else if (!logFileFound) {
+		this->log->error("Unable to update " + filePath + " in datafile, log file not found in configuration!");
+		return false;
+	} else {
+		return true;
+	}
 }
 
 /*
@@ -468,6 +534,53 @@ bool Data::updateFile(std::string filePath)
  */
 bool Data::removeFile(std::string filePath)
 {
+	bool recordFound = false;
+	char c;
+	std::string fPath;
+	int tmppos;// To temporarly store current position in file
+	this->log->debug("Removing record from " + this->config->dataFilePath + ", removing log file " + filePath);
+	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
+	if (f.is_open()) {
+		while (f.get(c)) {
+			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+			if (c == 'd') {// Address record, skip to next one
+				f.seekg(92, f.cur);
+			} else if (c == 'b') {// Log file record, check if path matches needed one
+				// Save current position, will need later if file path will match needed one
+				tmppos = f.tellg();
+				// Skip bookmark and size
+				f.seekg(40, f.cur);
+				getline(f, fPath);
+				if (fPath == filePath) {
+					// Go back to record type position
+					f.seekg(tmppos-1, f.beg);
+					f << 'r';
+					recordFound = true;
+					break;// No need to continue work with file
+				}
+			} else {// Variable length record (removed)
+				// We can skip at min 41 pos
+				f.seekg(41, f.cur);
+				// Read until end of line
+				while (f.get(c)) {
+					if (c == '\n') {
+						break;
+					}
+				}
+			}
+		}
 
-	return false;
+		// Close file
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	if (!recordFound) {
+		this->log->warning("Unable to remove " + filePath + " from data file, record not found in data file!");
+		return false;
+	} else {
+		return true;
+	}
 }
