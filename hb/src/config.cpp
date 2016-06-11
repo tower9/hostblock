@@ -90,12 +90,16 @@ bool Config::load()
 							if (pos != std::string::npos) {
 								line = hb::Util::ltrim(line.substr(pos+1));
 								if (line == "ERROR") {
+									this->logLevel = "ERROR";
 									this->log->setLevel(LOG_ERR);
 								} else if (line == "WARNING") {
+									this->logLevel = "WARNING";
 									this->log->setLevel(LOG_WARNING);
 								} else if (line == "INFO") {
+									this->logLevel = "INFO";
 									this->log->setLevel(LOG_INFO);
 								} else if (line == "DEBUG") {
+									this->logLevel = "DEBUG";
 									this->log->setLevel(LOG_DEBUG);
 								}
 								this->logCheckInterval = strtoul(line.c_str(), NULL, 10);

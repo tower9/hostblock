@@ -30,6 +30,11 @@ void Logger::openLog(int facility)
 	csyslog::openlog("hostblock", LOG_CONS|LOG_PID, facility);
 }
 
+void Logger::closeLog()
+{
+	csyslog::closelog();
+}
+
 void Logger::setLevel(int level)
 {
 	csyslog::setlogmask(LOG_UPTO(level));

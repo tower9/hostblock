@@ -25,6 +25,11 @@ class Config{
 		hb::Logger* log;
 
 		/*
+		 * Log level
+		 */
+		std::string logLevel = "INFO";
+
+		/*
 		 * Configuration file location
 		 */
 		std::string configPath = "/etc/hostblock";

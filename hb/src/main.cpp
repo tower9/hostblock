@@ -10,6 +10,18 @@
 
 // Standard input/output stream library (cin, cout, cerr, clog)
 #include <iostream>
+// File stream library (ifstream)
+#include <fstream>
+// Miscellaneous UNIX symbolic constants, types and functions (fork)
+namespace cunistd{
+	#include <unistd.h>
+}
+// Signal handling
+// #include <csignal>
+// C signal handling
+namespace csignal{
+	#include <signal.h>
+}
 // C getopt
 namespace cgetopt{
 	#include <getopt.h>
@@ -17,6 +29,12 @@ namespace cgetopt{
 // Syslog
 namespace csyslog{
 	#include <syslog.h>
+}
+// Linux stat
+namespace cstat{
+	#include <errno.h>
+	#include <sys/types.h>
+	#include <sys/stat.h>
 }
 // Logger
 #include "logger.h"
@@ -26,6 +44,13 @@ namespace csyslog{
 #include "config.h"
 // Data
 #include "data.h"
+
+// Full path to PID file
+const char* PID_PATH = "/var/run/hostblock.pid";
+// Variable for main loop, will exit when set to false
+bool running = false;
+// Variable for daemon to reload data file
+bool reloadDataFile = false;
 
 /*
  * Output short help
@@ -44,6 +69,20 @@ void printUsage()
 	std::cout << " -d             | --daemon              - run as daemon" << std::endl;
 }
 
+void signalHandler(int signal)
+{
+	if (signal == SIGTERM) {
+		// Stop daemon
+		running = false;
+	} else if (signal == SIGUSR1) {
+		// SIGUSR1 to tell daemon to reload data
+		reloadDataFile = true;
+	}
+}
+
+/*
+ * Main
+ */
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -140,7 +179,126 @@ int main(int argc, char *argv[])
 
 			exit(0);
 		} else if (daemonFlag) {// Run as daemon
+			// Reopen syslog
+			log.closeLog();
 			log.openLog(LOG_DAEMON);
+			// Restore log level
+			if (config.logLevel == "ERROR") {
+				log.setLevel(LOG_ERR);
+			} else if (config.logLevel == "WARNING") {
+				log.setLevel(LOG_WARNING);
+			} else if (config.logLevel == "INFO") {
+				log.setLevel(LOG_INFO);
+			} else if (config.logLevel == "DEBUG") {
+				log.setLevel(LOG_DEBUG);
+			}
+			log.info("Starting daemon process...");
+
+			// Check if file with PID exists
+			struct cstat::stat buffer;
+			if (cstat::stat(PID_PATH, &buffer) == 0) {
+				// Get PID from file
+				std::ifstream f(PID_PATH);
+				if (f.is_open()){
+					std::string line;
+					std::getline(f, line);
+					pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
+					if (csignal::kill(pid, 0) == 0) {// Process exists and is running
+						std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
+						log.error("Unable to start! Another instance of hostblock is already running!");
+						exit(1);
+					} else {// Process does not exist, remove pid file
+						std::remove(PID_PATH);
+					}
+				} else {
+					std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
+					log.error("Unable to start! Another instance of hostblock is already running!");
+					exit(1);
+				}
+			}
+
+			pid_t pid;
+			pid = cunistd::fork();
+
+			if (pid < 0) {
+				std::cerr << "Unable to start! Fork failed!" << std::endl;
+				log.error("Unable to start! Fork failed!");
+				exit(1);
+			} else if (pid > 0) {// Parent (pid > 0)
+				log.debug("Saving PID to file...");
+				// Write PID to file
+				std::ofstream f(PID_PATH);
+				if (f.is_open()) {
+					f << pid;
+					f.close();
+				} else {
+					log.error("Failed to save PID!");
+				}
+				exit(0);
+			} else {// Child (pid == 0), daemon process
+				// For main loop
+				running = true;
+
+				// Register signal handler
+				csignal::signal(SIGTERM, signalHandler);// Stop daemon
+				csignal::signal(SIGUSR1, signalHandler);// Reload datafile
+
+				// Close standard file descriptors
+				cunistd::close(STDIN_FILENO);
+				cunistd::close(STDOUT_FILENO);
+				cunistd::close(STDERR_FILENO);
+
+				// File modification times (for main loop to check if there have been changes to files and relaod is needed)
+				struct cstat::stat statbuf;
+				time_t dataFileMTime;
+				if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
+					dataFileMTime = statbuf.st_mtime;
+				}
+				time_t lastFileMCheck, currentTime, lastLogCheck;
+				time(&lastFileMCheck);
+				lastLogCheck = lastFileMCheck;
+
+				// Main loop
+				while (running) {
+					// Get current time
+					time(&currentTime);
+
+					// Each 60 sec check if datafile is updated and reload is needed
+					if (currentTime - lastFileMCheck >= 60) {
+						// Get datafile stats
+						if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
+							if (dataFileMTime != statbuf.st_mtime) {
+								log.info("Datafile change detected, reloading data for daemon...");
+								reloadDataFile = true;
+							}
+						}
+						lastFileMCheck = currentTime;
+					}
+
+					// Reload datafile
+					if (reloadDataFile) {
+						if (!data.loadData()) {
+							log.error("Failed to reload data for daemon!");
+						} else {
+							reloadDataFile = false;
+							dataFileMTime = statbuf.st_mtime;
+						}
+					}
+
+					// Get current time
+					time(&currentTime);
+
+					// Check log files for suspicious activity
+					if (currentTime - lastLogCheck >= config.logCheckInterval) {
+
+						lastLogCheck = currentTime;
+					}
+
+					// Sleep 1/10 of second
+					cunistd::usleep(100000);
+				}
+				log.info("Daemon stop");
+			}
 
 			exit(0);
 		} else {
