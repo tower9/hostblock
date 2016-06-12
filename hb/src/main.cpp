@@ -44,6 +44,8 @@ namespace cstat{
 #include "config.h"
 // Data
 #include "data.h"
+// LogParser
+#include "logparser.h"
 
 // Full path to PID file
 const char* PID_PATH = "/var/run/hostblock.pid";
@@ -61,10 +63,10 @@ void printUsage()
 	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
 	std::cout << " -h             | --help                - this information" << std::endl;
 	std::cout << " -s             | --statistics          - statistics" << std::endl;
-	std::cout << " -l             | --list                - list of suspicious IP addresses" << std::endl;
-	std::cout << " -lc            | --list --count        - list of suspicious IP addresses with suspicious activity count" << std::endl;
-	std::cout << " -lt            | --list --time         - list of suspicious IP addresses with last suspicious activity time" << std::endl;
-	std::cout << " -lct           | --list --count --time - list of suspicious IP addresses with suspicious activity count and last suspicious activity time" << std::endl;
+	std::cout << " -l             | --list                - list of blocked suspicious IP addresses" << std::endl;
+	std::cout << " -lc            | --list --count        - list of blocked suspicious IP addresses with suspicious activity count" << std::endl;
+	std::cout << " -lt            | --list --time         - list of blocked suspicious IP addresses with last suspicious activity time" << std::endl;
+	std::cout << " -lct           | --list --count --time - list of blocked suspicious IP addresses with suspicious activity count and last suspicious activity time" << std::endl;
 	std::cout << " -r<IP address> | --remove=<IP address> - remove IP address from data file" << std::endl;
 	std::cout << " -d             | --daemon              - run as daemon" << std::endl;
 }
@@ -172,7 +174,7 @@ int main(int argc, char *argv[])
 		if (statisticsFlag) {// Output statistics
 
 			exit(0);
-		} else if (listFlag) {// Output list of suspicious addresses
+		} else if (listFlag) {// Output list of blocked suspicious addresses
 
 			exit(0);
 		} else if (removeFlag) {// Remove address from datafile
@@ -182,6 +184,7 @@ int main(int argc, char *argv[])
 			// Reopen syslog
 			log.closeLog();
 			log.openLog(LOG_DAEMON);
+
 			// Restore log level
 			if (config.logLevel == "ERROR") {
 				log.setLevel(LOG_ERR);
@@ -239,6 +242,9 @@ int main(int argc, char *argv[])
 				// To keep main loop running
 				running = true;
 
+				// Vars for expired rule removal checkIptables
+				std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
+
 				// Compare data with iptables rules and add/remove rules if needed
 				if (!data.checkIptables()) {
 					log.error("Failed to compare data with iptables...");
@@ -253,15 +259,18 @@ int main(int argc, char *argv[])
 				cunistd::close(STDOUT_FILENO);
 				cunistd::close(STDERR_FILENO);
 
+				// Init object to work with log files (check for suspicious activity)
+				hb::LogParser logParser = hb::LogParser(&log, &config, &iptables, &data);
+
 				// File modification times (for main loop to check if there have been changes to files and relaod is needed)
-				struct cstat::stat statbuf;
+				/*struct cstat::stat statbuf;
 				time_t dataFileMTime;
 				if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
 					dataFileMTime = statbuf.st_mtime;
-				}
+				}*/
 				time_t lastFileMCheck, currentTime, lastLogCheck;
 				time(&lastFileMCheck);
-				lastLogCheck = lastFileMCheck;
+				lastLogCheck = lastFileMCheck - config.logCheckInterval;
 
 				// Main loop
 				while (running) {
@@ -269,7 +278,7 @@ int main(int argc, char *argv[])
 					time(&currentTime);
 
 					// Each 60 sec check if datafile is updated and reload is needed
-					if (currentTime - lastFileMCheck >= 60) {
+					/*if (currentTime - lastFileMCheck >= 60) {
 						// Get datafile stats
 						if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
 							if (dataFileMTime != statbuf.st_mtime) {
@@ -278,24 +287,57 @@ int main(int argc, char *argv[])
 							}
 						}
 						lastFileMCheck = currentTime;
-					}
+					}*/
 
 					// Reload datafile
 					if (reloadDataFile) {
+						log.info("Daemon datafile reload...");
 						if (!data.loadData()) {
 							log.error("Failed to reload data for daemon!");
 						} else {
 							reloadDataFile = false;
-							dataFileMTime = statbuf.st_mtime;
+							// dataFileMTime = statbuf.st_mtime;
 						}
 					}
 
 					// Get current time
 					time(&currentTime);
 
-					// Check log files for suspicious activity
-					if (currentTime - lastLogCheck >= config.logCheckInterval) {
+					if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
+						// log.debug("currentTime: " + std::to_string(currentTime) + " lastLogCheck: " + std::to_string(lastLogCheck) + " diff: " + std::to_string((unsigned int)(currentTime - lastLogCheck)) + " logCheckInterval: " + std::to_string(config.logCheckInterval));
 
+						// Check log files for suspicious activity and update iptables if needed
+						logParser.checkFiles();
+
+						// Check iptables rules if any are expired and should be removed
+						for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait){
+							// If address has rule
+							if (sait->second.iptableRule){
+								// Blacklisted addresses must have rule
+								if(sait->second.blacklisted == true){
+									continue;
+								}
+								if(config.keepBlockedScoreMultiplier > 0){
+									// Score multiplier configured, recheck if score is no longer enough to keep this rule
+									if((unsigned long long int)currentTime > sait->second.lastActivity + sait->second.activityScore){
+										log.debug("Address " + sait->first + " no longer needs iptables rule, removing...");
+										try {
+											if(iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false){
+												log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
+											} else {
+												sait->second.iptableRule = false;
+											}
+										} catch (std::runtime_error& e) {
+											std::string message = e.what();
+											log.error(message);
+											log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
+										}
+									}
+								}
+							}
+						}
+
+						// Update time of last log file check
 						lastLogCheck = currentTime;
 					}
 

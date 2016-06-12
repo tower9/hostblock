@@ -1,5 +1,5 @@
-OBJS = logger.o iptables.o util.o config.o data.o main.o
-TOBJS = logger.o iptables.o util.o config.o data.o test.o
+OBJS = logger.o iptables.o util.o config.o data.o logparser.o main.o
+TOBJS = logger.o iptables.o util.o config.o data.o logparser.o test.o
 CC = g++
 DEBUG = -g
 CFLAGS = -std=c++11 -Wall -c $(DEBUG)
@@ -10,6 +10,9 @@ hostblock: $(OBJS)
 
 main.o: hb/src/main.cpp
 	$(CC) $(CFLAGS) hb/src/main.cpp
+
+logparser.o: util.o config.o iptables.o data.o hb/src/logparser.h hb/src/logparser.cpp
+	$(CC) $(CFLAGS) hb/src/logparser.cpp
 
 data.o: util.o config.o iptables.o hb/src/data.h hb/src/data.cpp
 	$(CC) $(CFLAGS) hb/src/data.cpp

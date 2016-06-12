@@ -18,6 +18,8 @@ namespace csyslog{
 #include "../src/config.h"
 // Data
 #include "../src/data.h"
+// LogParser
+#include "../src/logparser.h"
 
 int main(int argc, char *argv[])
 {
@@ -29,9 +31,10 @@ int main(int argc, char *argv[])
 
 	bool testSyslog = false;
 	bool testIptables = true;
-	bool testConfig = false;
+	bool testConfig = true;
 	bool testData = true;
 	bool removeTempData = true;
+	bool testLogParsing = true;
 
 	try{
 		// Syslog
@@ -116,13 +119,15 @@ int main(int argc, char *argv[])
 
 		// Data
 		std::cout << "Creating Data object..." << std::endl;
+		std::vector<hb::LogGroup>::iterator itlg;
+		std::vector<hb::LogFile>::iterator itlf;
 		hb::Data data = hb::Data(&log, &cfg, &iptbl);
 		cfg.dataFilePath = "hb/test/test_data";
 		std::cout << "Loading data..." << std::endl;
 		if (!data.loadData()) {
 			std::cerr << "Failed to load data!" << std::endl;
 		}
-		if (testData){
+		if (testData || testLogParsing){
 			// Create new data file
 			std::cout << "Creating new data file..." << std::endl;
 			cfg.dataFilePath = "test_data_tmp";
@@ -163,7 +168,6 @@ int main(int argc, char *argv[])
 			}
 			// Add new log file to datafile
 			std::cout << "Adding /var/log/messages to data file..." << std::endl;
-			std::vector<hb::LogGroup>::iterator itlg;
 			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
 				if (itlg->name == "OpenSSH") {
 					hb::LogFile logFile;
@@ -179,8 +183,6 @@ int main(int argc, char *argv[])
 			}
 			// Update bookmark and size for log file in datafile
 			std::cout << "Updating /var/log/messages in data file..." << std::endl;
-			// std::vector<hb::LogGroup>::iterator itlg;
-			std::vector<hb::LogFile>::iterator itlf;
 			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
 				for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
 					if (itlf->path == "/var/log/messages") {
@@ -198,22 +200,82 @@ int main(int argc, char *argv[])
 			if (!data.removeFile("/var/log/auth.log")) {
 				std::cerr << "Failed to remove record from datafile!" << std::endl;
 			}
+			// Remove log file record from datafile
+			std::cout << "Removing /var/log/apache2/access.log from data file..." << std::endl;
+			if (!data.removeFile("/var/log/apache2/access.log")) {
+				std::cerr << "Failed to remove record from datafile!" << std::endl;
+			}
+			// Remove log file record from datafile
+			std::cout << "Removing /var/log/messages from data file..." << std::endl;
+			if (!data.removeFile("/var/log/messages")) {
+				std::cerr << "Failed to remove record from datafile!" << std::endl;
+			}
 			// Load data file
 			std::cout << "Loading data from new datafile..." << std::endl;
 			if (!data.loadData()) {
 				std::cerr << "Failed to load data!" << std::endl;
 			}
 			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
-			// Remove newly created data file
-			if (removeTempData && std::remove(cfg.dataFilePath.c_str()) != 0) {
-				std::cerr << "Failed to remove temporary data file!" << std::endl;
-			}
 			// Compare data with iptables
 			if (testIptables) {
 				std::cout << "Comparing data with iptables..." << std::endl;
 				if (!data.checkIptables()) {
 					std::cerr << "Failed to compare data with iptables!" << std::endl;
 				}
+			}
+		}
+
+		// Log parsing
+		if (testLogParsing) {
+			// Reload configuration
+			/*std::cout << "Reloading configuration file..." << std::endl;
+			if (!cfg.load()){
+				std::cerr << "Failed to load configuration!" << std::endl;
+			}
+
+			// Reload data
+			std::cout << "Reloading datafile..." << std::endl;
+			if (!data.loadData()) {
+				std::cerr << "Failed to load data!" << std::endl;
+			}*/
+
+
+
+			// Remove configured log files, add new one for test
+			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
+				itlg->logFiles.clear();
+				/*for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+					itlf->bookmark = 0;
+					itlf->size = 0;
+				}*/
+				// Add test log file
+				if (itlg->name == "OpenSSH") {
+					hb::LogFile logFile;
+					logFile.path = "hb/test/test_sshd_log_file";
+					logFile.bookmark = 0;
+					logFile.size = 0;
+					itlg->logFiles.push_back(logFile);
+					if (!data.addFile("hb/test/test_sshd_log_file")) {
+						std::cerr << "Failed to add new record to datafile!" << std::endl;
+					}
+					break;
+				}
+			}
+
+			// Check log files
+			std::cout << "Log file check..." << std::endl;
+			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);
+			lp.checkFiles();
+
+		}
+
+		// Remove temp test datafile
+		if ( (testData || testLogParsing) && removeTempData) {
+			// Temp datafile name
+			cfg.dataFilePath = "test_data_tmp";
+			// Remove temporarly data file
+			if (std::remove(cfg.dataFilePath.c_str()) != 0) {
+				std::cerr << "Failed to remove temporary data file!" << std::endl;
 			}
 		}
 

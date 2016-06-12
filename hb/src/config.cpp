@@ -50,12 +50,22 @@ bool Config::load()
 		int group = 0;// 0 Global group, 1 Log group
 		std::vector<hb::LogGroup>::iterator itlg;
 		std::vector<hb::Pattern>::iterator itp;
-		size_t pos;
+		std::size_t pos, posip;
 		bool logDetails = true;
 
 		try{
 			std::smatch groupSearchResults;
 			std::regex groupSearchPattern("\\[\\S+\\]");
+
+			// Clear log groups and files
+			for (itlg = this->logGroups.begin(); itlg != this->logGroups.end(); ++itlg) {
+				itlg->logFiles.clear();
+				itlg->patterns.clear();
+			}
+			this->logGroups.clear();
+
+			// Reset log group iterator
+			itlg = this->logGroups.begin();
 
 			// Read config file line by line
 			while (getline(f, line)) {
@@ -102,7 +112,6 @@ bool Config::load()
 									this->logLevel = "DEBUG";
 									this->log->setLevel(LOG_DEBUG);
 								}
-								this->logCheckInterval = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Log level: " + line);
 							}
 						} else if (line.substr(0,18) == "log.check.interval") {
@@ -147,11 +156,14 @@ bool Config::load()
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								hb::Pattern pattern;
-								pattern.pattern = hb::Util::ltrim(line.substr(pos+1));
+								pattern.patternString = hb::Util::ltrim(line.substr(pos+1));
+								posip = pattern.patternString.find("%i");
+								pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+								pattern.pattern = std::regex(pattern.patternString);
 								// TODO, %i is mandatory in pattern, if not present then skip that rule and write warning to syslog
 								itp = itlg->patterns.end();
 								itp = itlg->patterns.insert(itp,pattern);
-								if (logDetails) this->log->debug("Pattern to match: " + pattern.pattern);
+								if (logDetails) this->log->debug("Pattern to match: " + pattern.patternString);
 							}
 						} else if (line.substr(0,9) == "log.score") {
 							pos = line.find_first_of("=");
@@ -210,7 +222,7 @@ void Config::print()
 		std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
 		std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
 		for (itpa = itlg->patterns.begin(); itpa != itlg->patterns.end(); ++itpa) {
-			std::cout << "log.pattern = " << itpa->pattern << std::endl;
+			std::cout << "log.pattern = " << itpa->patternString << std::endl;
 			std::cout << "log.score = " << itpa->score << std::endl;
 		}
 	}

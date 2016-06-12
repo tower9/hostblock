@@ -96,6 +96,7 @@ bool Data::loadData()
 		bool logFileFound = false;
 		std::vector<hb::LogGroup>::iterator itlg;
 		std::vector<hb::LogFile>::iterator itlf;
+		unsigned int removedRecords = 0;
 
 		// Clear this->suspiciousAddresses
 		this->suspiciousAddresses.clear();
@@ -159,6 +160,8 @@ bool Data::loadData()
 					this->log->warning("Bookmark information in datafile for log file " + logFilePath + " found, but file not present in configuration. Removing from datafile...");
 					this->removeFile(logFilePath);
 				}
+			} else if (recordType == 'r') {
+				removedRecords++;
 			}
 		}
 
@@ -196,10 +199,16 @@ bool Data::loadData()
 			}
 			// Save data without duplicates to data file (create new data file)
 			if (this->saveData() == false) {
-				this->log->error("Current data file contains duplicate entries, renamed data file successfully, but failed to save new data file!");
+				this->log->error("Data file contains duplicate entries, successfully renamed data file, but failed to save new data file!");
 				return false;
 			}
 			this->log->warning("Duplicate data found while reading data file! Old data file stored as " + newDataFileName + ", new data file without duplicates saved! Merge manually if needed.");
+		} else if (removedRecords > 100) {// If more than 100 removed records detected in datafile
+			// Save data without without removed records data file - small space saving
+			if (this->saveData() == false) {
+				this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
+				return false;
+			}
 		}
 
 		this->log->info("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
@@ -314,6 +323,8 @@ bool Data::checkIptables()
 		time(&currentRawTime);
 		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait){
+			createRule = false;
+			removeRule = false;
 			if (!sait->second.iptableRule){// If this address doesn't have rule then check if it needs one
 				// Whitelisted addresses must not have rule
 				if (sait->second.whitelisted) {
@@ -343,6 +354,7 @@ bool Data::checkIptables()
 				if(sait->second.blacklisted == true){
 					continue;
 				}
+
 				// Whitelisted addresses must not have rule
 				if(sait->second.whitelisted == true){
 					removeRule = true;
@@ -362,18 +374,30 @@ bool Data::checkIptables()
 			}
 			if(createRule == true){
 				this->log->warning("Address " + sait->first + " is missing iptables rule, adding...");
-				if(this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false){
+				try {
+					if(this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false){
+						this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
+					} else {
+						sait->second.iptableRule = true;
+					}
+				} catch (std::runtime_error& e) {
+					std::string message = e.what();
+					this->log->error(message);
 					this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
-				} else {
-					sait->second.iptableRule = true;
 				}
 			}
 			if(removeRule == true){
 				this->log->warning("Address " + sait->first + " no longer needs iptables rule, removing...");
-				if(this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false){
+				try {
+					if(this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false){
+						this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
+					} else {
+						sait->second.iptableRule = false;
+					}
+				} catch (std::runtime_error& e) {
+					std::string message = e.what();
+					this->log->error(message);
 					this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-				} else {
-					sait->second.iptableRule = false;
 				}
 			}
 		}
@@ -406,6 +430,7 @@ bool Data::addAddress(std::string address)
 		else f << 'n';
 		// f << std::endl;// endl should flush buffer
 		f << "\n";// \n should not flush buffer
+
 		// Close datafile
 		f.close();
 	} else {
@@ -430,8 +455,10 @@ bool Data::updateAddress(std::string address)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Data record, check if IP matches
+
 				// Get address
 				f.get(fAddress, 40);
+
 				// If we have found address that we need to update
 				if (hb::Util::ltrim(std::string(fAddress)) == address) {
 					f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
@@ -445,13 +472,16 @@ bool Data::updateAddress(std::string address)
 					// f << std::endl;// endl should flush buffer
 					f << "\n";// \n should not flush buffer
 					recordFound = true;
-					break;// No need to continue reading file
+
+					// No need to continue reading file
+					break;
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
 				f.seekg(53, f.cur);
 			} else {// Other type of record (bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
+
 				// Read until end of line
 				while (f.get(c)) {
 					if (c == '\n') {
@@ -492,8 +522,10 @@ bool Data::removeAddress(std::string address)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Data record, check if IP matches
+
 				// Get address
 				f.get(fAddress, 40);
+
 				// If we have found address that we need to remove
 				if (hb::Util::ltrim(std::string(fAddress)) == address) {
 					f.seekg(-40, f.cur);
@@ -506,6 +538,7 @@ bool Data::removeAddress(std::string address)
 			} else {// Variable length record (bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
+
 				// Read until end of line
 				while (f.get(c)) {
 					if (c == '\n') {
@@ -538,6 +571,7 @@ bool Data::removeAddress(std::string address)
 bool Data::addFile(std::string filePath)
 {
 	this->log->debug("Adding record to " + this->config->dataFilePath + ", adding log file " + filePath);
+
 	// Open datafile
 	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
 	if (f.is_open()) {
@@ -598,12 +632,14 @@ bool Data::updateFile(std::string filePath)
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 				// Save current position, will need later if file path will match needed one
 				tmppos = f.tellg();
+
 				// Skip bookmark and size
 				f.seekg(40, f.cur);
 				getline(f, fPath);
 				if (fPath == filePath) {
 					// Go back to bookmark position
 					f.seekg(tmppos, f.beg);
+
 					// Find log file in config
 					std::vector<hb::LogGroup>::iterator itlg;
 					std::vector<hb::LogFile>::iterator itlf;
@@ -620,11 +656,14 @@ bool Data::updateFile(std::string filePath)
 						if (logFileFound) break;
 					}
 					recordFound = true;
-					break;// No need to continue work with file
+
+					// No need to continue work with file
+					break;
 				}
 			} else {// Variable length record (removed)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
+
 				// Read until end of line
 				while (f.get(c)) {
 					if (c == '\n') {
@@ -672,6 +711,7 @@ bool Data::removeFile(std::string filePath)
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 				// Save current position, will need later if file path will match needed one
 				tmppos = f.tellg();
+
 				// Skip bookmark and size
 				f.seekg(40, f.cur);
 				getline(f, fPath);
@@ -680,11 +720,14 @@ bool Data::removeFile(std::string filePath)
 					f.seekg(tmppos-1, f.beg);
 					f << 'r';
 					recordFound = true;
-					break;// No need to continue work with file
+
+					// No need to continue work with file
+					break;
 				}
 			} else {// Variable length record (removed)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
+
 				// Read until end of line
 				while (f.get(c)) {
 					if (c == '\n') {
