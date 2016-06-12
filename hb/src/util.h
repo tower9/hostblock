@@ -55,6 +55,7 @@ class Util{
 	private:
 
 	public:
+
 		/*
 		 * Trim spaces from left side of string
 		 */
@@ -69,6 +70,7 @@ class Util{
 		 * Get textual info about regex error
 		 */
 		static std::string regexErrorCode2Text(std::regex_constants::error_type code);
+
 };
 
 }

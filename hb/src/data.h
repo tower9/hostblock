@@ -23,6 +23,7 @@ class Data{
 	private:
 
 	public:
+
 		/*
 		 * Logger object
 		 */
@@ -95,6 +96,7 @@ class Data{
 		 * Mark log file bookmark record for removal in datafile
 		 */
 		bool removeFile(std::string filePath);
+
 };
 
 }

@@ -1,16 +1,14 @@
 /* 
- * Class to work with suspicious activity and log file data.
- *
- * Simple and lazy implementation would be just to rewrite whole data file on
- * each activity, but lets try to minimize I/O a little bit so read further
- * about some generic logic for data file...
+ * Class to work with suspicious activity and log file data. Read further for
+ * small details about how data file looks like.
  * 
  * First position means type of record, almost all data is in fixed position
  * left padded with space to fill specified len. As exception to fixed position
  * is file_path. If filename will change, old one will be marked for removal and
  * new one added to end of file. Delete replaces whole line with "r" right
- * padded with spaces until end of line. Daemon stop rewrites whole file with
- * latest data so lines starting with "r" are not saved (to get rid of them).
+ * padded with spaces until end of line. Daemon start checks for removed record
+ * count, if it exceeds 100, data file is rewritten with latest data and lines
+ * starting with "r" are not saved (to get rid of them eventually).
  * 
  * Data about suspicious activity from address:
  * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted
@@ -82,6 +80,8 @@ Data::Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables)
 bool Data::loadData()
 {
 	this->log->info("Loading data from " + this->config->dataFilePath);
+
+	// Open data file
 	std::ifstream f(this->config->dataFilePath.c_str());
 	if (f.is_open()) {
 		std::string line;
@@ -102,46 +102,53 @@ bool Data::loadData()
 		this->suspiciousAddresses.clear();
 
 		// Read data file line by line
-		while (getline(f, line)) {
+		while (std::getline(f, line)) {
+
 			// First position is record type
 			recordType = line[0];
+
 			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
 				// IP address
 				address = hb::Util::ltrim(line.substr(1,39));
 				// Timestamp of last activity
-				data.lastActivity = strtoull(hb::Util::ltrim(line.substr(40,20)).c_str(), NULL, 10);
+				data.lastActivity = std::strtoull(hb::Util::ltrim(line.substr(40,20)).c_str(), NULL, 10);
 				// Total score of activity calculated at last activity
-				data.activityScore = strtoul(hb::Util::ltrim(line.substr(60,10)).c_str(), NULL, 10);
+				data.activityScore = std::strtoul(hb::Util::ltrim(line.substr(60,10)).c_str(), NULL, 10);
 				// Suspicious activity count
-				data.activityCount = strtoul(hb::Util::ltrim(line.substr(70,10)).c_str(), NULL, 10);
+				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70,10)).c_str(), NULL, 10);
 				// Refused connection count
-				data.refusedCount = strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
+				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
 				// Whether IP address is in whitelist
 				if (line[90] == 'y') data.whitelisted = true;
 				else data.whitelisted = false;
 				// Whether IP address in in blacklist
 				if (line[91] == 'y') data.blacklisted = true;
 				else data.blacklisted = false;
+
 				// If IP address is in both, whitelist and blacklist, remove it from blacklist
 				if (data.whitelisted == true && data.blacklisted == true) {
 					this->log->warning("Address " + address + " is in whitelist and at the same time in blacklist! Removing address from blacklist...");
 					data.blacklisted = false;
 				}
+
 				// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
 				data.iptableRule = false;
+
 				// Store in this->suspiciousAddresses
 				chk = this->suspiciousAddresses.insert(std::pair<std::string, hb::SuspiciosAddressType>(address, data));
 				if (chk.second == false) {
 					this->log->warning("Address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
 					duplicatesFound = true;
 				}
+
 			} else if (recordType == 'b') {// Log file bookmarks
 				// Bookmark
-				bookmark = strtoull(hb::Util::ltrim(line.substr(1,20)).c_str(), NULL, 10);
+				bookmark = std::strtoull(hb::Util::ltrim(line.substr(1,20)).c_str(), NULL, 10);
 				// Last known size to detect if log file has been rotated
-				size = strtoull(hb::Util::ltrim(line.substr(21,20)).c_str(), NULL, 10);
+				size = std::strtoull(hb::Util::ltrim(line.substr(21,20)).c_str(), NULL, 10);
 				// Path to log file
 				logFilePath = hb::Util::rtrim(hb::Util::ltrim(line.substr(41)));
+
 				// Update info about log file
 				logFileFound = false;
 				for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
@@ -156,10 +163,13 @@ bool Data::loadData()
 					}
 					if (logFileFound) break;
 				}
+
+				// If log file is not found this->config
 				if (!logFileFound) {
 					this->log->warning("Bookmark information in datafile for log file " + logFilePath + " found, but file not present in configuration. Removing from datafile...");
 					this->removeFile(logFilePath);
 				}
+
 			} else if (recordType == 'r') {
 				removedRecords++;
 			}
@@ -171,10 +181,10 @@ bool Data::loadData()
 		// If duplicates found, rename current data file to serve as backup and save new data file without duplicates
 		if (duplicatesFound) {
 			// New filename for data file
-			time_t rtime;
+			std::time_t rtime;
 			struct tm * itime;
-			time(&rtime);
-			itime = localtime(&rtime);
+			std::time(&rtime);
+			itime = std::localtime(&rtime);
 			std::string month = std::to_string(itime->tm_mon + 1);
 			if(month.length() == 1) month = "0" + month;
 			std::string day = std::to_string(itime->tm_mday);
@@ -186,6 +196,7 @@ bool Data::loadData()
 			std::string second = std::to_string(itime->tm_sec);
 			if(second.length() == 1) second = "0" + second;
 			std::string newDataFileName = this->config->dataFilePath + "_" + std::to_string(itime->tm_year + 1900) + month + day + hour + minute + second + ".bck";
+
 			// Check if new filename doesn't exist (so that it is not overwritten)
 			struct cstat::stat buffer;
 			if (cstat::stat(newDataFileName.c_str(), &buffer) != 0) {
@@ -211,6 +222,7 @@ bool Data::loadData()
 			}
 		}
 
+		// Data file processing finished
 		this->log->info("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
 	} else {
 		this->log->warning("Unable to open datafile for reading!");
@@ -229,9 +241,11 @@ bool Data::loadData()
 bool Data::saveData()
 {
 	this->log->info("Updating data in " + this->config->dataFilePath);
+
 	// Open file
 	std::ofstream f(this->config->dataFilePath.c_str());
 	if (f.is_open()) {
+
 		// Loop through all addresses
 		std::map<std::string, SuspiciosAddressType>::iterator it;
 		for (it = this->suspiciousAddresses.begin(); it!=this->suspiciousAddresses.end(); ++it) {
@@ -285,8 +299,8 @@ bool Data::checkIptables()
 
 		// Loop through current rules and mark suspcious addresses which have iptables rule
 		std::map<unsigned int, std::string>::iterator rit;
-		size_t checkStart = 0;
-		size_t checkEnd = 0;
+		std::size_t checkStart = 0;
+		std::size_t checkEnd = 0;
 		std::map<std::string, SuspiciosAddressType>::iterator sait;
 		std::smatch ipSearchResults;
 		for(rit=rules.begin(); rit!=rules.end(); ++rit){
@@ -295,7 +309,7 @@ bool Data::checkIptables()
 			checkEnd = rit->second.find("-j DROP");
 			if(checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos){
 				// Find address in rule
-				if(regex_search(rit->second, ipSearchResults, ipSearchPattern)){
+				if(std::regex_search(rit->second, ipSearchResults, ipSearchPattern)){
 					if(ipSearchResults.size() == 1){
 						// Search for address in map
 						sait = this->suspiciousAddresses.find(ipSearchResults[0]);
@@ -319,13 +333,13 @@ bool Data::checkIptables()
 		// Loop through all suspicious address and add iptables rules that are missing
 		bool createRule = false;
 		bool removeRule = false;
-		time_t currentRawTime;
-		time(&currentRawTime);
+		std::time_t currentRawTime;
+		std::time(&currentRawTime);
 		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
-		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait){
+		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
 			createRule = false;
 			removeRule = false;
-			if (!sait->second.iptableRule){// If this address doesn't have rule then check if it needs one
+			if (!sait->second.iptableRule) {// If this address doesn't have rule then check if it needs one
 				// Whitelisted addresses must not have rule
 				if (sait->second.whitelisted) {
 					continue;
@@ -336,46 +350,46 @@ bool Data::checkIptables()
 					createRule = true;
 				}
 
-				if(this->config->keepBlockedScoreMultiplier > 0){
+				if (this->config->keepBlockedScoreMultiplier > 0) {
 					// Score multiplier configured, recheck if score is enough to create rule
-					if(sait->second.activityScore > 0
+					if (sait->second.activityScore > 0
 							&& sait->second.lastActivity + sait->second.activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier
-							&& currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)){
+							&& currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)) {
 						createRule = true;
 					}
 				} else {
 					// Without multiplier rules are kept forever for cases where there is enough score
-					if(sait->second.activityScore >= this->config->activityScoreToBlock){
+					if (sait->second.activityScore >= this->config->activityScoreToBlock) {
 						createRule = true;
 					}
 				}
 			} else {// If this address has rule then check if rule has expired or address is manually added to whitelist so rule should be removed
 				// Blacklisted addresses must have rule
-				if(sait->second.blacklisted == true){
+				if (sait->second.blacklisted == true) {
 					continue;
 				}
 
 				// Whitelisted addresses must not have rule
-				if(sait->second.whitelisted == true){
+				if (sait->second.whitelisted == true) {
 					removeRule = true;
 				}
 
-				if(this->config->keepBlockedScoreMultiplier > 0){
+				if (this->config->keepBlockedScoreMultiplier > 0) {
 					// Score multiplier configured, recheck if score is no longer enough to keep this rule
-					if(currentTime > sait->second.lastActivity + sait->second.activityScore){
+					if (currentTime > sait->second.lastActivity + sait->second.activityScore) {
 						removeRule = true;
 					}
 				} else {
 					// Without multiplier rules are kept until core is manually reduced under activityScoreToBlock
-					if(sait->second.activityScore < this->config->activityScoreToBlock){
+					if (sait->second.activityScore < this->config->activityScoreToBlock) {
 						removeRule = true;
 					}
 				}
 			}
-			if(createRule == true){
+			if (createRule == true) {
 				this->log->warning("Address " + sait->first + " is missing iptables rule, adding...");
 				try {
-					if(this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false){
+					if (this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false) {
 						this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
 					} else {
 						sait->second.iptableRule = true;
@@ -386,10 +400,10 @@ bool Data::checkIptables()
 					this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
 				}
 			}
-			if(removeRule == true){
+			if (removeRule == true) {
 				this->log->warning("Address " + sait->first + " no longer needs iptables rule, removing...");
 				try {
-					if(this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false){
+					if (this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false) {
 						this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
 					} else {
 						sait->second.iptableRule = false;
@@ -401,7 +415,7 @@ bool Data::checkIptables()
 				}
 			}
 		}
-	} catch (std::regex_error& e){
+	} catch (std::regex_error& e) {
 		std::string message = e.what();
 		this->log->error(message + ": " + std::to_string(e.code()));
 		this->log->error(hb::Util::regexErrorCode2Text(e.code()));
@@ -635,7 +649,7 @@ bool Data::updateFile(std::string filePath)
 
 				// Skip bookmark and size
 				f.seekg(40, f.cur);
-				getline(f, fPath);
+				std::getline(f, fPath);
 				if (fPath == filePath) {
 					// Go back to bookmark position
 					f.seekg(tmppos, f.beg);
@@ -709,12 +723,13 @@ bool Data::removeFile(std::string filePath)
 			if (c == 'd') {// Address record, skip to next one
 				f.seekg(92, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
+
 				// Save current position, will need later if file path will match needed one
 				tmppos = f.tellg();
 
 				// Skip bookmark and size
 				f.seekg(40, f.cur);
-				getline(f, fPath);
+				std::getline(f, fPath);
 				if (fPath == filePath) {
 					// Go back to record type position
 					f.seekg(tmppos-1, f.beg);

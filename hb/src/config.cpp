@@ -45,7 +45,7 @@ bool Config::load()
 {
 	this->log->info("Loading config from " + this->configPath);
 	std::ifstream f(this->configPath);
-	if (f.is_open()){
+	if (f.is_open()) {
 		std::string line;
 		int group = 0;// 0 Global group, 1 Log group
 		std::vector<hb::LogGroup>::iterator itlg;
@@ -68,7 +68,7 @@ bool Config::load()
 			itlg = this->logGroups.begin();
 
 			// Read config file line by line
-			while (getline(f, line)) {
+			while (std::getline(f, line)) {
 				// Trim spaces from line
 				line = hb::Util::rtrim(hb::Util::ltrim(line));
 
@@ -82,7 +82,7 @@ bool Config::load()
 					}
 
 					// Group handling - Gobal and Log.*
-					if (regex_search(line, groupSearchResults, groupSearchPattern) && groupSearchResults.size() == 1) {
+					if (std::regex_search(line, groupSearchResults, groupSearchPattern) && groupSearchResults.size() == 1) {
 						if (line.substr(1,6) == "Global") {
 							group = 0;
 						} else if (line.substr(1,4) == "Log.") {
@@ -157,13 +157,17 @@ bool Config::load()
 							if (pos != std::string::npos) {
 								hb::Pattern pattern;
 								pattern.patternString = hb::Util::ltrim(line.substr(pos+1));
+								// Pattern must contain %i, which is placeholder for where to find IP address
 								posip = pattern.patternString.find("%i");
-								pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-								pattern.pattern = std::regex(pattern.patternString);
-								// TODO, %i is mandatory in pattern, if not present then skip that rule and write warning to syslog
-								itp = itlg->patterns.end();
-								itp = itlg->patterns.insert(itp,pattern);
-								if (logDetails) this->log->debug("Pattern to match: " + pattern.patternString);
+								if (posip != std::string::npos) {
+									pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+									pattern.pattern = std::regex(pattern.patternString);
+									itp = itlg->patterns.end();
+									itp = itlg->patterns.insert(itp,pattern);
+									if (logDetails) this->log->debug("Pattern to match: " + pattern.patternString);
+								} else {
+									this->log->warning("Unable to find \%i in pattern, pattern skipped: " + pattern.patternString);
+								}
 							}
 						} else if (line.substr(0,9) == "log.score") {
 							pos = line.find_first_of("=");

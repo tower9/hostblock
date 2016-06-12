@@ -9,22 +9,34 @@
 #define HBIPTABLES_H
 
 namespace hb{
-	class Iptables{
-		private:
 
-		public:
-			// Constructor
-			Iptables();
+class Iptables{
+	private:
 
-			// Append chain with rule
-			bool append(std::string chain, std::string rule);
+	public:
 
-			// Delete rule from chain
-			bool remove(std::string chain, std::string rule);
+		/*
+		 * Constructor
+		 */
+		Iptables();
 
-			// Rule list
-			std::map<unsigned int, std::string> listRules(std::string chain);
-	};
+		/*
+		 * Append chain with new rule
+		 */
+		bool append(std::string chain, std::string rule);
+
+		/*
+		 * Delete rule from chain
+		 */
+		bool remove(std::string chain, std::string rule);
+
+		/*
+		 * Get rule list
+		 */
+		std::map<unsigned int, std::string> listRules(std::string chain);
+
+};
+
 }
 
 #endif

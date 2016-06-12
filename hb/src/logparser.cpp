@@ -55,7 +55,7 @@ void LogParser::checkFiles()
 			this->log->debug("Checking log file: " + itlf->path);
 
 			// Simple log rotation check (based on file size change)
-			if(cstat::stat(itlf->path.c_str(), &buffer) == 0){
+			if (cstat::stat(itlf->path.c_str(), &buffer) == 0) {
 				fileSize = (intmax_t)buffer.st_size;
 				if (fileSize < itlf->size) {
 					itlf->bookmark = 0;
@@ -73,6 +73,7 @@ void LogParser::checkFiles()
 				// Seek to last known position
 				is.seekg(itlf->bookmark, is.beg);
 
+				// For comparision after log check to see if bookmark has changed and datafile needs to be updated
 				initialBookmark = itlf->bookmark;
 
 				// Read new lines until end of file
@@ -86,8 +87,8 @@ void LogParser::checkFiles()
 							if (std::regex_match(line, itlp->pattern)) {
 
 								// Get IP address out of line
-								if(regex_search(line, ipSearchResults, ipSearchPattern)){
-									if(ipSearchResults.size() > 0){
+								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
+									if (ipSearchResults.size() > 0) {
 
 										// Optmistically here we think that first match is address we need
 										ipAddress = std::string(ipSearchResults[0]);
@@ -100,7 +101,7 @@ void LogParser::checkFiles()
 								this->log->debug("Line: " + line);
 								this->log->debug("Pattern: " + itlp->patternString);
 							}
-						} catch (std::regex_error& e){
+						} catch (std::regex_error& e) {
 							std::string message = e.what();
 							this->log->error(message + ": " + std::to_string(e.code()));
 							this->log->error(hb::Util::regexErrorCode2Text(e.code()));
@@ -137,17 +138,17 @@ void LogParser::checkFiles()
  */
 void LogParser::saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount)
 {
-	time_t currentTime;
-	time(&currentTime);
+	std::time_t currentTime;
+	std::time(&currentTime);
 
 	// Warning if only last activity time changes
-	if(activityScore == 0 && activityCount == 0 && refusedCount == 0){
+	if (activityScore == 0 && activityCount == 0 && refusedCount == 0) {
 		this->log->warning("Trying to register activity, but no data about activity! Only last activity time for address " + address + " will be updated!");
 	}
 
 	// Check if new record needs to be added or we need to update existing data
 	bool newEntry = false;
-	if(this->data->suspiciousAddresses.count(address) > 0){
+	if (this->data->suspiciousAddresses.count(address) > 0) {
 
 		// This address already had some activity previously, need to recalculate score
 		this->log->debug("Previous activity: " + std::to_string(this->data->suspiciousAddresses[address].lastActivity));
@@ -164,23 +165,25 @@ void LogParser::saveActivity(std::string address, unsigned int activityScore, un
 		this->data->suspiciousAddresses[address].lastActivity = (unsigned long long int)currentTime;
 		
 		// Use score multiplier
-		if(this->config->keepBlockedScoreMultiplier > 0){
+		if (this->config->keepBlockedScoreMultiplier > 0) {
 			this->log->debug("Adjusting new score according to multiplier...");
 			activityScore = activityScore * this->config->keepBlockedScoreMultiplier;
 		}
 		this->data->suspiciousAddresses[address].activityScore += activityScore;
 		this->data->suspiciousAddresses[address].activityCount += activityCount;
 		this->data->suspiciousAddresses[address].refusedCount += refusedCount;
+
 	} else {
+
 		// First time activity from this address
 		SuspiciosAddressType data;
 		data.lastActivity = (unsigned long long int)currentTime;
-		if(this->config->keepBlockedScoreMultiplier > 0){
+		if (this->config->keepBlockedScoreMultiplier > 0) {
 			data.activityScore = activityScore*this->config->keepBlockedScoreMultiplier;
-		} else{
+		} else {
 			data.activityScore = activityScore;
 		}
-		if(activityScore > 0) data.activityCount = activityCount;
+		if (activityScore > 0) data.activityCount = activityCount;
 		data.refusedCount = refusedCount;
 		data.whitelisted = false;
 		data.blacklisted = false;
@@ -193,51 +196,60 @@ void LogParser::saveActivity(std::string address, unsigned int activityScore, un
 	this->log->debug("Activity score: " + std::to_string(this->data->suspiciousAddresses[address].activityScore));
 	this->log->debug("Activity count: " + std::to_string(this->data->suspiciousAddresses[address].activityCount));
 	this->log->debug("Refused count: " + std::to_string(this->data->suspiciousAddresses[address].refusedCount));
-	if(this->data->suspiciousAddresses[address].whitelisted) this->log->debug("Address is in whitelist!");
-	if(this->data->suspiciousAddresses[address].blacklisted) this->log->debug("Address is in blacklist!");
+	if (this->data->suspiciousAddresses[address].whitelisted) this->log->debug("Address is in whitelist!");
+	if (this->data->suspiciousAddresses[address].blacklisted) this->log->debug("Address is in blacklist!");
 
 	// Check new score and see if need to add to/remove from iptables
 	bool createRule = false;
 	bool removeRule = false;
 	if (this->data->suspiciousAddresses[address].iptableRule) {// Rule exists, check if need to remove
+
 		// Whitelisted addresses must not have rule
-		if(this->data->suspiciousAddresses[address].whitelisted == true){
+		if (this->data->suspiciousAddresses[address].whitelisted == true) {
 			removeRule = true;
 		}
+
 		// Keep rule for blacklisted addresses
-		if(this->data->suspiciousAddresses[address].blacklisted != true){
+		if (this->data->suspiciousAddresses[address].blacklisted != true) {
 			// Rule removal only when recalculated score reaches 0
 			if (this->data->suspiciousAddresses[address].activityScore == 0) {
 				removeRule = true;
 			}
 		}
 	} else {// Rule does not exist, check if need to add
+
 		// Blacklisted addresses must have rule
-		if(this->data->suspiciousAddresses[address].blacklisted == true){
+		if (this->data->suspiciousAddresses[address].blacklisted == true) {
 			createRule = true;
 		}
+
 		// Whitelisted addresses must not have rule
-		if(this->data->suspiciousAddresses[address].whitelisted != true){
+		if (this->data->suspiciousAddresses[address].whitelisted != true) {
+
 			// There are two modes for rule keeping in iptables
-			if(this->config->keepBlockedScoreMultiplier > 0){
+			if (this->config->keepBlockedScoreMultiplier > 0) {
+
 				// Using score multiplier, recheck if score is enough to create rule, score is already recalculated
 				if (this->data->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier) {
 					createRule = true;
 				}
+
 			} else{
+
 				// Without multiplier rules are kept forever for cases where there is enough score
-				if(this->data->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock){
+				if (this->data->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock) {
 					createRule = true;
 				}
+
 			}
 		}
 	}
 
 	// Adjust iptables rules
-	if(createRule == true) {
+	if (createRule == true) {
 		this->log->debug("Adding rule for " + address + " to iptables chain!");
 		try {
-			if(this->iptables->append("INPUT","-s " + address + " -j DROP") == false){
+			if (this->iptables->append("INPUT","-s " + address + " -j DROP") == false) {
 				this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
 			} else {
 				this->data->suspiciousAddresses[address].iptableRule = true;

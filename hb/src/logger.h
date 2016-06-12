@@ -8,37 +8,58 @@
 #include <string>
 
 namespace hb{
-	class Logger{
-		private:
 
-		public:
-			// Constructor
-			Logger(int facility);
+class Logger{
+	private:
 
-			// Destructor
-			~Logger();
+	public:
 
-			// Open log
-			void openLog(int facility);
+		/*
+		 * Constructor
+		 */
+		Logger(int facility);
 
-			// Close log
-			void closeLog();
+		/*
+		 * Destructor
+		 */
+		~Logger();
 
-			// Change log level (syslog priority code for level)
-			void setLevel(int level);
+		/*
+		 * Open log
+		 */
+		void openLog(int facility);
 
-			// Log info message
-			void info(std::string message);
+		/*
+		 * Close log
+		 */
+		void closeLog();
 
-			// Log warning
-			void warning(std::string message);
+		/*
+		 * Change log level (syslog priority code for level)
+		 */
+		void setLevel(int level);
 
-			// Log error
-			void error(std::string message);
+		/*
+		 * Log info message
+		 */
+		void info(std::string message);
 
-			// Debug message
-			void debug(std::string message);
-	};
+		/*
+		 * Log warning
+		 */
+		void warning(std::string message);
+
+		/*
+		 * Log error
+		 */
+		void error(std::string message);
+
+		/*
+		 * Debug message
+		 */
+		void debug(std::string message);
+};
+
 }
 
 #endif

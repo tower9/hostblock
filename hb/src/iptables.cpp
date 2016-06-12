@@ -7,8 +7,6 @@
 
 // Standard input/output stream library (cin, cout, cerr, clog, etc)
 #include <iostream>
-// Standard input/output library (fopen, fgets, fputs, fclose, etc)
-#include <stdio.h>
 // Standard string library
 #include <string>
 // String stream library
@@ -17,8 +15,12 @@
 #include <map>
 // Exceptions
 #include <exception>
+// Standard input/output C library (fopen, fgets, fputs, fclose, etc)
+#include <cstdio>
 // POSIX (getuid, sleep, usleep, rmdir, chroot, chdir, etc)
-#include <unistd.h>
+namespace cunistd{
+	#include <unistd.h>
+}
 // Header
 #include "iptables.h"
 
@@ -28,7 +30,7 @@ using namespace hb;
 Iptables::Iptables()
 {
 	// Need root access to work with iptables
-	if(getuid() != 0){
+	if (cunistd::getuid() != 0) {
 		throw std::runtime_error("Error, root access required to work with iptables!");
 	}
 }
@@ -41,18 +43,17 @@ bool Iptables::append(std::string chain, std::string rule)
 	// Prepare command
 	std::string cmd = "iptables -A "+chain+" "+rule;
 	int response = 0;
-	if(!system(NULL)){
+	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
 	}
 
 	// Exec command
-	response = system(cmd.c_str());
+	response = std::system(cmd.c_str());
 
 	// Check response
-	if(response == 0){
+	if (response == 0) {
 		return true;
-	}
-	else{
+	} else {
 		throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
 	}
 }
@@ -65,18 +66,17 @@ bool Iptables::remove(std::string chain, std::string rule)
 	// Prepare command
 	std::string cmd = "iptables -D "+chain+" "+rule;
 	int response = 0;
-	if(!system(NULL)){
+	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
 	}
 
 	// Exec command
-	response = system(cmd.c_str());
+	response = std::system(cmd.c_str());
 
 	// Check response
-	if(response == 0){
+	if (response == 0) {
 		return true;
-	}
-	else{
+	} else {
 		throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
 	}
 }
@@ -93,14 +93,14 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 
 	// Open pipe stream
 	FILE* pipe = popen(cmd.c_str(), "r");
-	if(!pipe){
+	if (!pipe) {
 		throw std::runtime_error("Unable to open pipe to iptables for rule listing.");
 	}
 	char buffer[128];
 	std::string result = "";
 
 	// Read pipe stream
-	while(!feof(pipe)){
+	while (!feof(pipe)) {
 		if(fgets(buffer, 128, pipe) != NULL) result += buffer;
 	}
 
@@ -110,7 +110,7 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 	// Read result line by line
 	std::istringstream iss(result);
 	std::string line;
-	for(line = ""; getline(iss, line);){
+	for (line = ""; std::getline(iss, line);) {
 		rules.insert(std::pair<unsigned int, std::string>(ruleInd,line));
 		++ruleInd;
 	}

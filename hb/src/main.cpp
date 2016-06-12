@@ -71,6 +71,9 @@ void printUsage()
 	std::cout << " -d             | --daemon              - run as daemon" << std::endl;
 }
 
+/*
+ * Signal handler
+ */
 void signalHandler(int signal)
 {
 	if (signal == SIGTERM) {
@@ -87,10 +90,13 @@ void signalHandler(int signal)
  */
 int main(int argc, char *argv[])
 {
+	// Must have at least one argument
 	if (argc < 2) {
 		printUsage();
 		exit(0);
 	}
+
+	// Var init
 	int c;
 	bool statisticsFlag = false;
 	bool listFlag = false;
@@ -99,6 +105,7 @@ int main(int argc, char *argv[])
 	bool removeFlag = false;
 	std::string removeAddress = "";
 	bool daemonFlag = false;
+
 	// Options
 	static struct cgetopt::option long_options[] = 
 	{
@@ -110,8 +117,10 @@ int main(int argc, char *argv[])
 		{"remove",     required_argument, 0, 'r'},
 		{"daemon",     no_argument,       0, 'd'},
 	};
+
 	// Option index
 	int option_index = 0;
+
 	// Check options
 	while ((c = cgetopt::getopt_long(argc, argv, "hslctr:d", long_options, &option_index)) != -1)
 		switch (c) {
@@ -143,213 +152,214 @@ int main(int argc, char *argv[])
 				exit(0);
 		}
 
-		// Init writter to syslog
-		hb::Logger log = hb::Logger(LOG_USER);
+	// Init writter to syslog
+	hb::Logger log = hb::Logger(LOG_USER);
 
-		// Init object to work with iptables
-		hb::Iptables iptables = hb::Iptables();
+	// Init object to work with iptables
+	hb::Iptables iptables = hb::Iptables();
 
-		// Init config, default path to config file is /etc/hostblock.conf
-		hb::Config config = hb::Config(&log, "/etc/hostblock.conf");
-		// If env variable $HOSTBLOCK_CONFIG is set, then use value from it as path to config
-		if (const char* env_cp = std::getenv("HOSTBLOCK_CONFIG")) {
-			config.configPath = std::string(env_cp);
+	// Init config, default path to config file is /etc/hostblock.conf
+	hb::Config config = hb::Config(&log, "/etc/hostblock.conf");
+
+	// If env variable $HOSTBLOCK_CONFIG is set, then use value from it as path to config
+	if (const char* env_cp = std::getenv("HOSTBLOCK_CONFIG")) {
+		config.configPath = std::string(env_cp);
+	}
+
+	// Load config
+	if (!config.load()) {
+		std::cerr << "Failed to load configuration file!" << std::endl;
+		exit(1);
+	}
+
+	// Init object to work with datafile
+	hb::Data data = hb::Data(&log, &config, &iptables);
+
+	// Load datafile
+	if (!data.loadData()) {
+		std::cerr << "Failed to load data!" << std::endl;
+		exit(1);
+	}
+
+	if (statisticsFlag) {// Output statistics
+
+		exit(0);
+	} else if (listFlag) {// Output list of blocked suspicious addresses
+
+		exit(0);
+	} else if (removeFlag) {// Remove address from datafile
+
+		exit(0);
+	} else if (daemonFlag) {// Run as daemon
+		// Reopen syslog
+		log.closeLog();
+		log.openLog(LOG_DAEMON);
+
+		// Restore log level
+		if (config.logLevel == "ERROR") {
+			log.setLevel(LOG_ERR);
+		} else if (config.logLevel == "WARNING") {
+			log.setLevel(LOG_WARNING);
+		} else if (config.logLevel == "INFO") {
+			log.setLevel(LOG_INFO);
+		} else if (config.logLevel == "DEBUG") {
+			log.setLevel(LOG_DEBUG);
 		}
+		log.info("Starting daemon process...");
 
-		// Load config
-		if (!config.load()) {
-			std::cerr << "Failed to load configuration file!" << std::endl;
-			exit(1);
-		}
-
-		// Init object to work with datafile
-		hb::Data data = hb::Data(&log, &config, &iptables);
-
-		// Load datafile
-		if (!data.loadData()) {
-			std::cerr << "Failed to load data!" << std::endl;
-			exit(1);
-		}
-
-		if (statisticsFlag) {// Output statistics
-
-			exit(0);
-		} else if (listFlag) {// Output list of blocked suspicious addresses
-
-			exit(0);
-		} else if (removeFlag) {// Remove address from datafile
-
-			exit(0);
-		} else if (daemonFlag) {// Run as daemon
-			// Reopen syslog
-			log.closeLog();
-			log.openLog(LOG_DAEMON);
-
-			// Restore log level
-			if (config.logLevel == "ERROR") {
-				log.setLevel(LOG_ERR);
-			} else if (config.logLevel == "WARNING") {
-				log.setLevel(LOG_WARNING);
-			} else if (config.logLevel == "INFO") {
-				log.setLevel(LOG_INFO);
-			} else if (config.logLevel == "DEBUG") {
-				log.setLevel(LOG_DEBUG);
-			}
-			log.info("Starting daemon process...");
-
-			// Check if file with PID exists
-			struct cstat::stat buffer;
-			if (cstat::stat(PID_PATH, &buffer) == 0) {
-				// Get PID from file
-				std::ifstream f(PID_PATH);
-				if (f.is_open()){
-					std::string line;
-					std::getline(f, line);
-					pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
-					if (csignal::kill(pid, 0) == 0) {// Process exists and is running
-						std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
-						log.error("Unable to start! Another instance of hostblock is already running!");
-						exit(1);
-					} else {// Process does not exist, remove pid file
-						std::remove(PID_PATH);
-					}
-				} else {
+		// Check if file with PID exists
+		struct cstat::stat buffer;
+		if (cstat::stat(PID_PATH, &buffer) == 0) {
+			// Get PID from file
+			std::ifstream f(PID_PATH);
+			if (f.is_open()){
+				std::string line;
+				std::getline(f, line);
+				pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
+				if (csignal::kill(pid, 0) == 0) {// Process exists and is running
 					std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
 					log.error("Unable to start! Another instance of hostblock is already running!");
 					exit(1);
+				} else {// Process does not exist, remove pid file
+					std::remove(PID_PATH);
 				}
+			} else {
+				std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
+				log.error("Unable to start! Another instance of hostblock is already running!");
+				exit(1);
+			}
+		}
+
+		pid_t pid;
+		pid = cunistd::fork();
+
+		if (pid < 0) {
+			std::cerr << "Unable to start! Fork failed!" << std::endl;
+			log.error("Unable to start! Fork failed!");
+			exit(1);
+		} else if (pid > 0) {// Parent (pid > 0)
+			log.debug("Saving PID to file...");
+			// Write PID to file
+			std::ofstream f(PID_PATH);
+			if (f.is_open()) {
+				f << pid;
+				f.close();
+			} else {
+				log.error("Failed to save PID!");
+			}
+			exit(0);
+		} else {// Child (pid == 0), daemon process
+			// To keep main loop running
+			running = true;
+
+			// Vars for expired rule removal checkIptables
+			std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
+
+			// Compare data with iptables rules and add/remove rules if needed
+			if (!data.checkIptables()) {
+				log.error("Failed to compare data with iptables...");
 			}
 
-			pid_t pid;
-			pid = cunistd::fork();
+			// Register signal handler
+			csignal::signal(SIGTERM, signalHandler);// Stop daemon
+			csignal::signal(SIGUSR1, signalHandler);// Reload datafile
 
-			if (pid < 0) {
-				std::cerr << "Unable to start! Fork failed!" << std::endl;
-				log.error("Unable to start! Fork failed!");
-				exit(1);
-			} else if (pid > 0) {// Parent (pid > 0)
-				log.debug("Saving PID to file...");
-				// Write PID to file
-				std::ofstream f(PID_PATH);
-				if (f.is_open()) {
-					f << pid;
-					f.close();
-				} else {
-					log.error("Failed to save PID!");
-				}
-				exit(0);
-			} else {// Child (pid == 0), daemon process
-				// To keep main loop running
-				running = true;
+			// Close standard file descriptors
+			cunistd::close(STDIN_FILENO);
+			cunistd::close(STDOUT_FILENO);
+			cunistd::close(STDERR_FILENO);
 
-				// Vars for expired rule removal checkIptables
-				std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
+			// Init object to work with log files (check for suspicious activity)
+			hb::LogParser logParser = hb::LogParser(&log, &config, &iptables, &data);
 
-				// Compare data with iptables rules and add/remove rules if needed
-				if (!data.checkIptables()) {
-					log.error("Failed to compare data with iptables...");
-				}
+			// File modification times (for main loop to check if there have been changes to files and relaod is needed)
+			/*struct cstat::stat statbuf;
+			time_t dataFileMTime;
+			if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
+				dataFileMTime = statbuf.st_mtime;
+			}*/
+			time_t lastFileMCheck, currentTime, lastLogCheck;
+			time(&lastFileMCheck);
+			lastLogCheck = lastFileMCheck - config.logCheckInterval;
 
-				// Register signal handler
-				csignal::signal(SIGTERM, signalHandler);// Stop daemon
-				csignal::signal(SIGUSR1, signalHandler);// Reload datafile
+			// Main loop
+			while (running) {
+				// Get current time
+				time(&currentTime);
 
-				// Close standard file descriptors
-				cunistd::close(STDIN_FILENO);
-				cunistd::close(STDOUT_FILENO);
-				cunistd::close(STDERR_FILENO);
-
-				// Init object to work with log files (check for suspicious activity)
-				hb::LogParser logParser = hb::LogParser(&log, &config, &iptables, &data);
-
-				// File modification times (for main loop to check if there have been changes to files and relaod is needed)
-				/*struct cstat::stat statbuf;
-				time_t dataFileMTime;
-				if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
-					dataFileMTime = statbuf.st_mtime;
-				}*/
-				time_t lastFileMCheck, currentTime, lastLogCheck;
-				time(&lastFileMCheck);
-				lastLogCheck = lastFileMCheck - config.logCheckInterval;
-
-				// Main loop
-				while (running) {
-					// Get current time
-					time(&currentTime);
-
-					// Each 60 sec check if datafile is updated and reload is needed
-					/*if (currentTime - lastFileMCheck >= 60) {
-						// Get datafile stats
-						if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
-							if (dataFileMTime != statbuf.st_mtime) {
-								log.info("Datafile change detected, reloading data for daemon...");
-								reloadDataFile = true;
-							}
-						}
-						lastFileMCheck = currentTime;
-					}*/
-
-					// Reload datafile
-					if (reloadDataFile) {
-						log.info("Daemon datafile reload...");
-						if (!data.loadData()) {
-							log.error("Failed to reload data for daemon!");
-						} else {
-							reloadDataFile = false;
-							// dataFileMTime = statbuf.st_mtime;
+				// Each 60 sec check if datafile is updated and reload is needed
+				/*if (currentTime - lastFileMCheck >= 60) {
+					// Get datafile stats
+					if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
+						if (dataFileMTime != statbuf.st_mtime) {
+							log.info("Datafile change detected, reloading data for daemon...");
+							reloadDataFile = true;
 						}
 					}
+					lastFileMCheck = currentTime;
+				}*/
 
-					// Get current time
-					time(&currentTime);
+				// Reload datafile
+				if (reloadDataFile) {
+					log.info("Daemon datafile reload...");
+					if (!data.loadData()) {
+						log.error("Failed to reload data for daemon!");
+					} else {
+						reloadDataFile = false;
+						// dataFileMTime = statbuf.st_mtime;
+					}
+				}
 
-					if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
-						// log.debug("currentTime: " + std::to_string(currentTime) + " lastLogCheck: " + std::to_string(lastLogCheck) + " diff: " + std::to_string((unsigned int)(currentTime - lastLogCheck)) + " logCheckInterval: " + std::to_string(config.logCheckInterval));
+				// Get current time
+				time(&currentTime);
 
-						// Check log files for suspicious activity and update iptables if needed
-						logParser.checkFiles();
+				if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
+					// log.debug("currentTime: " + std::to_string(currentTime) + " lastLogCheck: " + std::to_string(lastLogCheck) + " diff: " + std::to_string((unsigned int)(currentTime - lastLogCheck)) + " logCheckInterval: " + std::to_string(config.logCheckInterval));
 
-						// Check iptables rules if any are expired and should be removed
-						for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait){
-							// If address has rule
-							if (sait->second.iptableRule){
-								// Blacklisted addresses must have rule
-								if(sait->second.blacklisted == true){
-									continue;
-								}
-								if(config.keepBlockedScoreMultiplier > 0){
-									// Score multiplier configured, recheck if score is no longer enough to keep this rule
-									if((unsigned long long int)currentTime > sait->second.lastActivity + sait->second.activityScore){
-										log.debug("Address " + sait->first + " no longer needs iptables rule, removing...");
-										try {
-											if(iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false){
-												log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-											} else {
-												sait->second.iptableRule = false;
-											}
-										} catch (std::runtime_error& e) {
-											std::string message = e.what();
-											log.error(message);
+					// Check log files for suspicious activity and update iptables if needed
+					logParser.checkFiles();
+
+					// Check iptables rules if any are expired and should be removed
+					for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait) {
+						// If address has rule
+						if (sait->second.iptableRule) {
+							// Blacklisted addresses must have rule
+							if (sait->second.blacklisted == true) {
+								continue;
+							}
+							if (config.keepBlockedScoreMultiplier > 0) {
+								// Score multiplier configured, recheck if score is no longer enough to keep this rule
+								if ((unsigned long long int)currentTime > sait->second.lastActivity + sait->second.activityScore) {
+									log.debug("Address " + sait->first + " no longer needs iptables rule, removing...");
+									try {
+										if (iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false) {
 											log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
+										} else {
+											sait->second.iptableRule = false;
 										}
+									} catch (std::runtime_error& e) {
+										std::string message = e.what();
+										log.error(message);
+										log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
 									}
 								}
 							}
 						}
-
-						// Update time of last log file check
-						lastLogCheck = currentTime;
 					}
 
-					// Sleep 1/10 of second
-					cunistd::usleep(100000);
+					// Update time of last log file check
+					lastLogCheck = currentTime;
 				}
-				log.info("Daemon stop");
-			}
 
-			exit(0);
-		} else {
-			printUsage();
-			exit(0);
+				// Sleep 1/10 of second
+				cunistd::usleep(100000);
+			}
+			log.info("Daemon stop");
 		}
+
+		exit(0);
+	} else {
+		printUsage();
+		exit(0);
+	}
 }

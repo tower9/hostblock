@@ -8,6 +8,8 @@
 #include <map>
 // Vector
 #include <vector>
+// Standard string library
+#include <string>
 // Logger
 #include "logger.h"
 // Util
@@ -19,6 +21,7 @@ class Config{
 	private:
 
 	public:
+
 		/*
 		 * Logger object
 		 */
