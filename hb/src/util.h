@@ -15,8 +15,8 @@ namespace hb{
  * Pattern
  */
 struct Pattern {
-	std::string patternString = "";// Regex to match
-	std::regex pattern;
+	std::string patternString = "";// Regex as string
+	std::regex pattern;// Regex to match
 	unsigned int score = 1;// Score if pattern matched
 };
 

@@ -19,16 +19,6 @@ namespace hb{
 class LogParser{
 	private:
 
-		/*
-		 * Check log file for suspicious activity
-		 */
-		// void checkFile();
-
-		/*
-		 * Check line for suspicious activity
-		 */
-		// void checkLine(std::string* line);
-
 	public:
 
 		/*
