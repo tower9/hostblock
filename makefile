@@ -5,6 +5,8 @@ DEBUG = -g
 CFLAGS = -std=c++11 -Wall -c $(DEBUG)
 LFLAGS = -std=c++11 -Wall $(DEBUG)
 
+prefix = /usr/local
+
 hostblock: $(OBJS)
 	$(CC) $(LFLAGS) $(OBJS) -o hostblock
 
@@ -28,6 +30,13 @@ logger.o: hb/src/logger.h hb/src/logger.cpp
 
 util.o: hb/src/util.h hb/src/util.cpp
 	$(CC) $(CFLAGS) hb/src/util.cpp
+
+.PHONY: install clean
+
+install: hostblock
+	install -m 0755 hostblock $(prefix)/bin
+	test /etc/hostblock.conf || install -m 0640 config/hostblock.conf /etc/hostblock.conf
+	test -d $(prefix)/share/hostblock || mkdir $(prefix)/share/hostblock
 
 test: $(TOBJS)
 	$(CC) $(LFLAGS) $(TOBJS) -o test
