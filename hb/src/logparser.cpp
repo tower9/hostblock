@@ -1,5 +1,7 @@
 /*
  * Log file parser, match patterns with lines in log files
+ * 
+ * Some notes, seems that std regex is slower than boost version, maybe worth a switch...
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog)
@@ -8,6 +10,10 @@
 #include <fstream>
 // C string
 #include <cstring>
+// Miscellaneous UNIX symbolic constants, types and functions
+namespace cunistd{
+	#include <unistd.h>
+}
 // Linux stat
 namespace cstat{
 	#include <errno.h>
@@ -47,6 +53,11 @@ void LogParser::checkFiles()
 	std::string ipAddress;
 	std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
 	std::smatch ipSearchResults;
+	time_t currentTime, lastInfo;
+	time(&currentTime);
+	lastInfo = currentTime;
+	unsigned long long int jobTotal = 0, jobDone = 0;
+	float jobPercentage = 0;
 
 	// Loop log groups
 	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
@@ -77,6 +88,9 @@ void LogParser::checkFiles()
 
 				// For comparision after log check to see if bookmark has changed and datafile needs to be updated
 				initialBookmark = itlf->bookmark;
+
+				// Calculate total job to do
+				jobTotal = fileSize - initialBookmark;
 
 				// Read new lines until end of file
 				while (std::getline(is, line)) {
@@ -112,6 +126,18 @@ void LogParser::checkFiles()
 
 					// Update bookmark
 					itlf->bookmark = is.tellg();
+
+					// Sleep
+					cunistd::usleep(500);
+
+					// Output some info to log file each min
+					time(&currentTime);
+					if (currentTime - lastInfo >= 60) {
+						jobDone = itlf->bookmark - initialBookmark;
+						jobPercentage = (float)jobDone * 100 / (float)jobTotal;
+						this->log->info("Processing " + itlf->path + ", progress: " + std::to_string(jobPercentage) + "%");
+						lastInfo = currentTime;
+					}
 				}
 				this->log->debug("Finished reading until end of file, pos: " + std::to_string(itlf->bookmark));
 
