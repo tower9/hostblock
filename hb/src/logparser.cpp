@@ -6,6 +6,8 @@
 #include <iostream>
 // File stream library (ifstream)
 #include <fstream>
+// C string
+#include <cstring>
 // Linux stat
 namespace cstat{
 	#include <errno.h>
