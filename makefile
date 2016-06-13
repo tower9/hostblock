@@ -36,6 +36,7 @@ util.o: hb/src/util.h hb/src/util.cpp
 install: hostblock
 	install -m 0755 hostblock $(prefix)/bin
 	test /etc/hostblock.conf || install -m 0640 config/hostblock.conf /etc/hostblock.conf
+	test -d $(prefix)/share || mkdir $(prefix)/share
 	test -d $(prefix)/share/hostblock || mkdir $(prefix)/share/hostblock
 
 test: $(TOBJS)
