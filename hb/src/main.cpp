@@ -90,6 +90,8 @@ void signalHandler(int signal)
  */
 int main(int argc, char *argv[])
 {
+	clock_t initStart = clock(), initEnd;
+
 	// Must have at least one argument
 	if (argc < 2) {
 		printUsage();
@@ -182,13 +184,25 @@ int main(int argc, char *argv[])
 	}
 
 	if (statisticsFlag) {// Output statistics
-
+		data.printStats();
+		if (config.logLevel == "DEBUG") {
+			initEnd = clock();
+			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+		}
 		exit(0);
 	} else if (listFlag) {// Output list of blocked suspicious addresses
 
+		if (config.logLevel == "DEBUG") {
+			initEnd = clock();
+			log.debug("List of blocked addresses outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+		}
 		exit(0);
 	} else if (removeFlag) {// Remove address from datafile
 
+		if (config.logLevel == "DEBUG") {
+			initEnd = clock();
+			log.debug("Address removed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+		}
 		exit(0);
 	} else if (daemonFlag) {// Run as daemon
 		// Reopen syslog
@@ -282,8 +296,19 @@ int main(int argc, char *argv[])
 			time(&lastFileMCheck);
 			lastLogCheck = lastFileMCheck - config.logCheckInterval;
 
+			// For debug purposes write to log file how long each iteration took
+			// clock_t iterStart, iterEnd;
+
+			if (config.logLevel == "DEBUG") {
+				initEnd = clock();
+				log.debug("Daemon initialization exec time: " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			}
+
 			// Main loop
 			while (running) {
+				// Time at start of iteration
+				// if (config.logLevel == "DEBUG") iterStart = clock();
+
 				// Get current time
 				time(&currentTime);
 
@@ -311,7 +336,7 @@ int main(int argc, char *argv[])
 				}
 
 				// Get current time
-				time(&currentTime);
+				// time(&currentTime);
 
 				if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
 					// log.debug("currentTime: " + std::to_string(currentTime) + " lastLogCheck: " + std::to_string(lastLogCheck) + " diff: " + std::to_string((unsigned int)(currentTime - lastLogCheck)) + " logCheckInterval: " + std::to_string(config.logCheckInterval));
@@ -351,8 +376,14 @@ int main(int argc, char *argv[])
 					lastLogCheck = currentTime;
 				}
 
-				// Sleep 1/10 of second
-				cunistd::usleep(100000);
+				// Write exec time to log file
+				/*if (config.logLevel == "DEBUG") {
+					iterEnd = clock();
+					log.debug("Daemon main loop iteration exec time: " + std::to_string((double)(iterEnd - iterStart)/CLOCKS_PER_SEC) + " sec");
+				}*/
+
+				// Sleep 1/5 of second
+				cunistd::usleep(200000);
 			}
 			log.info("Daemon stop");
 		}

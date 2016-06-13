@@ -50,6 +50,13 @@ struct SuspiciosAddressType{
 	bool blacklisted = false;
 	bool iptableRule = false;
 };
+struct SuspiciosAddressStatType{
+	unsigned long long int lastActivity = 0;
+	unsigned int activityScore = 0;
+	unsigned int activityCount = 0;
+	unsigned int refusedCount = 0;
+	std::string address = "";
+};
 
 class Util{
 	private:
