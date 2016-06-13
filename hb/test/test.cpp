@@ -30,11 +30,12 @@ int main(int argc, char *argv[])
 	time(&currentTime);
 
 	bool testSyslog = false;
-	bool testIptables = true;
-	bool testConfig = true;
-	bool testData = true;
-	bool removeTempData = true;
-	bool testLogParsing = true;
+	bool testIptables = false;
+	bool testConfig = false;
+	bool testData = false;
+	bool removeTempData = false;
+	bool testLogParsing = false;
+	bool testConfiguredLogParsing = true;
 
 	try{
 		// Syslog
@@ -277,6 +278,46 @@ int main(int argc, char *argv[])
 			if (std::remove(cfg.dataFilePath.c_str()) != 0) {
 				std::cerr << "Failed to remove temporary data file!" << std::endl;
 			}
+		}
+
+		// Test currently configured log file parsing (not test file like above)
+		if (testConfiguredLogParsing) {
+
+			// Default path to config file is /etc/hostblock.conf
+			cfg.configPath = "/etc/hostblock.conf";
+
+			// If env variable $HOSTBLOCK_CONFIG is set, then use value from it as path to config
+			if (const char* env_cp = std::getenv("HOSTBLOCK_CONFIG")) {
+				cfg.configPath = std::string(env_cp);
+			}
+
+			// Reload configuration
+			std::cout << "Reloading configuration file..." << std::endl;
+			if (!cfg.load()){
+				std::cerr << "Failed to load configuration!" << std::endl;
+			}
+
+			// Use temporarly datafile (empty)
+			cfg.dataFilePath = "test_result_datafile";
+
+			// Remove temporarly data file if it exists
+			if (std::remove(cfg.dataFilePath.c_str()) != 0) {
+				std::cerr << "Failed to remove test result datafile! (it is ok)" << std::endl;
+			}
+
+			// Clear suspicious address data
+			data.suspiciousAddresses.clear();
+
+			// Reload data
+			std::cout << "Loading empty datafile..." << std::endl;
+			if (!data.loadData()) {
+				std::cerr << "Failed to load data!" << std::endl;
+			}
+
+			// Check log files
+			std::cout << "Log file check..." << std::endl;
+			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);
+			lp.checkFiles();
 		}
 
 	} catch (std::exception& e){
