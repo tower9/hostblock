@@ -135,6 +135,13 @@ bool Config::load()
 								this->keepBlockedScoreMultiplier = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score multiplier for rule keeping: " + std::to_string(this->keepBlockedScoreMultiplier));
 							}
+						} else if (line.substr(0,15) == "datetime.format") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								this->dateTimeFormat = line;
+								if (logDetails) this->log->debug("Datetime format: " + this->dateTimeFormat);
+							}
 						} else if (line.substr(0,13) == "datafile.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
@@ -208,6 +215,8 @@ void Config::print()
 	std::cout << "address.block.score = " << this->activityScoreToBlock << std::endl << std::endl;
 	std::cout << "## Score multiplier to calculate how long to keep iptable rules (seconds, default 3600, 0 will not remove)" << std::endl;
 	std::cout << "address.block.multiplier = " << this->keepBlockedScoreMultiplier << std::endl << std::endl;
+	std::cout << "## Datetime format (default %Y-%m-%d %H:%M:%S)" << std::endl;
+	std::cout << "datetime.format = " << this->dateTimeFormat << std::endl << std::endl;
 	std::cout << "## Full path to datafile" << std::endl;
 	std::cout << "datafile.path = " << this->dataFilePath << std::endl << std::endl;
 	std::vector<LogGroup>::iterator itlg;

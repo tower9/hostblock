@@ -32,6 +32,12 @@ class Config{
 		 */
 		std::string logLevel = "INFO";
 
+
+		/*
+		 * Datetime format
+		 */
+		std::string dateTimeFormat = "%Y-%m-%d %H:%M:%S";
+
 		/*
 		 * Configuration file location
 		 */
