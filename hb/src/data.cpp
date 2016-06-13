@@ -48,6 +48,8 @@
 #include <iomanip>
 // RegEx
 #include <regex>
+// Unordered map
+#include <unordered_map>
 // Linux stat
 namespace cstat{
 	#include <errno.h>
@@ -764,5 +766,174 @@ bool Data::removeFile(std::string filePath)
 		return false;
 	} else {
 		return true;
+	}
+}
+
+/*
+ * Sort std::vector<hb::SuspiciosAddressStatType> descending by activityCount
+ */
+bool Data::sortByActivityCount(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra)
+{
+	return la.activityCount > ra.activityCount;
+}
+
+/*
+ * Sort std::vector<hb::SuspiciosAddressStatType> descending by lastActivity
+ */
+bool Data::sortByLastActivity(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra)
+{
+	return la.lastActivity > ra.lastActivity;
+}
+
+/*
+ * Return formatted datetime string
+ */
+std::string Data::formatDateTime(const time_t rtime, const char* dateTimeFormat)
+{
+	struct tm* itime = localtime(&rtime);
+	char buffer[30];
+	strftime(buffer, sizeof(buffer), dateTimeFormat, itime);
+	return std::string(buffer);
+}
+
+/*
+ * Pad string on both sides to center
+ */
+std::string Data::centerString(std::string str, unsigned int len)
+{
+	// If string length is already greater than len provided, then there is no work to be done
+	if (str.length() < len) {
+		unsigned int padLeft = floor((len - str.length()) / 2);
+		unsigned int padRight = padLeft;
+		if ((len - str.length()) % 2 != 0) padRight++;
+		// std::cout << padLeft << ":" << padRight << std::endl;
+		str = std::string(padLeft, ' ') + str + std::string(padRight, ' ');
+	}
+	return str;
+}
+
+/*
+ * Print (stdout) some statistics about data
+ */
+void Data::printStats()
+{
+	std::cout << "Total suspicious IP address count: " << this->suspiciousAddresses.size() << std::endl;
+
+	if (this->suspiciousAddresses.size() > 0) {
+		std::cout << std::endl;
+		std::map<std::string, SuspiciosAddressType>::iterator sait;
+		std::vector<hb::SuspiciosAddressStatType> top5;
+		std::vector<hb::SuspiciosAddressStatType>::iterator t5it;
+		hb::SuspiciosAddressStatType address;
+		std::vector<hb::SuspiciosAddressStatType> last5;
+		std::vector<hb::SuspiciosAddressStatType>::iterator l5it;
+		unsigned int lastActivityMaxLen = 13;
+		unsigned int activityScoreMaxLen = 5;
+		unsigned int activityCountMaxLen = 5;
+		unsigned int refusedCountMaxLen = 7;
+		unsigned int tmp = 0;
+
+		// Get top 5 addresses by activity count and last 5 addresses by last activity time
+		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
+			address.address = sait->first;
+			address.lastActivity = sait->second.lastActivity;
+			address.activityScore = sait->second.activityScore;
+			address.activityCount = sait->second.activityCount;
+			address.refusedCount = sait->second.refusedCount;
+
+			if (top5.size() < 5) {
+				// First fill up top5
+				top5.push_back(address);
+			} else {
+				// Once top5 is filled, check if other records have better count
+				for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
+					if (address.activityCount > t5it->activityCount) {
+						top5.erase(t5it);
+						top5.push_back(address);
+						break;
+					}
+				}
+			}
+
+			if (last5.size() < 5) {
+				// First fill up last5
+				last5.push_back(address);
+			} else {
+				// Once last5 is filled, check if other records have more recent last activity
+				for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
+					if (address.lastActivity > l5it->lastActivity) {
+						last5.erase(l5it);
+						last5.push_back(address);
+						break;
+					}
+				}
+			}
+		}
+
+		// Sort top5 addresses
+		std::sort(top5.begin(), top5.end(), this->sortByActivityCount);
+
+		// Sort last5 addresses
+		std::sort(last5.begin(), last5.end(), this->sortByLastActivity);
+
+		// Calculate needed padding
+		tmp = formatDateTime((const time_t)top5[0].lastActivity, this->config->dateTimeFormat.c_str()).length();
+		if (tmp > lastActivityMaxLen) lastActivityMaxLen = tmp;
+		tmp = std::to_string(top5[0].activityCount).length();
+		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
+		for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
+			tmp = std::to_string(t5it->activityScore).length();
+			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
+			tmp = std::to_string(t5it->refusedCount).length();
+			if (tmp > refusedCountMaxLen) refusedCountMaxLen = tmp;
+		}
+
+		// Output top 5 addresses by activity
+		std::cout << "Top 5 most active addresses:" << std::endl;
+		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		std::cout << "     Address     |";
+		std::cout << ' ' << hb::Data::centerString("Count", activityCountMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Score", activityScoreMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Refused", refusedCountMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Last activity", lastActivityMaxLen);
+		std::cout << std::endl;
+		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
+			std::cout << " " << std::left << std::setw(15) << t5it->address;
+			std::cout << " | " << hb::Data::centerString(std::to_string(t5it->activityCount), activityCountMaxLen);
+			std::cout << " | " << hb::Data::centerString(std::to_string(t5it->activityScore), activityScoreMaxLen);
+			std::cout << " | " << hb::Data::centerString(std::to_string(t5it->refusedCount), refusedCountMaxLen);
+			std::cout << " | " << hb::Data::formatDateTime((const time_t)t5it->lastActivity, this->config->dateTimeFormat.c_str());
+			std::cout << std::endl;
+		}
+
+		// Recalculate some padding
+		tmp = std::to_string(last5[0].activityCount).length();
+		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
+		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
+			tmp = std::to_string(l5it->activityScore).length();
+			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
+			tmp = std::to_string(l5it->refusedCount).length();
+			if (tmp > refusedCountMaxLen) refusedCountMaxLen = tmp;
+		}
+
+		// Output last 5 addresses by last activity
+		std::cout << std::endl << "Last activity:" << std::endl;
+		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		std::cout << "     Address     |";
+		std::cout << ' ' << hb::Data::centerString("Count", activityCountMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Score", activityScoreMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Refused", refusedCountMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Last activity", lastActivityMaxLen);
+		std::cout << std::endl;
+		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
+			std::cout << " " << std::left << std::setw(15) << l5it->address;
+			std::cout << " | " << hb::Data::centerString(std::to_string(l5it->activityCount), activityCountMaxLen);
+			std::cout << " | " << hb::Data::centerString(std::to_string(l5it->activityScore), activityScoreMaxLen);
+			std::cout << " | " << hb::Data::centerString(std::to_string(l5it->refusedCount), refusedCountMaxLen);
+			std::cout << " | " << hb::Data::formatDateTime((const time_t)l5it->lastActivity, this->config->dateTimeFormat.c_str());
+			std::cout << std::endl;
+		}
 	}
 }

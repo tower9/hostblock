@@ -22,6 +22,16 @@ namespace hb{
 class Data{
 	private:
 
+		// static std::string dateTimeFormat = "%Y-%m-%d %H:%M:%S";
+
+		static bool sortByActivityCount(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra);
+
+		static bool sortByLastActivity(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra);
+
+		static std::string formatDateTime(const time_t rtime, const char* dateTimeFormat);
+
+		static std::string centerString(std::string str, unsigned int len);
+
 	public:
 
 		/*
@@ -96,6 +106,11 @@ class Data{
 		 * Mark log file bookmark record for removal in datafile
 		 */
 		bool removeFile(std::string filePath);
+
+		/*
+		 * Print (stdout) some statistics about data
+		 */
+		void printStats();
 
 };
 
