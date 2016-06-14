@@ -54,6 +54,11 @@ class Config{
 		unsigned int activityScoreToBlock = 10;
 
 		/*
+		 * Score for each iptables counted packet after rule is added (connection dropped)
+		 */
+		unsigned int refusedScore = 1;
+
+		/*
 		 * Score multiplier to calculate for how long time to keep address blocked (result is in seconds)
 		 * 0 - will keep forever
 		 * 

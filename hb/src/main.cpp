@@ -268,6 +268,8 @@ int main(int argc, char *argv[])
 		} else {// Child (pid == 0), daemon process
 			// To keep main loop running
 			running = true;
+			// For iptables rule removal check
+			bool removeRule = false;
 
 			// Vars for expired rule removal checkIptables
 			std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
@@ -360,6 +362,8 @@ int main(int argc, char *argv[])
 					for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait) {
 						// If address has rule
 						if (sait->second.iptableRule) {
+							// Reset rule removal flag
+							removeRule = false;
 							// Blacklisted addresses must have rule
 							if (sait->second.blacklisted == true) {
 								continue;
@@ -367,22 +371,33 @@ int main(int argc, char *argv[])
 							if (config.keepBlockedScoreMultiplier > 0) {
 								// Score multiplier configured, recheck if score is no longer enough to keep this rule
 								if ((unsigned long long int)currentTime > sait->second.lastActivity + sait->second.activityScore) {
-									log.info("Address " + sait->first + " no longer needs iptables rule, removing...");
-									try {
-										if (iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false) {
-											log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-										} else {
-											sait->second.iptableRule = false;
-										}
-									} catch (std::runtime_error& e) {
-										std::string message = e.what();
-										log.error(message);
+									removeRule = true;
+								}
+							} else {
+								// Without multiplier rules are kept until score is reset to 0
+								if (sait->second.activityScore == 0) {
+									removeRule = true;
+								}
+							}
+							if (removeRule) {
+								log.info("Address " + sait->first + " no longer needs iptables rule, removing...");
+								try {
+									if (iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false) {
 										log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
+									} else {
+										sait->second.iptableRule = false;
 									}
+								} catch (std::runtime_error& e) {
+									std::string message = e.what();
+									log.error(message);
+									log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
 								}
 							}
 						}
 					}
+
+					// TODO: Check refused count in iptables
+					// Maybe to do this only on each 5th log check?
 
 					// Update time of last log file check
 					lastLogCheck = currentTime;

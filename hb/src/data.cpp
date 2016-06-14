@@ -11,7 +11,7 @@
  * starting with "r" are not saved (to get rid of them eventually).
  * 
  * Data about suspicious activity from address:
- * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted
+ * d|addr|lastact|actscore|actcount|refcount|refbookmark|whitelisted|blacklisted
  * 
  * Log file bookmark to check for log rotation and for seekg to read only new
  * lines:
@@ -30,6 +30,7 @@
  * actscore    - suspicious activity score, len 10
  * actcount    - suspicious activity count (pattern match count), len 10
  * refcount    - connection drop count, len 10
+ * refbookmark - last known iptables packet count, len 10
  * whitelisted - flag if this IP address is in whitelist (manual list) and
  *               should never be blocked (ignore all suspicious activity for
  *               this address), y/n, len 1
@@ -40,9 +41,9 @@
  * file_path   - full path to log file, variable len (limits.h/PATH_MAX is not
  *               reliable so no max len here)
  * pktscount   - iptables INPUT chain packet count, used to detect if iptables
- *               have been flushed (for refused counter).
+ *               have been flushed (for refused counter), len 10
  * pktssize    - iptables INPUT chain packet size, used to detect if iptables
- *               have been flushed (for refused counter).
+ *               have been flushed (for refused counter), len 20
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog, etc)
@@ -81,7 +82,8 @@ using namespace hb;
 Data::Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables)
 : log(log), config(config), iptables(iptables)
 {
-
+	this->iptablesBookmark.packetCount = 0;
+	this->iptablesBookmark.packetSize = 0;
 }
 
 /*
@@ -101,8 +103,7 @@ bool Data::loadData()
 		hb::SuspiciosAddressType data;
 		std::pair<std::map<std::string, hb::SuspiciosAddressType>::iterator,bool> chk;
 		bool duplicatesFound = false;
-		unsigned long long int bookmark;
-		unsigned long long int size;
+		unsigned long long int bookmark, size;
 		std::string logFilePath;
 		bool logFileFound = false;
 		std::vector<hb::LogGroup>::iterator itlg;
@@ -129,11 +130,13 @@ bool Data::loadData()
 				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70,10)).c_str(), NULL, 10);
 				// Refused connection count
 				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
+				// Last known iptables packet count for rule
+				data.refusedBookmark = std::strtoul(hb::Util::ltrim(line.substr(90,10)).c_str(), NULL, 10);
 				// Whether IP address is in whitelist
-				if (line[90] == 'y') data.whitelisted = true;
+				if (line[100] == 'y') data.whitelisted = true;
 				else data.whitelisted = false;
 				// Whether IP address in in blacklist
-				if (line[91] == 'y') data.blacklisted = true;
+				if (line[101] == 'y') data.blacklisted = true;
 				else data.blacklisted = false;
 
 				// If IP address is in both, whitelist and blacklist, remove it from blacklist
@@ -181,7 +184,11 @@ bool Data::loadData()
 					this->removeFile(logFilePath);
 				}
 
-			} else if (recordType == 'r') {
+			} else if (recordType == 'i') {// Iptables bookmark
+				this->iptablesBookmark.packetCount = std::strtoul(hb::Util::ltrim(line.substr(1,10)).c_str(), NULL, 10);
+				this->iptablesBookmark.packetSize = std::strtoull(hb::Util::ltrim(line.substr(11,20)).c_str(), NULL, 10);
+
+			} else if (recordType == 'r') {// Record marked for removal
 				removedRecords++;
 			}
 		}
@@ -251,7 +258,7 @@ bool Data::loadData()
  */
 bool Data::saveData()
 {
-	this->log->info("Updating data in " + this->config->dataFilePath);
+	this->log->info("Updating datafile " + this->config->dataFilePath);
 
 	// Open file
 	std::ofstream f(this->config->dataFilePath.c_str());
@@ -266,6 +273,7 @@ bool Data::saveData()
 			f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
 			f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
 			f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
+			f << std::right << std::setw(10) << it->second.refusedBookmark;// Iptables packet count bookmark, left padded with spaces
 			if(it->second.whitelisted == true) f << 'y';
 			else f << 'n';
 			if(it->second.blacklisted == true) f << 'y';
@@ -288,6 +296,13 @@ bool Data::saveData()
 			}
 		}
 
+		// Iptables bookmark
+		f << 'i';
+		f << std::right << std::setw(10) << this->iptablesBookmark.packetCount;
+		f << std::right << std::setw(20) << this->iptablesBookmark.packetSize;
+		// f << std::endl;// endl should flush buffer
+		f << "\n";// \n should not flush buffer
+
 		// Close datafile
 		f.close();
 	} else {
@@ -307,25 +322,59 @@ bool Data::checkIptables()
 	try {
 		// Regex to search for IP address
 		std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+		// Regex to search for packet count and size
+		std::regex packetSearchPattern("-c \\d+ \\d+");
 
 		// Loop through current rules and mark suspcious addresses which have iptables rule
 		std::map<unsigned int, std::string>::iterator rit;
-		std::size_t checkStart = 0;
-		std::size_t checkEnd = 0;
-		std::map<std::string, SuspiciosAddressType>::iterator sait;
-		std::smatch ipSearchResults;
+		std::size_t checkStart = 0, checkEnd = 0;
+		std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
+		std::smatch regexSearchResults;
+		std::string regexSearchResult;
+		unsigned int packetCount = 0;
+		unsigned long long int packetSize = 0;
 		for(rit=rules.begin(); rit!=rules.end(); ++rit){
-			// Looking at rules like -A INPUT -s X.X.X.X/32 -j DROP
+			// Using ACCEPT rule packet count and size to detect flush so that later we can use -c data to update refused count
+			checkStart = rit->second.find("-P INPUT ACCEPT -c");
+			if (checkStart != std::string::npos && checkStart == 0) {
+				// Find counts in rule - will have an issue if this is not first rule in results...
+				if (std::regex_search(rit->second, regexSearchResults, packetSearchPattern)) {
+					if (regexSearchResults.size() == 1) {
+						regexSearchResult = regexSearchResults[0].str();
+						checkStart = regexSearchResult.find(' ');
+						checkEnd = regexSearchResult.find(' ', checkStart + 1);
+						packetCount = std::strtoul(regexSearchResult.substr(checkStart + 1, checkEnd - checkStart - 1).c_str(), NULL, 10);
+						packetSize = std::strtoull(regexSearchResult.substr(checkEnd + 1).c_str(), NULL, 10);
+						// Check if iptables counts were reset
+						if (packetCount < this->iptablesBookmark.packetCount
+							|| packetSize < this->iptablesBookmark.packetSize) {
+							this->log->info("Iptables flush detected");
+							this->iptablesBookmark.packetCount = 0;
+							this->iptablesBookmark.packetSize = 0;
+							// Reset iptables bookmark for all addresses
+							for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
+								if (sait->second.refusedBookmark != 0) {
+									sait->second.refusedBookmark = 0;
+									this->updateAddress(sait->first);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Looking at rules like -A INPUT -s X.X.X.X/32 -j DROP to detect if address has iptables rule
 			checkStart = rit->second.find("-A INPUT -s");
 			checkEnd = rit->second.find("-j DROP");
-			if(checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos){
+			if (checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos) {
 				// Find address in rule
-				if(std::regex_search(rit->second, ipSearchResults, ipSearchPattern)){
-					if(ipSearchResults.size() == 1){
+				if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
+					if (regexSearchResults.size() == 1) {
+						regexSearchResult = regexSearchResults[0].str();
 						// Search for address in map
-						sait = this->suspiciousAddresses.find(ipSearchResults[0]);
-						if(sait != this->suspiciousAddresses.end()){
-							if(sait->second.iptableRule == false){
+						sait = this->suspiciousAddresses.find(regexSearchResult);
+						if (sait != this->suspiciousAddresses.end()) {
+							if (sait->second.iptableRule == false) {
 								sait->second.iptableRule = true;
 							} else {
 								this->log->warning("Found duplicate iptables rule for " + sait->first + ", consider:");
@@ -333,12 +382,36 @@ bool Data::checkIptables()
 								this->log->warning("$ sudo iptables -D INPUT -s " + sait->first + " -j DROP");
 							}
 						} else {
-							this->log->warning("Found iptables rule for " + ipSearchResults[0].str() + " but don't have any information about this address in datafile, please review manually.");
-							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + ipSearchResults[0].str());
+							this->log->warning("Found iptables rule for " + sait->first + " but don't have any information about this address in datafile, please review manually.");
+							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + sait->first);
+						}
+					}
+				}
+
+				// Find counts in rule - to check if refused count should be incremented
+				if (std::regex_search(rit->second, regexSearchResults, packetSearchPattern)) {
+					if (regexSearchResults.size() == 1) {
+						regexSearchResult = regexSearchResults[0].str();
+						checkStart = regexSearchResult.find(' ');
+						checkEnd = regexSearchResult.find(' ', checkStart + 1);
+						packetCount = std::strtoul(regexSearchResult.substr(checkStart + 1, checkEnd - checkStart - 1).c_str(), NULL, 10);
+						if (packetCount > 0) {
+							if (packetCount > sait->second.refusedBookmark) {
+								// Register dropped packet count as activity
+								this->saveActivity(sait->first, 0, packetCount - sait->second.refusedBookmark, packetCount - sait->second.refusedBookmark);
+							} else if (packetCount < sait->second.refusedBookmark) {
+								this->log->warning("Issue with refused count for " + sait->first + "! Data corruption?");
+							}
 						}
 					}
 				}
 			}
+		}
+
+		// Update iptables bookmark
+		if (packetCount > this->iptablesBookmark.packetCount || packetSize > this->iptablesBookmark.packetSize) {
+			this->iptablesBookmark.packetCount = packetCount;
+			this->iptablesBookmark.packetSize = packetSize;
 		}
 
 		// Loop through all suspicious address and add iptables rules that are missing
@@ -392,7 +465,7 @@ bool Data::checkIptables()
 					}
 				} else {
 					// Without multiplier rules are kept until score is reset to 0
-					if (sait->second.activityScore = 0) {
+					if (sait->second.activityScore == 0) {
 						removeRule = true;
 					}
 				}
@@ -449,6 +522,7 @@ bool Data::addAddress(std::string address)
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
+		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedBookmark;// Iptables packet count bookmark, left padded with spaces
 		if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
 		else f << 'n';
 		if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
@@ -490,6 +564,7 @@ bool Data::updateAddress(std::string address)
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
+					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedBookmark;// Iptables packet count bookmark, left padded with spaces
 					if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
 					else f << 'n';
 					if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
@@ -502,8 +577,11 @@ bool Data::updateAddress(std::string address)
 					break;
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(53, f.cur);
-			} else {// Other type of record (bookmark or removed record)
+				f.seekg(63, f.cur);
+			} else if (c == 'i') {// Iptables bookmark
+				// Skip
+				f.seekg(31, f.cur);
+			} else {// Other type of record (file bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
 
@@ -559,8 +637,11 @@ bool Data::removeAddress(std::string address)
 					break;// No need to continue reading file
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(53, f.cur);
-			} else {// Variable length record (bookmark or removed record)
+				f.seekg(63, f.cur);
+			} else if (c == 'i') {// Iptables bookmark
+				// Skip
+				f.seekg(31, f.cur);
+			} else {// Variable length record (file bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
 
@@ -653,7 +734,9 @@ bool Data::updateFile(std::string filePath)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Address record, skip to next one
-				f.seekg(92, f.cur);
+				f.seekg(102, f.cur);
+			} else if (c == 'i') {// Iptables bookmark, skipt to next one
+				f.seekg(31, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 				// Save current position, will need later if file path will match needed one
 				tmppos = f.tellg();
@@ -732,7 +815,10 @@ bool Data::removeFile(std::string filePath)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Address record, skip to next one
-				f.seekg(92, f.cur);
+				f.seekg(102, f.cur);
+			} else if (c == 'i') {// Iptables bookmark
+				// Skip
+				f.seekg(31, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 
 				// Save current position, will need later if file path will match needed one
@@ -776,6 +862,169 @@ bool Data::removeFile(std::string filePath)
 	} else {
 		return true;
 	}
+}
+
+/*
+ * Save suspicious activity to data->suspiciousAddreses and datafile
+ */
+void Data::saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount)
+{
+	std::time_t currentTime;
+	std::time(&currentTime);
+
+	// Warning if only last activity time changes
+	if (activityScore == 0 && activityCount == 0 && refusedCount == 0) {
+		this->log->warning("Trying to register activity, but no data about activity! Only last activity time for address " + address + " will be updated!");
+	}
+
+	// Adjust activity score if refused count also has score
+	if (refusedCount > 0 && this->config->refusedScore > 0) {
+		activityScore += refusedCount * this->config->refusedScore;
+	}
+
+	// Check if new record needs to be added or we need to update existing data
+	bool newEntry = false;
+	if (this->suspiciousAddresses.count(address) > 0) {
+
+		// This address already had some activity previously, need to recalculate score
+		this->log->debug("Previous activity: " + std::to_string(this->suspiciousAddresses[address].lastActivity));
+
+		// Adjust score according to time passed
+		if (this->config->keepBlockedScoreMultiplier > 0 && this->suspiciousAddresses[address].activityScore > 0) {
+			this->log->debug("Adjusting previous score according to time passed...");
+			if (this->suspiciousAddresses[address].activityScore < currentTime - this->suspiciousAddresses[address].lastActivity) {
+				this->suspiciousAddresses[address].activityScore = 0;
+			} else {
+				this->suspiciousAddresses[address].activityScore -= currentTime - this->suspiciousAddresses[address].lastActivity;
+			}
+		}
+		this->suspiciousAddresses[address].lastActivity = (unsigned long long int)currentTime;
+
+		// Use score multiplier
+		if (this->config->keepBlockedScoreMultiplier > 0) {
+			this->log->debug("Adjusting new score according to multiplier...");
+			activityScore = activityScore * this->config->keepBlockedScoreMultiplier;
+		}
+
+		this->suspiciousAddresses[address].activityScore += activityScore;
+		this->suspiciousAddresses[address].activityCount += activityCount;
+		this->suspiciousAddresses[address].refusedCount += refusedCount;
+
+	} else {
+
+		// First time activity from this address
+		SuspiciosAddressType data;
+		data.lastActivity = (unsigned long long int)currentTime;
+
+		// Adjust score if needed
+		if (this->config->keepBlockedScoreMultiplier > 0) {
+			this->log->debug("Adjusting new score according to multiplier...");
+			data.activityScore = activityScore * this->config->keepBlockedScoreMultiplier;
+		} else {
+			data.activityScore = activityScore;
+		}
+
+		data.activityCount = activityCount;
+		data.refusedCount = refusedCount;
+		data.whitelisted = false;
+		data.blacklisted = false;
+		this->suspiciousAddresses.insert(std::pair<std::string,SuspiciosAddressType>(address,data));
+		newEntry = true;
+	}
+
+	// Few details for debug
+	this->log->debug("Last activity: " + std::to_string(this->suspiciousAddresses[address].lastActivity));
+	this->log->debug("Activity score: " + std::to_string(this->suspiciousAddresses[address].activityScore));
+	this->log->debug("Activity count: " + std::to_string(this->suspiciousAddresses[address].activityCount));
+	this->log->debug("Refused count: " + std::to_string(this->suspiciousAddresses[address].refusedCount));
+	if (this->suspiciousAddresses[address].whitelisted) this->log->debug("Address is in whitelist!");
+	if (this->suspiciousAddresses[address].blacklisted) this->log->debug("Address is in blacklist!");
+
+	// Check new score and see if need to add to/remove from iptables
+	bool createRule = false;
+	bool removeRule = false;
+	if (this->suspiciousAddresses[address].iptableRule) {// Rule exists, check if need to remove
+
+		// Whitelisted addresses must not have rule
+		if (this->suspiciousAddresses[address].whitelisted == true) {
+			removeRule = true;
+		}
+
+		// Keep rule for blacklisted addresses
+		if (this->suspiciousAddresses[address].blacklisted != true) {
+			// Rule removal only when recalculated score reaches 0
+			if (this->suspiciousAddresses[address].activityScore == 0) {
+				removeRule = true;
+			}
+		}
+	} else {// Rule does not exist, check if need to add
+
+		// Blacklisted addresses must have rule
+		if (this->suspiciousAddresses[address].blacklisted == true) {
+			createRule = true;
+		}
+
+		// Whitelisted addresses must not have rule
+		if (this->suspiciousAddresses[address].whitelisted != true) {
+
+			// There are two modes for rule keeping in iptables
+			if (this->config->keepBlockedScoreMultiplier > 0) {
+
+				// Using score multiplier, recheck if score is enough to create rule, score is already recalculated
+				if (this->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier) {
+					createRule = true;
+				}
+
+			} else{
+
+				// Without multiplier rules are kept forever for cases where there is enough score
+				if (this->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock) {
+					createRule = true;
+				}
+
+			}
+		}
+	}
+
+	// Adjust iptables rules
+	if (createRule == true) {
+		this->log->debug("Adding rule for " + address + " to iptables chain!");
+		try {
+			if (this->iptables->append("INPUT","-s " + address + " -j DROP") == false) {
+				this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
+			} else {
+				this->suspiciousAddresses[address].iptableRule = true;
+			}
+		} catch (std::runtime_error& e) {
+			std::string message = e.what();
+			this->log->error(message);
+			this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
+		}
+	}
+	if(removeRule == true) {
+		this->log->debug("Removing rule of " + address + " from iptables chain!");
+		try {
+			if(this->iptables->remove("INPUT","-s " + address + " -j DROP") == false){
+				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
+			} else {
+				this->suspiciousAddresses[address].iptableRule = false;
+			}
+		} catch (std::runtime_error& e) {
+			std::string message = e.what();
+			this->log->error(message);
+			this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
+		}
+	}
+
+	// Update data file
+	if(newEntry == true){
+		// Add new entry to end of data file
+		this->addAddress(address);
+	} else{
+		// Update entry in data file
+		this->updateAddress(address);
+	}
+
 }
 
 /*

@@ -51,11 +51,6 @@ class LogParser{
 		 */
 		void checkFiles();
 
-		/*
-		 * Save suspicious activity
-		 */
-		void saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount);
-
 };
 
 }

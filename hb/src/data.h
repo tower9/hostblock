@@ -55,6 +55,11 @@ class Data{
 		std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses;
 
 		/*
+		 * Iptables bookmark to detect flush
+		 */
+		hb::IptablesBookmark iptablesBookmark;
+
+		/*
 		 * Constructor
 		 */
 		Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables);
@@ -106,6 +111,11 @@ class Data{
 		 * Mark log file bookmark record for removal in datafile
 		 */
 		bool removeFile(std::string filePath);
+
+		/*
+		 * Save suspicious activity
+		 */
+		void saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount);
 
 		/*
 		 * Print (stdout) some statistics about data

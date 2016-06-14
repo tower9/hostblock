@@ -46,6 +46,7 @@ struct SuspiciosAddressType{
 	unsigned int activityScore = 0;
 	unsigned int activityCount = 0;
 	unsigned int refusedCount = 0;
+	unsigned int refusedBookmark = 0;
 	bool whitelisted = false;
 	bool blacklisted = false;
 	bool iptableRule = false;
@@ -62,7 +63,7 @@ struct SuspiciosAddressStatType{
  * Data about iptables bookmarks to detect if iptables have been flushed
  */
 struct IptablesBookmark{
-	unsigned long long int packetCount = 0;
+	unsigned int packetCount = 0;
 	unsigned long long int packetSize = 0;
 };
 
