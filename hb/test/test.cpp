@@ -74,6 +74,8 @@ int main(int argc, char *argv[])
 			log.debug("Syslog test - level: LOG_DEBUG msg type: debug");
 		}
 		log.setLevel(LOG_DEBUG);
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 		// iptables
 		std::cout << "Creating Iptables object..." << std::endl;
@@ -105,6 +107,8 @@ int main(int argc, char *argv[])
 				std::cout << "Rule: " << ruleIt->second << std::endl;
 			}
 		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 		// Config
 		std::cout << "Creating Config object..." << std::endl;
@@ -117,6 +121,8 @@ int main(int argc, char *argv[])
 			std::cout << "Printing configuration to stdout..." << std::endl;
 			cfg.print();
 		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 		// Data
 		std::cout << "Creating Data object..." << std::endl;
@@ -225,6 +231,8 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 		// Log parsing
 		if (testLogParsing) {
@@ -267,8 +275,9 @@ int main(int argc, char *argv[])
 			std::cout << "Log file check..." << std::endl;
 			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);
 			lp.checkFiles();
-
 		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 		// Remove temp test datafile
 		if ( (testData || testLogParsing) && removeTempData) {
@@ -279,6 +288,8 @@ int main(int argc, char *argv[])
 				std::cerr << "Failed to remove temporary data file!" << std::endl;
 			}
 		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 		// Test currently configured log file parsing (not test file like above)
 		if (testConfiguredLogParsing) {
@@ -325,6 +336,8 @@ int main(int argc, char *argv[])
 			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);
 			lp.checkFiles();
 		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 	} catch (std::exception& e){
 		std::cerr << e.what() << std::endl;
