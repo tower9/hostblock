@@ -17,6 +17,9 @@
  * lines:
  * b|bookmark|size|file_path
  *
+ * iptables bookmark of INPUT rule packet count:
+ * i|pktscount|pktssize
+ *
  * Marked for removal (any type of line), right padded with spaces according to
  * original length of line:
  * r
@@ -36,6 +39,10 @@
  * size        - size of file when it was last read, len 20
  * file_path   - full path to log file, variable len (limits.h/PATH_MAX is not
  *               reliable so no max len here)
+ * pktscount   - iptables INPUT chain packet count, used to detect if iptables
+ *               have been flushed (for refused counter).
+ * pktssize    - iptables INPUT chain packet size, used to detect if iptables
+ *               have been flushed (for refused counter).
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog, etc)

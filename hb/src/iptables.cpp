@@ -89,7 +89,7 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 	std::map<unsigned int, std::string> rules;
 	unsigned int ruleInd = 0;
 	rules.clear();
-	std::string cmd = "iptables --list-rules "+chain;
+	std::string cmd = "iptables --list-rules " + chain + " -v";
 
 	// Open pipe stream
 	FILE* pipe = popen(cmd.c_str(), "r");
