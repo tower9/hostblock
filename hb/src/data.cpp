@@ -381,28 +381,30 @@ bool Data::checkIptables()
 								this->log->warning("$ sudo iptables --list-rules INPUT | grep " + sait->first);
 								this->log->warning("$ sudo iptables -D INPUT -s " + sait->first + " -j DROP");
 							}
+
+							// Find counts in rule - to check if refused count should be incremented
+							if (std::regex_search(rit->second, regexSearchResults, packetSearchPattern)) {
+								if (regexSearchResults.size() == 1) {
+									regexSearchResult = regexSearchResults[0].str();
+									checkStart = regexSearchResult.find(' ');
+									checkEnd = regexSearchResult.find(' ', checkStart + 1);
+									packetCount = std::strtoul(regexSearchResult.substr(checkStart + 1, checkEnd - checkStart - 1).c_str(), NULL, 10);
+									if (packetCount > 0) {
+										if (packetCount > sait->second.refusedBookmark) {
+											// Register dropped packet count as activity
+											this->saveActivity(sait->first, 0, packetCount - sait->second.refusedBookmark, packetCount - sait->second.refusedBookmark);
+										} else if (packetCount < sait->second.refusedBookmark) {
+											this->log->warning("Issue with refused count for " + sait->first + "! Data corruption?");
+										}
+									}
+								}
+							}
+
 						} else {
 							this->log->warning("Found iptables rule for " + regexSearchResult + " but don't have any information about this address in datafile, please review manually.");
 							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + regexSearchResult);
 						}
 
-						// Find counts in rule - to check if refused count should be incremented
-						if (std::regex_search(rit->second, regexSearchResults, packetSearchPattern)) {
-							if (regexSearchResults.size() == 1) {
-								regexSearchResult = regexSearchResults[0].str();
-								checkStart = regexSearchResult.find(' ');
-								checkEnd = regexSearchResult.find(' ', checkStart + 1);
-								packetCount = std::strtoul(regexSearchResult.substr(checkStart + 1, checkEnd - checkStart - 1).c_str(), NULL, 10);
-								if (packetCount > 0) {
-									if (packetCount > sait->second.refusedBookmark) {
-										// Register dropped packet count as activity
-										this->saveActivity(sait->first, 0, packetCount - sait->second.refusedBookmark, packetCount - sait->second.refusedBookmark);
-									} else if (packetCount < sait->second.refusedBookmark) {
-										this->log->warning("Issue with refused count for " + sait->first + "! Data corruption?");
-									}
-								}
-							}
-						}
 					}
 				}
 
