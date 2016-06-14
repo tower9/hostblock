@@ -58,6 +58,14 @@ struct SuspiciosAddressStatType{
 	std::string address = "";
 };
 
+/*
+ * Data about iptables bookmarks to detect if iptables have been flushed
+ */
+struct IptablesBookmark{
+	unsigned long long int packetCount = 0;
+	unsigned long long int packetSize = 0;
+};
+
 class Util{
 	private:
 
