@@ -119,7 +119,7 @@ bool Data::loadData()
 			// First position is record type
 			recordType = line[0];
 
-			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
+			if(recordType == 'd' && line.length() == 102){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
 				// IP address
 				address = hb::Util::ltrim(line.substr(1,39));
 				// Timestamp of last activity
@@ -184,7 +184,7 @@ bool Data::loadData()
 					this->removeFile(logFilePath);
 				}
 
-			} else if (recordType == 'i') {// Iptables bookmark
+			} else if (recordType == 'i' && line.length() == 31) {// Iptables bookmark
 				this->iptablesBookmark.packetCount = std::strtoul(hb::Util::ltrim(line.substr(1,10)).c_str(), NULL, 10);
 				this->iptablesBookmark.packetSize = std::strtoull(hb::Util::ltrim(line.substr(11,20)).c_str(), NULL, 10);
 
