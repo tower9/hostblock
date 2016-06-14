@@ -314,6 +314,12 @@ int main(int argc, char *argv[])
 				std::cerr << "Failed to load data!" << std::endl;
 			}
 
+			// Check iptables
+			std::cout << "Comparing data with iptables..." << std::endl;
+			if (!data.checkIptables()) {
+				std::cerr << "Failed to compare data with iptables!" << std::endl;
+			}
+
 			// Check log files
 			std::cout << "Log file check..." << std::endl;
 			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);

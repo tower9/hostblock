@@ -113,8 +113,8 @@ void LogParser::checkFiles()
 										// Update address data
 										this->saveActivity(ipAddress, itlp->score, 1, 0);
 									}
-								}
-								this->log->debug("Line: " + line);
+								} 
+								// this->log->debug("Line: " + line);
 								this->log->debug("Pattern: " + itlp->patternString);
 							}
 						} catch (std::regex_error& e) {
