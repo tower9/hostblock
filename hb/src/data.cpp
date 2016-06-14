@@ -50,6 +50,8 @@
 #include <regex>
 // Unordered map
 #include <unordered_map>
+// C Math
+#include <cmath>
 // Linux stat
 namespace cstat{
 	#include <errno.h>
