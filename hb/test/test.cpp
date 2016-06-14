@@ -307,6 +307,8 @@ int main(int argc, char *argv[])
 			if (!cfg.load()){
 				std::cerr << "Failed to load configuration!" << std::endl;
 			}
+			end = clock();
+			std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 			// Use temporarly datafile (empty)
 			cfg.dataFilePath = "test_result_datafile";
@@ -317,19 +319,26 @@ int main(int argc, char *argv[])
 			}
 
 			// Clear suspicious address data
+			std::cout << "Clearing suspiciousAddresses..." << std::endl;
 			data.suspiciousAddresses.clear();
+			end = clock();
+			std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 			// Reload data
 			std::cout << "Loading empty datafile..." << std::endl;
 			if (!data.loadData()) {
 				std::cerr << "Failed to load data!" << std::endl;
 			}
+			end = clock();
+			std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 			// Check iptables
 			std::cout << "Comparing data with iptables..." << std::endl;
 			if (!data.checkIptables()) {
 				std::cerr << "Failed to compare data with iptables!" << std::endl;
 			}
+			end = clock();
+			std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
 			// Check log files
 			std::cout << "Log file check..." << std::endl;
