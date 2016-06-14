@@ -25,6 +25,10 @@ Setup
 ```
 $ git clone https://github.com/tower9/hostblock.git
 ```
+ - This version of hostblock is currently only in branch 2.0 without version, so check out branch 2.0
+```
+$ git checkout 2.0
+```
  - Compile
 ```
 $ make
