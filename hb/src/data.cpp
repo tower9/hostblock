@@ -391,8 +391,8 @@ bool Data::checkIptables()
 						removeRule = true;
 					}
 				} else {
-					// Without multiplier rules are kept until core is manually reduced under activityScoreToBlock
-					if (sait->second.activityScore < this->config->activityScoreToBlock) {
+					// Without multiplier rules are kept until score is reset to 0
+					if (sait->second.activityScore = 0) {
 						removeRule = true;
 					}
 				}
