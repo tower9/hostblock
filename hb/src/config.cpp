@@ -168,7 +168,7 @@ bool Config::load()
 								posip = pattern.patternString.find("%i");
 								if (posip != std::string::npos) {
 									pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-									pattern.pattern = std::regex(pattern.patternString);// This is slow
+									pattern.pattern = std::regex(pattern.patternString);// TODO: This is slow, maybe implement some flag so that this is done only for daemon startup?
 									itp = itlg->patterns.end();
 									itp = itlg->patterns.insert(itp,pattern);
 									if (logDetails) this->log->debug("Pattern to match: " + pattern.patternString);

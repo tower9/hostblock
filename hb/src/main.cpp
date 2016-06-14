@@ -53,6 +53,8 @@ const char* PID_PATH = "/var/run/hostblock.pid";
 bool running = false;
 // Variable for daemon to reload data file
 bool reloadDataFile = false;
+// Variable for daemon to reload configuration
+bool reloadConfig = false;
 
 /*
  * Output short help
@@ -80,8 +82,9 @@ void signalHandler(int signal)
 		// Stop daemon
 		running = false;
 	} else if (signal == SIGUSR1) {
-		// SIGUSR1 to tell daemon to reload data
+		// SIGUSR1 to tell daemon to reload data and config
 		reloadDataFile = true;
+		reloadConfig = true;
 	}
 }
 
@@ -324,15 +327,24 @@ int main(int argc, char *argv[])
 					lastFileMCheck = currentTime;
 				}*/
 
+				// Reload configuration
+				if (reloadConfig) {
+					log.info("Daemon configuration reload...");
+					if (!config.load()) {
+						log.error("Failed to reload configuration for daemon!");
+					}
+					reloadConfig = false;
+				}
+
 				// Reload datafile
 				if (reloadDataFile) {
 					log.info("Daemon datafile reload...");
 					if (!data.loadData()) {
 						log.error("Failed to reload data for daemon!");
 					} else {
-						reloadDataFile = false;
 						// dataFileMTime = statbuf.st_mtime;
 					}
+					reloadDataFile = false;
 				}
 
 				// Get current time
