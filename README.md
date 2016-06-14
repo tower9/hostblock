@@ -16,6 +16,8 @@ Features
  - Whitelist to ignore some addresses
  - Allows to manually remove IP addresses from data file (clean slate)
 
+Note, if this tool does not allow you to use iptables the way you like (is limiting you), please register issue, maybe some solution can be found. It would be nice not to limit iptables functionality that is being used if iptables are used together with hostblock. I feel that config should be extended for more flexible integration with iptables...
+
 Setup
 -----
 
