@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
 							if (config.keepBlockedScoreMultiplier > 0) {
 								// Score multiplier configured, recheck if score is no longer enough to keep this rule
 								if ((unsigned long long int)currentTime > sait->second.lastActivity + sait->second.activityScore) {
-									log.debug("Address " + sait->first + " no longer needs iptables rule, removing...");
+									log.info("Address " + sait->first + " no longer needs iptables rule, removing...");
 									try {
 										if (iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false) {
 											log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");

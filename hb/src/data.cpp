@@ -398,7 +398,7 @@ bool Data::checkIptables()
 				}
 			}
 			if (createRule == true) {
-				this->log->warning("Address " + sait->first + " is missing iptables rule, adding...");
+				this->log->info("Address " + sait->first + " is missing iptables rule, adding...");
 				try {
 					if (this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false) {
 						this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
@@ -412,7 +412,7 @@ bool Data::checkIptables()
 				}
 			}
 			if (removeRule == true) {
-				this->log->warning("Address " + sait->first + " no longer needs iptables rule, removing...");
+				this->log->info("Address " + sait->first + " no longer needs iptables rule, removing...");
 				try {
 					if (this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false) {
 						this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
