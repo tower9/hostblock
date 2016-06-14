@@ -187,6 +187,7 @@ bool Data::loadData()
 			} else if (recordType == 'i' && line.length() == 31) {// Iptables bookmark
 				this->iptablesBookmark.packetCount = std::strtoul(hb::Util::ltrim(line.substr(1,10)).c_str(), NULL, 10);
 				this->iptablesBookmark.packetSize = std::strtoull(hb::Util::ltrim(line.substr(11,20)).c_str(), NULL, 10);
+				this->log->debug("Iptables bookmark, packet count: " + std::to_string(this->iptablesBookmark.packetCount) + " packet size: " + std::to_string(this->iptablesBookmark.packetSize));
 
 			} else if (recordType == 'r') {// Record marked for removal
 				removedRecords++;
@@ -331,7 +332,7 @@ bool Data::checkIptables()
 		std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
 		std::smatch regexSearchResults;
 		std::string regexSearchResult;
-		unsigned int packetCount = 0;
+		unsigned int packetCount = 0, calculatedRefusedCount = 0;
 		unsigned long long int packetSize = 0;
 		for(rit=rules.begin(); rit!=rules.end(); ++rit){
 			// Using ACCEPT rule packet count and size to detect flush so that later we can use -c data to update refused count
@@ -392,7 +393,9 @@ bool Data::checkIptables()
 									if (packetCount > 0) {
 										if (packetCount > sait->second.refusedBookmark) {
 											// Register dropped packet count as activity
-											this->saveActivity(sait->first, 0, packetCount - sait->second.refusedBookmark, packetCount - sait->second.refusedBookmark);
+											calculatedRefusedCount = packetCount - sait->second.refusedBookmark;
+											sait->second.refusedBookmark = packetCount;
+											this->saveActivity(sait->first, 0, calculatedRefusedCount, calculatedRefusedCount);
 										} else if (packetCount < sait->second.refusedBookmark) {
 											this->log->warning("Issue with refused count for " + sait->first + "! Data corruption?");
 										}
