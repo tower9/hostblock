@@ -45,7 +45,7 @@ Help
 $ hostblock -h
 ```
 
-Some statistics
+Some simple statistics
 ```
 $ sudo hostblock -s
 ```

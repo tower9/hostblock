@@ -128,7 +128,7 @@ void LogParser::checkFiles()
 					itlf->bookmark = is.tellg();
 
 					// Sleep
-					cunistd::usleep(500);
+					cunistd::usleep(10);
 
 					// Output some info to log file each min
 					time(&currentTime);
