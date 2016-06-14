@@ -382,8 +382,8 @@ bool Data::checkIptables()
 								this->log->warning("$ sudo iptables -D INPUT -s " + sait->first + " -j DROP");
 							}
 						} else {
-							this->log->warning("Found iptables rule for " + sait->first + " but don't have any information about this address in datafile, please review manually.");
-							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + sait->first);
+							this->log->warning("Found iptables rule for " + regexSearchResult + " but don't have any information about this address in datafile, please review manually.");
+							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + regexSearchResult);
 						}
 					}
 				}
