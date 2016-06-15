@@ -49,6 +49,13 @@ $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 ```
  - TODO: Automatic startup script
 
+ - For first hostblock start truncate/rotate/archive log files so that hostblock starts monitoring log files from sratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
+
+ - Start hostblock in background
+```
+$ sudo hostblock -s
+```
+
 Usage
 -----
 
