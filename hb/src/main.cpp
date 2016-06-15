@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
 								checkStart = rit->second.find(ruleStart);
 								checkEnd = rit->second.find(ruleEnd);
 								checkEnd = rit->second.find(ruleEnd);
-								if (checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos) {
+								if (checkStart != std::string::npos && checkEnd != std::string::npos) {
 									// Find address in rule
 									if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
 										if (regexSearchResults.size() == 1) {
