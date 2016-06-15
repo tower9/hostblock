@@ -22,8 +22,6 @@ namespace hb{
 class Data{
 	private:
 
-		// static std::string dateTimeFormat = "%Y-%m-%d %H:%M:%S";
-
 		static bool sortByActivityCount(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra);
 
 		static bool sortByLastActivity(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra);
@@ -53,11 +51,6 @@ class Data{
 		 * Data about suspicious, whitelisted and blacklisted addresses
 		 */
 		std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses;
-
-		/*
-		 * Iptables bookmark to detect flush
-		 */
-		hb::IptablesBookmark iptablesBookmark;
 
 		/*
 		 * Constructor
@@ -111,6 +104,11 @@ class Data{
 		 * Mark log file bookmark record for removal in datafile
 		 */
 		bool removeFile(std::string filePath);
+
+		/*
+		 * TODO: If exists, update iptables bookmark in file, if not then add new bookmark
+		 */
+		bool updateIptablesBookmark();
 
 		/*
 		 * Save suspicious activity

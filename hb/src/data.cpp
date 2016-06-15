@@ -11,14 +11,11 @@
  * starting with "r" are not saved (to get rid of them eventually).
  * 
  * Data about suspicious activity from address:
- * d|addr|lastact|actscore|actcount|refcount|refbookmark|whitelisted|blacklisted
+ * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted
  * 
  * Log file bookmark to check for log rotation and for seekg to read only new
  * lines:
  * b|bookmark|size|file_path
- *
- * iptables bookmark of INPUT rule packet count:
- * i|pktscount|pktssize
  *
  * Marked for removal (any type of line), right padded with spaces according to
  * original length of line:
@@ -30,7 +27,6 @@
  * actscore    - suspicious activity score, len 10
  * actcount    - suspicious activity count (pattern match count), len 10
  * refcount    - connection drop count, len 10
- * refbookmark - last known iptables packet count, len 10
  * whitelisted - flag if this IP address is in whitelist (manual list) and
  *               should never be blocked (ignore all suspicious activity for
  *               this address), y/n, len 1
@@ -40,10 +36,6 @@
  * size        - size of file when it was last read, len 20
  * file_path   - full path to log file, variable len (limits.h/PATH_MAX is not
  *               reliable so no max len here)
- * pktscount   - iptables INPUT chain packet count, used to detect if iptables
- *               have been flushed (for refused counter), len 10
- * pktssize    - iptables INPUT chain packet size, used to detect if iptables
- *               have been flushed (for refused counter), len 20
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog, etc)
@@ -82,8 +74,7 @@ using namespace hb;
 Data::Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables)
 : log(log), config(config), iptables(iptables)
 {
-	this->iptablesBookmark.packetCount = 0;
-	this->iptablesBookmark.packetSize = 0;
+
 }
 
 /*
@@ -119,7 +110,7 @@ bool Data::loadData()
 			// First position is record type
 			recordType = line[0];
 
-			if(recordType == 'd' && line.length() == 102){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
+			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
 				// IP address
 				address = hb::Util::ltrim(line.substr(1,39));
 				// Timestamp of last activity
@@ -130,13 +121,11 @@ bool Data::loadData()
 				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70,10)).c_str(), NULL, 10);
 				// Refused connection count
 				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
-				// Last known iptables packet count for rule
-				data.refusedBookmark = std::strtoul(hb::Util::ltrim(line.substr(90,10)).c_str(), NULL, 10);
 				// Whether IP address is in whitelist
-				if (line[100] == 'y') data.whitelisted = true;
+				if (line[90] == 'y') data.whitelisted = true;
 				else data.whitelisted = false;
 				// Whether IP address in in blacklist
-				if (line[101] == 'y') data.blacklisted = true;
+				if (line[91] == 'y') data.blacklisted = true;
 				else data.blacklisted = false;
 
 				// If IP address is in both, whitelist and blacklist, remove it from blacklist
@@ -183,11 +172,6 @@ bool Data::loadData()
 					this->log->warning("Bookmark information in datafile for log file " + logFilePath + " found, but file not present in configuration. Removing from datafile...");
 					this->removeFile(logFilePath);
 				}
-
-			} else if (recordType == 'i' && line.length() == 31) {// Iptables bookmark
-				this->iptablesBookmark.packetCount = std::strtoul(hb::Util::ltrim(line.substr(1,10)).c_str(), NULL, 10);
-				this->iptablesBookmark.packetSize = std::strtoull(hb::Util::ltrim(line.substr(11,20)).c_str(), NULL, 10);
-				this->log->debug("Iptables bookmark, packet count: " + std::to_string(this->iptablesBookmark.packetCount) + " packet size: " + std::to_string(this->iptablesBookmark.packetSize));
 
 			} else if (recordType == 'r') {// Record marked for removal
 				removedRecords++;
@@ -274,7 +258,6 @@ bool Data::saveData()
 			f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
 			f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
 			f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
-			f << std::right << std::setw(10) << it->second.refusedBookmark;// Iptables packet count bookmark, left padded with spaces
 			if(it->second.whitelisted == true) f << 'y';
 			else f << 'n';
 			if(it->second.blacklisted == true) f << 'y';
@@ -297,13 +280,6 @@ bool Data::saveData()
 			}
 		}
 
-		// Iptables bookmark
-		f << 'i';
-		f << std::right << std::setw(10) << this->iptablesBookmark.packetCount;
-		f << std::right << std::setw(20) << this->iptablesBookmark.packetSize;
-		// f << std::endl;// endl should flush buffer
-		f << "\n";// \n should not flush buffer
-
 		// Close datafile
 		f.close();
 	} else {
@@ -323,8 +299,6 @@ bool Data::checkIptables()
 	try {
 		// Regex to search for IP address
 		std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-		// Regex to search for packet count and size
-		std::regex packetSearchPattern("-c \\d+ \\d+");
 
 		// Loop through current rules and mark suspcious addresses which have iptables rule
 		std::map<unsigned int, std::string>::iterator rit;
@@ -332,37 +306,8 @@ bool Data::checkIptables()
 		std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
 		std::smatch regexSearchResults;
 		std::string regexSearchResult;
-		unsigned int packetCount = 0, calculatedRefusedCount = 0;
-		unsigned long long int packetSize = 0;
+
 		for(rit=rules.begin(); rit!=rules.end(); ++rit){
-			// Using ACCEPT rule packet count and size to detect flush so that later we can use -c data to update refused count
-			checkStart = rit->second.find("-P INPUT ACCEPT -c");
-			if (checkStart != std::string::npos && checkStart == 0) {
-				// Find counts in rule - will have an issue if this is not first rule in results...
-				if (std::regex_search(rit->second, regexSearchResults, packetSearchPattern)) {
-					if (regexSearchResults.size() == 1) {
-						regexSearchResult = regexSearchResults[0].str();
-						checkStart = regexSearchResult.find(' ');
-						checkEnd = regexSearchResult.find(' ', checkStart + 1);
-						packetCount = std::strtoul(regexSearchResult.substr(checkStart + 1, checkEnd - checkStart - 1).c_str(), NULL, 10);
-						packetSize = std::strtoull(regexSearchResult.substr(checkEnd + 1).c_str(), NULL, 10);
-						// Check if iptables counts were reset
-						if (packetCount < this->iptablesBookmark.packetCount
-							|| packetSize < this->iptablesBookmark.packetSize) {
-							this->log->info("Iptables flush detected");
-							this->iptablesBookmark.packetCount = 0;
-							this->iptablesBookmark.packetSize = 0;
-							// Reset iptables bookmark for all addresses
-							for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
-								if (sait->second.refusedBookmark != 0) {
-									sait->second.refusedBookmark = 0;
-									this->updateAddress(sait->first);
-								}
-							}
-						}
-					}
-				}
-			}
 
 			// Looking at rules like -A INPUT -s X.X.X.X/32 -j DROP to detect if address has iptables rule
 			checkStart = rit->second.find("-A INPUT -s");
@@ -383,26 +328,6 @@ bool Data::checkIptables()
 								this->log->warning("$ sudo iptables -D INPUT -s " + sait->first + " -j DROP");
 							}
 
-							// Find counts in rule - to check if refused count should be incremented
-							if (std::regex_search(rit->second, regexSearchResults, packetSearchPattern)) {
-								if (regexSearchResults.size() == 1) {
-									regexSearchResult = regexSearchResults[0].str();
-									checkStart = regexSearchResult.find(' ');
-									checkEnd = regexSearchResult.find(' ', checkStart + 1);
-									packetCount = std::strtoul(regexSearchResult.substr(checkStart + 1, checkEnd - checkStart - 1).c_str(), NULL, 10);
-									if (packetCount > 0) {
-										if (packetCount > sait->second.refusedBookmark) {
-											// Register dropped packet count as activity
-											calculatedRefusedCount = packetCount - sait->second.refusedBookmark;
-											sait->second.refusedBookmark = packetCount;
-											this->saveActivity(sait->first, 0, calculatedRefusedCount, calculatedRefusedCount);
-										} else if (packetCount < sait->second.refusedBookmark) {
-											this->log->warning("Issue with refused count for " + sait->first + "! Data corruption?");
-										}
-									}
-								}
-							}
-
 						} else {
 							this->log->warning("Found iptables rule for " + regexSearchResult + " but don't have any information about this address in datafile, please review manually.");
 							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + regexSearchResult);
@@ -412,12 +337,6 @@ bool Data::checkIptables()
 				}
 
 			}
-		}
-
-		// Update iptables bookmark
-		if (packetCount > this->iptablesBookmark.packetCount || packetSize > this->iptablesBookmark.packetSize) {
-			this->iptablesBookmark.packetCount = packetCount;
-			this->iptablesBookmark.packetSize = packetSize;
 		}
 
 		// Loop through all suspicious address and add iptables rules that are missing
@@ -528,7 +447,6 @@ bool Data::addAddress(std::string address)
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
 		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
-		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedBookmark;// Iptables packet count bookmark, left padded with spaces
 		if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
 		else f << 'n';
 		if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
@@ -570,7 +488,6 @@ bool Data::updateAddress(std::string address)
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
 					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
-					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedBookmark;// Iptables packet count bookmark, left padded with spaces
 					if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
 					else f << 'n';
 					if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
@@ -583,10 +500,7 @@ bool Data::updateAddress(std::string address)
 					break;
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(63, f.cur);
-			} else if (c == 'i') {// Iptables bookmark
-				// Skip
-				f.seekg(31, f.cur);
+				f.seekg(53, f.cur);
 			} else {// Other type of record (file bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
@@ -643,10 +557,7 @@ bool Data::removeAddress(std::string address)
 					break;// No need to continue reading file
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(63, f.cur);
-			} else if (c == 'i') {// Iptables bookmark
-				// Skip
-				f.seekg(31, f.cur);
+				f.seekg(53, f.cur);
 			} else {// Variable length record (file bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
@@ -740,9 +651,7 @@ bool Data::updateFile(std::string filePath)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Address record, skip to next one
-				f.seekg(102, f.cur);
-			} else if (c == 'i') {// Iptables bookmark, skipt to next one
-				f.seekg(31, f.cur);
+				f.seekg(92, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 				// Save current position, will need later if file path will match needed one
 				tmppos = f.tellg();
@@ -821,10 +730,7 @@ bool Data::removeFile(std::string filePath)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Address record, skip to next one
-				f.seekg(102, f.cur);
-			} else if (c == 'i') {// Iptables bookmark
-				// Skip
-				f.seekg(31, f.cur);
+				f.seekg(92, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 
 				// Save current position, will need later if file path will match needed one
@@ -881,11 +787,6 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 	// Warning if only last activity time changes
 	if (activityScore == 0 && activityCount == 0 && refusedCount == 0) {
 		this->log->warning("Trying to register activity, but no data about activity! Only last activity time for address " + address + " will be updated!");
-	}
-
-	// Adjust activity score if refused count also has score
-	if (refusedCount > 0 && this->config->refusedScore > 0) {
-		activityScore += refusedCount * this->config->refusedScore;
 	}
 
 	// Check if new record needs to be added or we need to update existing data

@@ -37,11 +37,17 @@ $ make
 ```
 $ sudo make install
 ```
- - Adjust configuration
+ - Adjust configuration, review and adjust patterns
 ```
 $ sudo vi /etc/hostblock.conf
 ```
- - To be continued...
+ - To count refused connection count create new iptables chain and adjust hostblock configuration to use this new chain:
+```
+$ sudo iptables -N HB_LOG_AND_DROP
+$ sudo iptables -A HB_LOG_AND_DROP -j LOG --log-prefix "IPTABLES-DROPPED: " --log-level 4
+$ sudo iptables -A HB_LOG_AND_DROP -j DROP
+```
+ - TODO: Automatic startup script
 
 Usage
 -----
@@ -56,7 +62,14 @@ Some simple statistics
 $ sudo hostblock -s
 ```
 
-To be continued...
+TODO: Output list of blocked addresses
+
+TODO: Manually remove address from data file
+
+Start as daemon
+```
+$ sudo hostblock -d
+```
 
 Requirements
 ------------

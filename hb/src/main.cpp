@@ -349,9 +349,6 @@ int main(int argc, char *argv[])
 					reloadDataFile = false;
 				}
 
-				// Get current time
-				// time(&currentTime);
-
 				if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
 					// log.debug("currentTime: " + std::to_string(currentTime) + " lastLogCheck: " + std::to_string(lastLogCheck) + " diff: " + std::to_string((unsigned int)(currentTime - lastLogCheck)) + " logCheckInterval: " + std::to_string(config.logCheckInterval));
 
@@ -395,9 +392,6 @@ int main(int argc, char *argv[])
 							}
 						}
 					}
-
-					// TODO: Check refused count in iptables
-					// Maybe to do this only on each 5th log check?
 
 					// Update time of last log file check
 					lastLogCheck = currentTime;

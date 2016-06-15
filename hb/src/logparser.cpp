@@ -124,6 +124,8 @@ void LogParser::checkFiles()
 						}
 					}
 
+					// TODO: Check refused connection patterns
+
 					// Update bookmark
 					itlf->bookmark = is.tellg();
 

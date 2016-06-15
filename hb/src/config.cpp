@@ -128,13 +128,6 @@ bool Config::load()
 								this->activityScoreToBlock = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Needed score to block IP address: " + std::to_string(this->activityScoreToBlock));
 							}
-						} else if (line.substr(0,21) == "address.refused.score") {
-							pos = line.find_first_of("=");
-							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
-								this->refusedScore = strtoul(line.c_str(), NULL, 10);
-								if (logDetails) this->log->debug("Score for iptables dropped packet count: " + std::to_string(this->refusedScore));
-							}
 						} else if (line.substr(0,24) == "address.block.multiplier") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
@@ -220,9 +213,6 @@ void Config::print()
 	std::cout << "log.check.interval = " << this->logCheckInterval << std::endl << std::endl;
 	std::cout << "## Needed score to block IP address (default 10)" << std::endl;
 	std::cout << "address.block.score = " << this->activityScoreToBlock << std::endl << std::endl;
-	std::cout << "## Score for each iptables counted packet after rule is added (default 1)" << std::endl;
-	std::cout << "## If > 0, score will increase for address with each packet received after address is blocked" << std::endl;
-	std::cout << "address.refused.score = " << this->refusedScore << std::endl << std::endl;
 	std::cout << "## Score multiplier to calculate how long to keep iptable rules (seconds, default 3600, 0 will not remove)" << std::endl;
 	std::cout << "address.block.multiplier = " << this->keepBlockedScoreMultiplier << std::endl << std::endl;
 	std::cout << "## Datetime format (default %Y-%m-%d %H:%M:%S)" << std::endl;
