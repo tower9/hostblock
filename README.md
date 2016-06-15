@@ -71,6 +71,11 @@ Start as daemon
 $ sudo hostblock -d
 ```
 
+Order daemon to reload configuration and datafile
+```
+$ sudo kill -SIGUSR1 <pid>
+```
+
 Requirements
 ------------
 
