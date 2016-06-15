@@ -306,12 +306,19 @@ bool Data::checkIptables()
 		std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
 		std::smatch regexSearchResults;
 		std::string regexSearchResult;
+		std::size_t posip = this->config->iptablesRule.find("%i");
+		std::string ruleStart = "";
+		std::string ruleEnd = "";
+		if (posip != std::string::npos) {
+			ruleStart = this->config->iptablesRule.substr(0, posip);
+			ruleEnd = this->config->iptablesRule.substr(posip + 2);
+		}
 
 		for(rit=rules.begin(); rit!=rules.end(); ++rit){
 
-			// Looking at rules like -A INPUT -s X.X.X.X/32 -j DROP to detect if address has iptables rule
-			checkStart = rit->second.find("-A INPUT -s");
-			checkEnd = rit->second.find("-j DROP");
+			// Searching for rules similar to ones that are in hostblock configuration to detect if address has iptables rule
+			checkStart = rit->second.find(ruleStart);
+			checkEnd = rit->second.find(ruleEnd);
 			if (checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos) {
 				// Find address in rule
 				if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
@@ -325,7 +332,7 @@ bool Data::checkIptables()
 							} else {
 								this->log->warning("Found duplicate iptables rule for " + sait->first + ", consider:");
 								this->log->warning("$ sudo iptables --list-rules INPUT | grep " + sait->first);
-								this->log->warning("$ sudo iptables -D INPUT -s " + sait->first + " -j DROP");
+								this->log->warning("$ sudo iptables -D INPUT " + ruleStart + sait->first + ruleEnd);
 							}
 
 						} else {
@@ -398,7 +405,8 @@ bool Data::checkIptables()
 			if (createRule == true) {
 				this->log->info("Address " + sait->first + " is missing iptables rule, adding...");
 				try {
-					if (this->iptables->append("INPUT","-s " + sait->first + " -j DROP") == false) {
+					// Append rule
+					if (this->iptables->append("INPUT", ruleStart + sait->first + ruleEnd) == false) {
 						this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
 					} else {
 						sait->second.iptableRule = true;
@@ -410,9 +418,10 @@ bool Data::checkIptables()
 				}
 			}
 			if (removeRule == true) {
-				this->log->info("Address " + sait->first + " no longer needs iptables rule, removing...");
+				this->log->info("Address " + sait->first + " iptables rule expired, removing...");
 				try {
-					if (this->iptables->remove("INPUT","-s " + sait->first + " -j DROP") == false) {
+					// Remove rule
+					if (this->iptables->remove("INPUT", ruleStart + sait->first + ruleStart) == false) {
 						this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
 					} else {
 						sait->second.iptableRule = false;
@@ -894,10 +903,17 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 	}
 
 	// Adjust iptables rules
+	std::size_t posip = this->config->iptablesRule.find("%i");
+	std::string ruleStart = "";
+	std::string ruleEnd = "";
+	if (posip != std::string::npos) {
+		ruleStart = this->config->iptablesRule.substr(0, posip);
+		ruleEnd = this->config->iptablesRule.substr(posip + 2);
+	}
 	if (createRule == true) {
 		this->log->debug("Adding rule for " + address + " to iptables chain!");
 		try {
-			if (this->iptables->append("INPUT","-s " + address + " -j DROP") == false) {
+			if (this->iptables->append("INPUT", ruleStart + address + ruleEnd) == false) {
 				this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
 			} else {
 				this->suspiciousAddresses[address].iptableRule = true;
@@ -911,7 +927,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 	if(removeRule == true) {
 		this->log->debug("Removing rule of " + address + " from iptables chain!");
 		try {
-			if(this->iptables->remove("INPUT","-s " + address + " -j DROP") == false){
+			if(this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
 				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
 			} else {
 				this->suspiciousAddresses[address].iptableRule = false;

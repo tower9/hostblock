@@ -135,6 +135,18 @@ bool Config::load()
 								this->keepBlockedScoreMultiplier = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score multiplier for rule keeping: " + std::to_string(this->keepBlockedScoreMultiplier));
 							}
+						} else if (line.substr(0,20) == "iptables.rules.block") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								posip = line.find("%i");
+								if (posip != std::string::npos) {
+									this->iptablesRule = line;
+									if (logDetails) this->log->debug("Iptables rule to drop packets: " + this->iptablesRule);
+								} else {
+									this->log->error("Failed to parse iptables.rules.block, IP address placeholder not found! Will use default value.");
+								}
+							}
 						} else if (line.substr(0,15) == "datetime.format") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
@@ -183,7 +195,32 @@ bool Config::load()
 								itp->score = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
 							}
+						} else if (line.substr(0,19) == "log.refused.pattern") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								hb::Pattern pattern;
+								pattern.patternString = hb::Util::ltrim(line.substr(pos+1));
+								// Pattern must contain %i, which is placeholder for where to find IP address
+								posip = pattern.patternString.find("%i");
+								if (posip != std::string::npos) {
+									pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+									pattern.pattern = std::regex(pattern.patternString);// TODO: This is slow, maybe implement some flag so that this is done only for daemon startup?
+									itp = itlg->refusedPatterns.end();
+									itp = itlg->refusedPatterns.insert(itp,pattern);
+									if (logDetails) this->log->debug("Pattern to match blocked access: " + pattern.patternString);
+								} else {
+									this->log->warning("Unable to find \%i in pattern, pattern skipped: " + pattern.patternString);
+								}
+							}
+						} else if (line.substr(0,17) == "log.refused.score") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos+1));
+								itp->score = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
+							}
 						}
+
 					}
 				}
 			}
@@ -235,6 +272,13 @@ void Config::print()
 		std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
 		std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
 		for (itpa = itlg->patterns.begin(); itpa != itlg->patterns.end(); ++itpa) {
+			std::cout << "log.pattern = " << itpa->patternString << std::endl;
+			std::cout << "log.score = " << itpa->score << std::endl << std::endl;
+		}
+		std::cout << "## Patterns in log file to count refused connection count" << std::endl;
+		std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
+		std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
+		for (itpa = itlg->refusedPatterns.begin(); itpa != itlg->refusedPatterns.end(); ++itpa) {
 			std::cout << "log.pattern = " << itpa->patternString << std::endl;
 			std::cout << "log.score = " << itpa->score << std::endl;
 		}

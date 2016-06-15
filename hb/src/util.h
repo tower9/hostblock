@@ -34,6 +34,7 @@ struct LogFile {
  */
 struct LogGroup {
 	std::vector<Pattern> patterns;
+	std::vector<Pattern> refusedPatterns;
 	std::vector<LogFile> logFiles;
 	std::string name = "";
 };

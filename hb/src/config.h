@@ -32,6 +32,10 @@ class Config{
 		 */
 		std::string logLevel = "INFO";
 
+		/*
+		 * iptables rule to drop packets
+		 */
+		std::string iptablesRule = "-s %i -j DROP";
 
 		/*
 		 * Datetime format

@@ -9,8 +9,6 @@
 #include "logger.h"
 // Config
 #include "config.h"
-// Iptables
-#include "iptables.h"
 // Data
 #include "data.h"
 
@@ -32,11 +30,6 @@ class LogParser{
 		hb::Config* config;
 
 		/*
-		 * Iptables object
-		 */
-		hb::Iptables* iptables;
-
-		/*
 		 * Data object
 		 */
 		hb::Data* data;
@@ -44,7 +37,7 @@ class LogParser{
 		/*
 		 * Constructor
 		 */
-		LogParser(hb::Logger* log, hb::Config* config, hb::Iptables* iptables, hb::Data* data);
+		LogParser(hb::Logger* log, hb::Config* config, hb::Data* data);
 
 		/*
 		 * Check all log files for suspicious activity

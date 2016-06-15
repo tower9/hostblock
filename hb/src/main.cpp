@@ -270,6 +270,19 @@ int main(int argc, char *argv[])
 			running = true;
 			// For iptables rule removal check
 			bool removeRule = false;
+			std::size_t posip = config.iptablesRule.find("%i");
+			std::string ruleStart = "";
+			std::string ruleEnd = "";
+			if (posip != std::string::npos) {
+				ruleStart = config.iptablesRule.substr(0, posip);
+				ruleEnd = config.iptablesRule.substr(posip + 2);
+			}
+			std::map<unsigned int, std::string> rules;
+			std::map<unsigned int, std::string>::iterator rit;
+			std::size_t checkStart = 0, checkEnd = 0;
+			std::smatch regexSearchResults;
+			std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+			std::string regexSearchResult;
 
 			// Vars for expired rule removal checkIptables
 			std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
@@ -289,7 +302,7 @@ int main(int argc, char *argv[])
 			cunistd::close(STDERR_FILENO);
 
 			// Init object to work with log files (check for suspicious activity)
-			hb::LogParser logParser = hb::LogParser(&log, &config, &iptables, &data);
+			hb::LogParser logParser = hb::LogParser(&log, &config, &data);
 
 			// File modification times (for main loop to check if there have been changes to files and relaod is needed)
 			/*struct cstat::stat statbuf;
@@ -335,7 +348,65 @@ int main(int argc, char *argv[])
 					if (!config.load()) {
 						log.error("Failed to reload configuration for daemon!");
 					}
+
+					// Reset so that we do not reload on each iteration
 					reloadConfig = false;
+
+					// Recheck iptables rule since it can be changed in config
+					posip = config.iptablesRule.find("%i");
+					if (posip != std::string::npos) {
+
+						// If rule has changed
+						if (ruleStart != config.iptablesRule.substr(0, posip)
+							|| ruleEnd != config.iptablesRule.substr(posip + 2)) {
+							log.warning("iptables rule changed in configuration, updating iptables...");
+							// Get all current rules
+							rules = iptables.listRules("INPUT");
+							// Loop all rules
+							for(rit=rules.begin(); rit!=rules.end(); ++rit){
+								checkStart = rit->second.find(ruleStart);
+								checkEnd = rit->second.find(ruleEnd);
+								checkEnd = rit->second.find(ruleEnd);
+								if (checkStart != std::string::npos && checkStart == 0 && checkEnd != std::string::npos) {
+									// Find address in rule
+									if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
+										if (regexSearchResults.size() == 1) {
+											regexSearchResult = regexSearchResults[0].str();
+											// Remove rule based on old config
+											try {
+												if (iptables.remove("INPUT", ruleStart + regexSearchResult + ruleEnd) == false) {
+													log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to remove current rule!");
+												} else {
+													sait->second.iptableRule = false;
+												}
+											} catch (std::runtime_error& e) {
+												std::string message = e.what();
+												log.error(message);
+												log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to remove current rule!");
+											}
+
+											// Add rule based on new config
+											try {
+												if (iptables.append("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2)) == false) {
+													log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to add rule based on new configuration!");
+												} else {
+													sait->second.iptableRule = true;
+												}
+											} catch (std::runtime_error& e) {
+												std::string message = e.what();
+												log.error(message);
+												log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to add rule based on new configuration!");
+											}
+										}
+									}
+								}
+							}
+						}
+
+						// Update rule for daemon expired rule check
+						ruleStart = config.iptablesRule.substr(0, posip);
+						ruleEnd = config.iptablesRule.substr(posip + 2);
+					}
 				}
 
 				// Reload datafile
@@ -377,9 +448,9 @@ int main(int argc, char *argv[])
 								}
 							}
 							if (removeRule) {
-								log.info("Address " + sait->first + " no longer needs iptables rule, removing...");
+								log.info("Address " + sait->first + " iptables rule expired, removing...");
 								try {
-									if (iptables.remove("INPUT","-s " + sait->first + " -j DROP") == false) {
+									if (iptables.remove("INPUT", ruleStart + sait->first + ruleEnd) == false) {
 										log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
 									} else {
 										sait->second.iptableRule = false;

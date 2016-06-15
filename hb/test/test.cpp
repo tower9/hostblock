@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 
 			// Check log files
 			std::cout << "Log file check..." << std::endl;
-			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);
+			hb::LogParser lp = hb::LogParser(&log, &cfg, &data);
 			lp.checkFiles();
 		}
 		end = clock();
@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
 
 			// Check log files
 			std::cout << "Log file check..." << std::endl;
-			hb::LogParser lp = hb::LogParser(&log, &cfg, &iptbl, &data);
+			hb::LogParser lp = hb::LogParser(&log, &cfg, &data);
 			lp.checkFiles();
 			end = clock();
 			std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;

@@ -31,8 +31,8 @@ using namespace hb;
 /*
  * Constructor
  */
-LogParser::LogParser(hb::Logger* log, hb::Config* config, hb::Iptables* iptables, hb::Data* data)
-: log(log), config(config), iptables(iptables), data(data)
+LogParser::LogParser(hb::Logger* log, hb::Config* config, hb::Data* data)
+: log(log), config(config), data(data)
 {
 
 }
@@ -106,17 +106,17 @@ void LogParser::checkFiles()
 								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
 									if (ipSearchResults.size() > 0) {
 
-										// Optmistically here we think that first match is address we need
+										// Optmistically, here we hope that first match is address we need
 										ipAddress = std::string(ipSearchResults[0]);
-										this->log->debug("Pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
+										this->log->debug("Suspicious activity pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
 
 										// Update address data
 										this->data->saveActivity(ipAddress, itlp->score, 1, 0);
 									}
-								} 
-								// this->log->debug("Line: " + line);
+								}
 								this->log->debug("Pattern: " + itlp->patternString);
 							}
+
 						} catch (std::regex_error& e) {
 							std::string message = e.what();
 							this->log->error(message + ": " + std::to_string(e.code()));
@@ -124,7 +124,38 @@ void LogParser::checkFiles()
 						}
 					}
 
-					// TODO: Check refused connection patterns
+					// Check refused patterns
+					for (itlp = itlg->refusedPatterns.begin(); itlp != itlg->refusedPatterns.end(); ++itlp) {
+						try {
+
+							// Match line with pattern
+							if (std::regex_match(line, itlp->pattern)) {
+
+								// Get IP address out of line
+								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
+									if (ipSearchResults.size() > 0) {
+
+										// Optmistically, here we hope that first match is address we need
+										ipAddress = std::string(ipSearchResults[0]);
+										this->log->debug("Blocked access pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
+
+										// Update address data
+										if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
+											this->data->saveActivity(ipAddress, itlp->score, 0, 1);
+										} else {
+											this->log->debug("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
+										}
+									}
+								}
+								this->log->debug("Pattern: " + itlp->patternString);
+							}
+
+						} catch (std::regex_error& e) {
+							std::string message = e.what();
+							this->log->error(message + ": " + std::to_string(e.code()));
+							this->log->error(hb::Util::regexErrorCode2Text(e.code()));
+						}
+					}
 
 					// Update bookmark
 					itlf->bookmark = is.tellg();
