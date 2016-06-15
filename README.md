@@ -52,14 +52,14 @@ $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 Usage
 -----
 
-### Help
+#### Help
 
 To get short usage information:
 ```
 $ hostblock -h
 ```
 
-### Statistics
+#### Statistics
 Simple statistics:
 ```
 $ sudo hostblock -s
@@ -91,26 +91,34 @@ Last activity:
  - Address - IP address of host from which some suspicious activity was detected
  - Count - suspicious activity count, how many times configured pattern was matched
  - Score - currently calculated score
- - Refused - dropped connection count
+ - Refused - dropped packet count by iptables
  - Last activity - Date and time of last activity, when pattern is matched this will show date and time when hostblock matched that pattern not time when line was written to log file
 
-### TODO: Output list of blocked addresses
+#### TODO: Output list of blocked addresses
 
-### TODO: Manually remove address from data file
+#### TODO: Manually remove address from data file
 
-### Start as daemon
+#### Start as daemon
 
 To start hostblock as background process to monitor log files and automatically adjust iptables:
 ```
 $ sudo hostblock -d
 ```
 
-### Order daemon to reload configuration and datafile
+#### Order daemon to reload configuration and datafile
 
 After changing configuration you can either restart daemon or with SIGUSR1 signal inform daemon that configuration and datafile should be reloaded.
 ```
 $ sudo kill -SIGUSR1 <pid>
 ```
+
+Configuration
+-------------
+Default path for configuration file is /etc/hostblock.conf, which can be changed with environment variable HOSTBLOCK_CONFIG.
+
+Main configuration is under [Global] section. Since log files can have different contents, configuration for them can be divided into [Log.*] sections, for example [Log.SSH].
+
+More details can be found in default configuration file.
 
 Requirements
 ------------
