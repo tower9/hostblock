@@ -1089,6 +1089,9 @@ void Data::printStats()
 		}
 
 		// Recalculate some padding
+		activityCountMaxLen = 5;
+		activityScoreMaxLen = 5;
+		refusedCountMaxLen = 7;
 		tmp = std::to_string(last5[0].activityCount).length();
 		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
