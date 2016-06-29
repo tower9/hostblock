@@ -106,11 +106,6 @@ class Data{
 		bool removeFile(std::string filePath);
 
 		/*
-		 * TODO: If exists, update iptables bookmark in file, if not then add new bookmark
-		 */
-		bool updateIptablesBookmark();
-
-		/*
 		 * Save suspicious activity
 		 */
 		void saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount);

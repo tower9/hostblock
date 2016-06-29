@@ -69,6 +69,7 @@ bool Config::load()
 
 			// Read config file line by line
 			while (std::getline(f, line)) {
+
 				// Trim spaces from line
 				line = hb::Util::rtrim(hb::Util::ltrim(line));
 
@@ -165,7 +166,7 @@ bool Config::load()
 						if (line.substr(0,8) == "log.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								// TODO, check if file exists
+								// TODO: check if file exists
 								hb::LogFile logFile;
 								logFile.path = hb::Util::ltrim(line.substr(pos+1));
 								itlg->logFiles.push_back(logFile);
@@ -176,7 +177,7 @@ bool Config::load()
 							if (pos != std::string::npos) {
 								hb::Pattern pattern;
 								pattern.patternString = hb::Util::ltrim(line.substr(pos+1));
-								// Pattern must contain %i, which is placeholder for where to find IP address
+								// Pattern must contain %i, a placeholder to find IP address
 								posip = pattern.patternString.find("%i");
 								if (posip != std::string::npos) {
 									pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");

@@ -53,7 +53,7 @@ $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 
  - Start hostblock in background
 ```
-$ sudo hostblock -s
+$ sudo hostblock -d
 ```
 
 Usage
@@ -98,7 +98,7 @@ Last activity:
  - Address - IP address of host from which some suspicious activity was detected
  - Count - suspicious activity count, how many times configured pattern was matched
  - Score - currently calculated score
- - Refused - dropped packet count by iptables
+ - Refused - dropped packet count by iptables, will count only with appripriate configuration (separate iptables chain, appropriate block rule for hostblock and pattern)
  - Last activity - Date and time of last activity, when pattern is matched this will show date and time when hostblock matched that pattern not time when line was written to log file
 
 #### TODO: Output list of blocked addresses

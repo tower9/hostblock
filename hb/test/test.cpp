@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 	bool testConfig = false;
 	bool testData = false;
 	bool removeTempData = false;
-	bool testLogParsing = false;
+	bool testLogParsing = true;
 	bool testConfiguredLogParsing = true;
 
 	try{
@@ -173,6 +173,7 @@ int main(int argc, char *argv[])
 			if (!data.removeAddress("10.10.10.13")) {
 				std::cerr << "Failed to remove record from datafile!" << std::endl;
 			}
+			// TODO: check data.saveActivity here and see int limits
 			// Add new log file to datafile
 			std::cout << "Adding /var/log/messages to data file..." << std::endl;
 			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
@@ -267,7 +268,16 @@ int main(int argc, char *argv[])
 					if (!data.addFile("hb/test/test_sshd_log_file")) {
 						std::cerr << "Failed to add new record to datafile!" << std::endl;
 					}
-					break;
+				}
+				if (itlg->name == "ApacheAccess") {
+					hb::LogFile logFile;
+					logFile.path = "hb/test/test_apache_access_log_file";
+					logFile.bookmark = 0;
+					logFile.size = 0;
+					itlg->logFiles.push_back(logFile);
+					if (!data.addFile("hb/test/test_apache_access_log_file")) {
+						std::cerr << "Failed to add new record to datafile!" << std::endl;
+					}
 				}
 			}
 

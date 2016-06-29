@@ -49,10 +49,13 @@ namespace cstat{
 
 // Full path to PID file
 const char* PID_PATH = "/var/run/hostblock.pid";
+
 // Variable for main loop, will exit when set to false
 bool running = false;
+
 // Variable for daemon to reload data file
 bool reloadDataFile = false;
+
 // Variable for daemon to reload configuration
 bool reloadConfig = false;
 
@@ -193,14 +196,14 @@ int main(int argc, char *argv[])
 			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (listFlag) {// Output list of blocked suspicious addresses
+	} else if (listFlag) {// TODO: Output list of blocked suspicious addresses
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
 			log.debug("List of blocked addresses outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (removeFlag) {// Remove address from datafile
+	} else if (removeFlag) {// TODO: Remove address from datafile
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
@@ -233,11 +236,13 @@ int main(int argc, char *argv[])
 				std::string line;
 				std::getline(f, line);
 				pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
-				if (csignal::kill(pid, 0) == 0) {// Process exists and is running
+				if (csignal::kill(pid, 0) == 0) {
+					// Process with this pid exists
 					std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
 					log.error("Unable to start! Another instance of hostblock is already running!");
 					exit(1);
-				} else {// Process does not exist, remove pid file
+				} else {
+					// Process does not exist, remove pid file
 					std::remove(PID_PATH);
 				}
 			} else {
@@ -266,8 +271,10 @@ int main(int argc, char *argv[])
 			}
 			exit(0);
 		} else {// Child (pid == 0), daemon process
+
 			// To keep main loop running
 			running = true;
+
 			// For iptables rule removal check
 			bool removeRule = false;
 			std::size_t posip = config.iptablesRule.find("%i");
@@ -360,18 +367,22 @@ int main(int argc, char *argv[])
 						if (ruleStart != config.iptablesRule.substr(0, posip)
 							|| ruleEnd != config.iptablesRule.substr(posip + 2)) {
 							log.warning("iptables rule changed in configuration, updating iptables...");
-							// Get all current rules
+
+							// Get all current rules for INPUT chain
 							rules = iptables.listRules("INPUT");
+
 							// Loop all rules
 							for(rit=rules.begin(); rit!=rules.end(); ++rit){
 								checkStart = rit->second.find(ruleStart);
 								checkEnd = rit->second.find(ruleEnd);
 								checkEnd = rit->second.find(ruleEnd);
 								if (checkStart != std::string::npos && checkEnd != std::string::npos) {
+
 									// Find address in rule
 									if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
 										if (regexSearchResults.size() == 1) {
 											regexSearchResult = regexSearchResults[0].str();
+
 											// Remove rule based on old config
 											try {
 												if (iptables.remove("INPUT", ruleStart + regexSearchResult + ruleEnd) == false) {
@@ -397,6 +408,7 @@ int main(int argc, char *argv[])
 												log.error(message);
 												log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to add rule based on new configuration!");
 											}
+
 										}
 									}
 								}
@@ -420,13 +432,13 @@ int main(int argc, char *argv[])
 					reloadDataFile = false;
 				}
 
+				// Log file check
 				if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
-					// log.debug("currentTime: " + std::to_string(currentTime) + " lastLogCheck: " + std::to_string(lastLogCheck) + " diff: " + std::to_string((unsigned int)(currentTime - lastLogCheck)) + " logCheckInterval: " + std::to_string(config.logCheckInterval));
 
 					// Check log files for suspicious activity and update iptables if needed
 					logParser.checkFiles();
 
-					// Check iptables rules if any are expired and should be removed
+					// Check iptables rules if any are expired and should be removed (TODO: move to new method in Data?)
 					for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait) {
 						// If address has rule
 						if (sait->second.iptableRule) {

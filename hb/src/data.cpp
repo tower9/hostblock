@@ -111,19 +111,26 @@ bool Data::loadData()
 			recordType = line[0];
 
 			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
+
 				// IP address
 				address = hb::Util::ltrim(line.substr(1,39));
+
 				// Timestamp of last activity
 				data.lastActivity = std::strtoull(hb::Util::ltrim(line.substr(40,20)).c_str(), NULL, 10);
+
 				// Total score of activity calculated at last activity
 				data.activityScore = std::strtoul(hb::Util::ltrim(line.substr(60,10)).c_str(), NULL, 10);
+
 				// Suspicious activity count
 				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70,10)).c_str(), NULL, 10);
+
 				// Refused connection count
 				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
+
 				// Whether IP address is in whitelist
 				if (line[90] == 'y') data.whitelisted = true;
 				else data.whitelisted = false;
+
 				// Whether IP address in in blacklist
 				if (line[91] == 'y') data.blacklisted = true;
 				else data.blacklisted = false;
@@ -145,10 +152,13 @@ bool Data::loadData()
 				}
 
 			} else if (recordType == 'b') {// Log file bookmarks
+
 				// Bookmark
 				bookmark = std::strtoull(hb::Util::ltrim(line.substr(1,20)).c_str(), NULL, 10);
+
 				// Last known size to detect if log file has been rotated
 				size = std::strtoull(hb::Util::ltrim(line.substr(21,20)).c_str(), NULL, 10);
+
 				// Path to log file
 				logFilePath = hb::Util::rtrim(hb::Util::ltrim(line.substr(41)));
 
@@ -183,6 +193,7 @@ bool Data::loadData()
 
 		// If duplicates found, rename current data file to serve as backup and save new data file without duplicates
 		if (duplicatesFound) {
+
 			// New filename for data file
 			std::time_t rtime;
 			struct tm * itime;
@@ -211,13 +222,16 @@ bool Data::loadData()
 				this->log->error("Current data file contains duplicate entries and backup creation failed (backup with same name already exists)!");
 				return false;
 			}
+
 			// Save data without duplicates to data file (create new data file)
 			if (this->saveData() == false) {
 				this->log->error("Data file contains duplicate entries, successfully renamed data file, but failed to save new data file!");
 				return false;
 			}
 			this->log->warning("Duplicate data found while reading data file! Old data file stored as " + newDataFileName + ", new data file without duplicates saved! Merge manually if needed.");
+
 		} else if (removedRecords > 100) {// If more than 100 removed records detected in datafile
+
 			// Save data without without removed records data file - small space saving
 			if (this->saveData() == false) {
 				this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
@@ -297,6 +311,7 @@ bool Data::checkIptables()
 	this->log->info("Checking iptables rules...");
 	std::map<unsigned int, std::string> rules = this->iptables->listRules("INPUT");
 	try {
+
 		// Regex to search for IP address
 		std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
 
@@ -320,10 +335,12 @@ bool Data::checkIptables()
 			checkStart = rit->second.find(ruleStart);
 			checkEnd = rit->second.find(ruleEnd);
 			if (checkStart != std::string::npos && checkEnd != std::string::npos) {
+
 				// Find address in rule
 				if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
 					if (regexSearchResults.size() == 1) {
 						regexSearchResult = regexSearchResults[0].str();
+
 						// Search for address in map
 						sait = this->suspiciousAddresses.find(regexSearchResult);
 						if (sait != this->suspiciousAddresses.end()) {
@@ -355,7 +372,9 @@ bool Data::checkIptables()
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
 			createRule = false;
 			removeRule = false;
+
 			if (!sait->second.iptableRule) {// If this address doesn't have rule then check if it needs one
+
 				// Whitelisted addresses must not have rule
 				if (sait->second.whitelisted) {
 					continue;
