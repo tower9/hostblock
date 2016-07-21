@@ -76,30 +76,31 @@ For example, output:
 Total suspicious IP address count: 1212
 
 Top 5 most active addresses:
---------------------------------------------------------------------
-     Address     | Count |   Score   | Refused |    Last activity   
---------------------------------------------------------------------
- 10.10.10.10     | 62782 | 452025926 |    0    | 2016-05-12 18:47:14
- 10.10.10.12     | 13451 | 96833655  |    0    | 2016-06-14 21:40:24
- 10.10.10.16     | 12039 | 86655064  |    0    | 2016-06-13 21:55:21
- 10.10.10.13     | 11958 | 86084822  |    0    | 2016-06-14 20:19:43
- 192.168.0.100   | 10862 | 78204524  |    0    | 2016-06-13 17:10:05
+-------------------------------------------------------------------------------------------
+     Address     | Count |   Score   | Refused |    Last activity    |       Status        
+-------------------------------------------------------------------------------------------
+ 10.10.10.10     | 62782 | 452025926 |    0    | 2016-05-12 18:47:14 | 2030-10-10 13:13:40 
+ 10.10.10.12     | 13451 | 96833655  |    0    | 2016-06-14 21:40:24 | 2019-07-09 15:14:13 
+ 10.10.10.16     | 12039 | 86655064  |    0    | 2016-06-13 21:55:21 | 2019-03-13 20:40:60 
+ 10.10.10.13     | 11958 | 86084822  |    0    | 2016-06-14 20:19:43 | 2019-03-07 04:40:05 
+ 192.168.0.100   | 10862 | 78204524  |    0    | 2016-06-13 17:10:05 | 2018-12-05 20:30:49 
 
 Last activity:
---------------------------------------------------------------------
-     Address     | Count |   Score   | Refused |    Last activity   
---------------------------------------------------------------------
- 192.168.0.5     |   4   |   3600    |    0    | 2016-06-15 08:38:10
- 10.10.10.11     |  541  |  1898777  |   90    | 2016-06-15 06:23:23
- 192.168.5.143   |  48   |  185872   |    2    | 2016-06-15 06:23:23
- 192.168.0.6     |  57   |  114681   |    1    | 2016-06-15 06:23:23
- 10.10.10.180    |   1   |   3600    |    0    | 2016-06-14 22:23:38
+-------------------------------------------------------------------------------------------
+     Address     | Count |   Score   | Refused |    Last activity    |       Status        
+-------------------------------------------------------------------------------------------
+ 192.168.0.5     |   4   |   3600    |    0    | 2016-06-15 08:38:10 |                     
+ 10.10.10.11     |  541  |  1898777  |   90    | 2016-06-15 06:23:23 | 2016-06-15 14:00:03 
+ 192.168.5.143   |  48   |  185872   |    2    | 2016-06-15 06:23:23 |                     
+ 192.168.0.6     |  57   |  114681   |    1    | 2016-06-15 06:23:23 | whitelisted         
+ 10.10.10.180    |   1   |   3600    |    0    | 2016-06-14 22:23:38 |                     
 ```
  - Address - IP address of host from which some suspicious activity was detected
  - Count - suspicious activity count, how many times configured pattern was matched
  - Score - currently calculated score
  - Refused - dropped packet count by iptables, will count only with appripriate configuration (separate iptables chain, appropriate block rule for hostblock and pattern)
  - Last activity - Date and time of last activity, when pattern is matched this will show date and time when hostblock matched that pattern not time when line was written to log file
+ - Status - whether address is whitelisted, blacklisted, blocked or if score multiplier is configured, then date and time until automatic removal from iptables
 
 #### TODO: Output list of blocked addresses
 
