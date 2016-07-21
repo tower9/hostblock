@@ -77,39 +77,6 @@ int main(int argc, char *argv[])
 		end = clock();
 		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
-		// iptables
-		std::cout << "Creating Iptables object..." << std::endl;
-		hb::Iptables iptbl = hb::Iptables();
-		if (testIptables){
-			std::map<unsigned int, std::string> rules;
-			std::map<unsigned int, std::string>::iterator ruleIt;
-			std::cout << "iptable rules (INPUT):" << std::endl;
-			rules = iptbl.listRules("INPUT");
-			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
-				std::cout << "Rule: " << ruleIt->second << std::endl;
-			}
-			std::cout << "Adding rule to drop all connections from 10.10.10.10..." << std::endl;
-			if(iptbl.append("INPUT","-s 10.10.10.10 -j DROP") == false){
-				std::cerr << "Failed to add rule for address 10.10.10.10" << std::endl;
-			}
-			std::cout << "iptable rules (INPUT):" << std::endl;
-			rules = iptbl.listRules("INPUT");
-			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
-				std::cout << "Rule: " << ruleIt->second << std::endl;
-			}
-			std::cout << "Removing rule for address 10.10.10.10..." << std::endl;
-			if(iptbl.remove("INPUT","-s 10.10.10.10 -j DROP") == false){
-				std::cerr << "Failed to remove rule for address 10.10.10.10" << std::endl;
-			}
-			std::cout << "iptable rules (INPUT):" << std::endl;
-			rules = iptbl.listRules("INPUT");
-			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
-				std::cout << "Rule: " << ruleIt->second << std::endl;
-			}
-		}
-		end = clock();
-		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
-
 		// Config
 		std::cout << "Creating Config object..." << std::endl;
 		hb::Config cfg = hb::Config(&log, "config/hostblock.conf");
@@ -124,6 +91,46 @@ int main(int argc, char *argv[])
 		end = clock();
 		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
 
+		// iptables
+		std::cout << "Creating Iptables object..." << std::endl;
+		hb::Iptables iptbl = hb::Iptables();
+		if (testIptables){
+			std::map<unsigned int, std::string> rules;
+			std::map<unsigned int, std::string>::iterator ruleIt;
+			std::cout << "iptable rules (INPUT):" << std::endl;
+			std::string ruleStart = "";
+			std::string ruleEnd = "";
+			std::size_t posip = cfg.iptablesRule.find("%i");
+			if (posip != std::string::npos) {
+				ruleStart = cfg.iptablesRule.substr(0, posip);
+				ruleEnd = cfg.iptablesRule.substr(posip + 2);
+			}
+			rules = iptbl.listRules("INPUT");
+			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
+				std::cout << "Rule: " << ruleIt->second << std::endl;
+			}
+			std::cout << "Adding rule to drop all connections from 10.10.10.10..." << std::endl;
+			if(iptbl.append("INPUT",ruleStart + "10.10.10.10" + ruleEnd) == false){
+				std::cerr << "Failed to add rule for address 10.10.10.10" << std::endl;
+			}
+			std::cout << "iptable rules (INPUT):" << std::endl;
+			rules = iptbl.listRules("INPUT");
+			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
+				std::cout << "Rule: " << ruleIt->second << std::endl;
+			}
+			std::cout << "Removing rule for address 10.10.10.10..." << std::endl;
+			if(iptbl.remove("INPUT",ruleStart + "10.10.10.10" + ruleEnd) == false){
+				std::cerr << "Failed to remove rule for address 10.10.10.10" << std::endl;
+			}
+			std::cout << "iptable rules (INPUT):" << std::endl;
+			rules = iptbl.listRules("INPUT");
+			for(ruleIt=rules.begin(); ruleIt!=rules.end(); ++ruleIt){
+				std::cout << "Rule: " << ruleIt->second << std::endl;
+			}
+		}
+		end = clock();
+		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;
+
 		// Data
 		std::cout << "Creating Data object..." << std::endl;
 		std::vector<hb::LogGroup>::iterator itlg;
@@ -133,6 +140,10 @@ int main(int argc, char *argv[])
 		std::cout << "Loading data..." << std::endl;
 		if (!data.loadData()) {
 			std::cerr << "Failed to load data!" << std::endl;
+		}
+		std::cout << "Comparing data with iptables..." << std::endl;
+		if (!data.checkIptables()) {
+			std::cerr << "Failed to compare data with iptables!" << std::endl;
 		}
 		if (testData || testLogParsing){
 			// Create new data file
@@ -174,6 +185,9 @@ int main(int argc, char *argv[])
 				std::cerr << "Failed to remove record from datafile!" << std::endl;
 			}
 			// TODO: check data.saveActivity here and see int limits
+			std::cout << "Updating 10.10.10.11 activity..." << std::endl;
+			data.saveActivity("10.10.10.11",10,1,0);
+			data.saveActivity("10.10.10.11",5,0,1);
 			// Add new log file to datafile
 			std::cout << "Adding /var/log/messages to data file..." << std::endl;
 			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
@@ -224,13 +238,8 @@ int main(int argc, char *argv[])
 				std::cerr << "Failed to load data!" << std::endl;
 			}
 			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
-			// Compare data with iptables
-			if (testIptables) {
-				std::cout << "Comparing data with iptables..." << std::endl;
-				if (!data.checkIptables()) {
-					std::cerr << "Failed to compare data with iptables!" << std::endl;
-				}
-			}
+			// Print statistics
+			data.printStats();
 		}
 		end = clock();
 		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;

@@ -41,7 +41,7 @@ Iptables::Iptables()
 bool Iptables::append(std::string chain, std::string rule)
 {
 	// Prepare command
-	std::string cmd = "iptables -A "+chain+" "+rule;
+	std::string cmd = "iptables -A " + chain + " " + rule;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -64,7 +64,7 @@ bool Iptables::append(std::string chain, std::string rule)
 bool Iptables::remove(std::string chain, std::string rule)
 {
 	// Prepare command
-	std::string cmd = "iptables -D "+chain+" "+rule;
+	std::string cmd = "iptables -D " + chain + " " + rule;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");

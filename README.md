@@ -103,6 +103,10 @@ Last activity:
 
 #### TODO: Output list of blocked addresses
 
+#### TODO: Blacklist
+
+#### TODO: Whitelist
+
 #### TODO: Manually remove address from data file
 
 #### Start as daemon

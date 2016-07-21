@@ -440,7 +440,7 @@ bool Data::checkIptables()
 				this->log->info("Address " + sait->first + " iptables rule expired, removing...");
 				try {
 					// Remove rule
-					if (this->iptables->remove("INPUT", ruleStart + sait->first + ruleStart) == false) {
+					if (this->iptables->remove("INPUT", ruleStart + sait->first + ruleEnd) == false) {
 						this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
 					} else {
 						sait->second.iptableRule = false;
@@ -1031,7 +1031,11 @@ void Data::printStats()
 		unsigned int activityScoreMaxLen = 5;
 		unsigned int activityCountMaxLen = 5;
 		unsigned int refusedCountMaxLen = 7;
+		unsigned int statusMaxLen = 7;
 		unsigned int tmp = 0;
+		std::time_t currentRawTime;
+		std::time(&currentRawTime);
+		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
 
 		// Get top 5 addresses by activity count and last 5 addresses by last activity time
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
@@ -1086,24 +1090,50 @@ void Data::printStats()
 			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
 			tmp = std::to_string(t5it->refusedCount).length();
 			if (tmp > refusedCountMaxLen) refusedCountMaxLen = tmp;
+			if (this->suspiciousAddresses[t5it->address].whitelisted
+				|| this->suspiciousAddresses[t5it->address].blacklisted) {
+				if (statusMaxLen < 11) statusMaxLen = 11;
+			} else if (this->config->keepBlockedScoreMultiplier > 0
+				&& currentTime < t5it->lastActivity + t5it->activityScore) {
+				if (statusMaxLen < lastActivityMaxLen) statusMaxLen = lastActivityMaxLen;
+			}
 		}
 
 		// Output top 5 addresses by activity
 		std::cout << "Top 5 most active addresses:" << std::endl;
-		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		std::cout << "     Address     |";
 		std::cout << ' ' << hb::Data::centerString("Count", activityCountMaxLen) << " |";
 		std::cout << ' ' << hb::Data::centerString("Score", activityScoreMaxLen) << " |";
 		std::cout << ' ' << hb::Data::centerString("Refused", refusedCountMaxLen) << " |";
-		std::cout << ' ' << hb::Data::centerString("Last activity", lastActivityMaxLen);
+		std::cout << ' ' << hb::Data::centerString("Last activity", lastActivityMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Status", statusMaxLen);
 		std::cout << std::endl;
-		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
 			std::cout << " " << std::left << std::setw(15) << t5it->address;
 			std::cout << " | " << hb::Data::centerString(std::to_string(t5it->activityCount), activityCountMaxLen);
 			std::cout << " | " << hb::Data::centerString(std::to_string(t5it->activityScore), activityScoreMaxLen);
 			std::cout << " | " << hb::Data::centerString(std::to_string(t5it->refusedCount), refusedCountMaxLen);
 			std::cout << " | " << hb::Data::formatDateTime((const time_t)t5it->lastActivity, this->config->dateTimeFormat.c_str());
+			std::cout << " | ";
+			if (this->suspiciousAddresses[t5it->address].whitelisted) {
+				std::cout << "whitelisted" << std::string(statusMaxLen - 11,' ');
+			} else if (this->suspiciousAddresses[t5it->address].blacklisted) {
+				std::cout << "blacklisted" << std::string(statusMaxLen - 11,' ');
+			} else if (this->config->keepBlockedScoreMultiplier > 0) {
+				// Score multiplier used
+				if (currentTime < t5it->lastActivity + t5it->activityScore) {
+					std::cout << hb::Data::formatDateTime((const time_t)(t5it->lastActivity + t5it->activityScore), this->config->dateTimeFormat.c_str());
+				} else {
+					std::cout << std::string(statusMaxLen,' ');
+				}
+			} else {
+				// Without score multiplier
+				if (t5it->activityScore > this->config->activityScoreToBlock) {
+					std::cout << "blocked" << std::string(statusMaxLen - 7,' ');
+				}
+			}
 			std::cout << std::endl;
 		}
 
@@ -1111,6 +1141,7 @@ void Data::printStats()
 		activityCountMaxLen = 5;
 		activityScoreMaxLen = 5;
 		refusedCountMaxLen = 7;
+		statusMaxLen = 7;
 		tmp = std::to_string(last5[0].activityCount).length();
 		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
@@ -1118,24 +1149,49 @@ void Data::printStats()
 			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
 			tmp = std::to_string(l5it->refusedCount).length();
 			if (tmp > refusedCountMaxLen) refusedCountMaxLen = tmp;
+			if (this->suspiciousAddresses[l5it->address].whitelisted
+				|| this->suspiciousAddresses[l5it->address].blacklisted) {
+				if (statusMaxLen < 11) statusMaxLen = 11;
+			} else if (this->config->keepBlockedScoreMultiplier > 0
+				&& currentTime < l5it->lastActivity + l5it->activityScore) {
+				if (statusMaxLen < lastActivityMaxLen) statusMaxLen = lastActivityMaxLen;
+			}
 		}
 
 		// Output last 5 addresses by last activity
 		std::cout << std::endl << "Last activity:" << std::endl;
-		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		std::cout << "     Address     |";
 		std::cout << ' ' << hb::Data::centerString("Count", activityCountMaxLen) << " |";
 		std::cout << ' ' << hb::Data::centerString("Score", activityScoreMaxLen) << " |";
 		std::cout << ' ' << hb::Data::centerString("Refused", refusedCountMaxLen) << " |";
-		std::cout << ' ' << hb::Data::centerString("Last activity", lastActivityMaxLen);
+		std::cout << ' ' << hb::Data::centerString("Last activity", lastActivityMaxLen) << " |";
+		std::cout << ' ' << hb::Data::centerString("Status", statusMaxLen);
 		std::cout << std::endl;
-		std::cout << "----------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::endl;
+		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
 			std::cout << " " << std::left << std::setw(15) << l5it->address;
 			std::cout << " | " << hb::Data::centerString(std::to_string(l5it->activityCount), activityCountMaxLen);
 			std::cout << " | " << hb::Data::centerString(std::to_string(l5it->activityScore), activityScoreMaxLen);
 			std::cout << " | " << hb::Data::centerString(std::to_string(l5it->refusedCount), refusedCountMaxLen);
 			std::cout << " | " << hb::Data::formatDateTime((const time_t)l5it->lastActivity, this->config->dateTimeFormat.c_str());
+			std::cout << " | ";
+			if (this->suspiciousAddresses[l5it->address].whitelisted) {
+				std::cout << "whitelisted" << std::string(statusMaxLen - 11,' ');
+			} else if (this->suspiciousAddresses[l5it->address].blacklisted) {
+				std::cout << "blacklisted" << std::string(statusMaxLen - 11,' ');
+			} else if (this->config->keepBlockedScoreMultiplier > 0) {
+				if (currentTime < l5it->lastActivity + l5it->activityScore) {
+					std::cout << hb::Data::formatDateTime((const time_t)(l5it->lastActivity + l5it->activityScore), this->config->dateTimeFormat.c_str());
+				} else {
+					std::cout << std::string(statusMaxLen,' ');
+				}
+			} else {
+				// Without score multiplier
+				if (l5it->activityScore > this->config->activityScoreToBlock) {
+					std::cout << "blocked" << std::string(statusMaxLen - 7,' ');
+				}
+			}
 			std::cout << std::endl;
 		}
 	}

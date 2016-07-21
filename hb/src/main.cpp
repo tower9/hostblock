@@ -65,15 +65,17 @@ bool reloadConfig = false;
 void printUsage()
 {
 	std::cout << "Hostblock v.2.0" << std::endl << std::endl;
-	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
-	std::cout << " -h             | --help                - this information" << std::endl;
-	std::cout << " -s             | --statistics          - statistics" << std::endl;
-	std::cout << " -l             | --list                - list of blocked suspicious IP addresses" << std::endl;
-	std::cout << " -lc            | --list --count        - list of blocked suspicious IP addresses with suspicious activity count" << std::endl;
-	std::cout << " -lt            | --list --time         - list of blocked suspicious IP addresses with last suspicious activity time" << std::endl;
-	std::cout << " -lct           | --list --count --time - list of blocked suspicious IP addresses with suspicious activity count and last suspicious activity time" << std::endl;
-	std::cout << " -r<IP address> | --remove=<IP address> - remove IP address from data file" << std::endl;
-	std::cout << " -d             | --daemon              - run as daemon" << std::endl;
+	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-b<ip_address> | --blacklist=<ip_address>] [-w<ip_address> | --whitelist=<ip_address>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
+	std::cout << " -h             | --help                   - this information" << std::endl;
+	std::cout << " -s             | --statistics             - statistics" << std::endl;
+	std::cout << " -l             | --list                   - list of blocked suspicious IP addresses" << std::endl;
+	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count" << std::endl;
+	std::cout << " -lt            | --list --time            - list of blocked suspicious IP addresses with last suspicious activity time" << std::endl;
+	std::cout << " -lct           | --list --count --time    - list of blocked suspicious IP addresses with suspicious activity count and last suspicious activity time" << std::endl;
+	std::cout << " -b<IP address> | --blacklist=<IP address> - toggle whether address is in blacklist" << std::endl;
+	std::cout << " -w<IP address> | --whitelist=<IP address> - toggle whether address is in whitelist" << std::endl;
+	std::cout << " -r<IP address> | --remove=<IP address>    - remove IP address from data file" << std::endl;
+	std::cout << " -d             | --daemon                 - run as daemon" << std::endl;
 }
 
 /*
@@ -104,14 +106,16 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	// Var init
+	// Option flags
 	int c;
 	bool statisticsFlag = false;
 	bool listFlag = false;
 	bool countFlag = false;
 	bool timeFlag = false;
+	bool blacklistFlag = false;
+	bool whitelistFlag = false;
 	bool removeFlag = false;
-	std::string removeAddress = "";
+	std::string ipAddress = "";
 	bool daemonFlag = false;
 
 	// Options
@@ -122,6 +126,8 @@ int main(int argc, char *argv[])
 		{"list",       no_argument,       0, 'l'},
 		{"count",      no_argument,       0, 'c'},
 		{"time",       no_argument,       0, 't'},
+		{"blacklist",  required_argument, 0, 'b'},
+		{"whitelist",  required_argument, 0, 'w'},
 		{"remove",     required_argument, 0, 'r'},
 		{"daemon",     no_argument,       0, 'd'},
 	};
@@ -130,7 +136,7 @@ int main(int argc, char *argv[])
 	int option_index = 0;
 
 	// Check options
-	while ((c = cgetopt::getopt_long(argc, argv, "hslctr:d", long_options, &option_index)) != -1)
+	while ((c = cgetopt::getopt_long(argc, argv, "hslctb:w:r:d", long_options, &option_index)) != -1)
 		switch (c) {
 			case 'h':
 				printUsage();
@@ -148,9 +154,17 @@ int main(int argc, char *argv[])
 			case 't':
 				timeFlag = true;
 				break;
+			case 'b':
+				blacklistFlag = true;
+				ipAddress = cgetopt::optarg;
+				break;
+			case 'w':
+				whitelistFlag = true;
+				ipAddress = cgetopt::optarg;
+				break;
 			case 'r':
 				removeFlag = true;
-				removeAddress = cgetopt::optarg;
+				ipAddress = cgetopt::optarg;
 				break;
 			case 'd':
 				daemonFlag = true;
@@ -160,10 +174,10 @@ int main(int argc, char *argv[])
 				exit(0);
 		}
 
-	// Init writter to syslog
+	// Syslog writter
 	hb::Logger log = hb::Logger(LOG_USER);
 
-	// Init object to work with iptables
+	// To work with iptables
 	hb::Iptables iptables = hb::Iptables();
 
 	// Init config, default path to config file is /etc/hostblock.conf
@@ -180,7 +194,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// Init object to work with datafile
+	// To work with datafile
 	hb::Data data = hb::Data(&log, &config, &iptables);
 
 	// Load datafile
@@ -201,6 +215,20 @@ int main(int argc, char *argv[])
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
 			log.debug("List of blocked addresses outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+		}
+		exit(0);
+	} else if (blacklistFlag) {// TODO: Toggle whether address is in blacklist
+
+		if (config.logLevel == "DEBUG") {
+			initEnd = clock();
+			log.debug("Address blacklist change " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+		}
+		exit(0);
+	} else if (whitelistFlag) {// TODO: Toggle whether address is in whitelist
+
+		if (config.logLevel == "DEBUG") {
+			initEnd = clock();
+			log.debug("Address whitelist change " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
 	} else if (removeFlag) {// TODO: Remove address from datafile
@@ -479,12 +507,6 @@ int main(int argc, char *argv[])
 					// Update time of last log file check
 					lastLogCheck = currentTime;
 				}
-
-				// Write exec time to log file
-				/*if (config.logLevel == "DEBUG") {
-					iterEnd = clock();
-					log.debug("Daemon main loop iteration exec time: " + std::to_string((double)(iterEnd - iterStart)/CLOCKS_PER_SEC) + " sec");
-				}*/
 
 				// Sleep 1/5 of second
 				cunistd::usleep(200000);
