@@ -58,6 +58,8 @@ namespace cstat{
 	#include <sys/types.h>
 	#include <sys/stat.h>
 }
+// Limits
+#include <climits>
 // Util
 #include "util.h"
 // Config
@@ -1036,6 +1038,8 @@ void Data::printStats()
 		std::time_t currentRawTime;
 		std::time(&currentRawTime);
 		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
+		unsigned int activityCountMin = UINT_MAX;
+		unsigned long long int lastActivityMin = ULLONG_MAX;
 
 		// Get top 5 addresses by activity count and last 5 addresses by last activity time
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
@@ -1045,16 +1049,26 @@ void Data::printStats()
 			address.activityCount = sait->second.activityCount;
 			address.refusedCount = sait->second.refusedCount;
 
+			// BUG HERE, without order this does not work! Top one can replace other top one leaving less better results in top!
+			// Need to replace weakest element!
 			if (top5.size() < 5) {
 				// First fill up top5
 				top5.push_back(address);
 			} else {
-				// Once top5 is filled, check if other records have better count
+				// Find min activity count
+				activityCountMin = UINT_MAX;
 				for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
-					if (address.activityCount > t5it->activityCount) {
-						top5.erase(t5it);
-						top5.push_back(address);
-						break;
+					if (t5it->activityCount < activityCountMin) activityCountMin = t5it->activityCount;
+				}
+
+				// Once top5 is filled, check if other records have better count
+				if (address.activityCount > activityCountMin) {
+					for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
+						if (t5it->activityCount == activityCountMin) {
+							top5.erase(t5it);
+							top5.push_back(address);
+							break;
+						}
 					}
 				}
 			}
@@ -1063,12 +1077,20 @@ void Data::printStats()
 				// First fill up last5
 				last5.push_back(address);
 			} else {
-				// Once last5 is filled, check if other records have more recent last activity
+				// Find min last activity
+				lastActivityMin = ULLONG_MAX;
 				for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
-					if (address.lastActivity > l5it->lastActivity) {
-						last5.erase(l5it);
-						last5.push_back(address);
-						break;
+					if (l5it->lastActivity < lastActivityMin) lastActivityMin = l5it->lastActivity;
+				}
+
+				// Once last5 is filled, check if other records have more recent last activity
+				if (address.lastActivity > lastActivityMin) {
+					for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
+						if (l5it->lastActivity == lastActivityMin) {
+							last5.erase(l5it);
+							last5.push_back(address);
+							break;
+						}
 					}
 				}
 			}
