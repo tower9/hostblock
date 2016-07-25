@@ -69,9 +69,9 @@ void printUsage()
 	std::cout << " -h             | --help                   - this information" << std::endl;
 	std::cout << " -s             | --statistics             - statistics" << std::endl;
 	std::cout << " -l             | --list                   - list of blocked suspicious IP addresses" << std::endl;
-	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count" << std::endl;
+	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count, score and refused count" << std::endl;
 	std::cout << " -lt            | --list --time            - list of blocked suspicious IP addresses with last suspicious activity time" << std::endl;
-	std::cout << " -lct           | --list --count --time    - list of blocked suspicious IP addresses with suspicious activity count and last suspicious activity time" << std::endl;
+	std::cout << " -lct           | --list --count --time    - list of blocked suspicious IP addresses with suspicious activity count, score, refused count and last suspicious activity time" << std::endl;
 	std::cout << " -b<IP address> | --blacklist=<IP address> - toggle whether address is in blacklist" << std::endl;
 	std::cout << " -w<IP address> | --whitelist=<IP address> - toggle whether address is in whitelist" << std::endl;
 	std::cout << " -r<IP address> | --remove=<IP address>    - remove IP address from data file" << std::endl;
@@ -210,8 +210,8 @@ int main(int argc, char *argv[])
 			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (listFlag) {// TODO: Output list of blocked suspicious addresses
-
+	} else if (listFlag) {// Output list of blocked suspicious addresses
+		data.printBlocked(countFlag, timeFlag);
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
 			log.debug("List of blocked addresses outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");

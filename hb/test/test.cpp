@@ -240,6 +240,11 @@ int main(int argc, char *argv[])
 			std::cout << "suspiciousAddresses.size = " << std::to_string(data.suspiciousAddresses.size()) << std::endl;
 			// Print statistics
 			data.printStats();
+			// List of all blocked addresses
+			data.printBlocked();
+			data.printBlocked(true);
+			data.printBlocked(false,true);
+			data.printBlocked(true,true);
 		}
 		end = clock();
 		std::cout << "Exec time: " << (double)(end - start)/CLOCKS_PER_SEC << " sec" << std::endl;

@@ -115,6 +115,11 @@ class Data{
 		 */
 		void printStats();
 
+		/*
+		 * Print (stdout) list of all blocked addresses
+		 */
+		void printBlocked(bool count = false, bool time = false);
+
 };
 
 }

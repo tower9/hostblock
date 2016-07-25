@@ -1218,3 +1218,57 @@ void Data::printStats()
 		}
 	}
 }
+
+/*
+ * Print (stdout) list of all blocked addresses
+ */
+void Data::printBlocked(bool count, bool time)
+{
+	if (this->suspiciousAddresses.size() > 0) {
+		std::map<std::string, SuspiciosAddressType>::iterator sait;
+		unsigned int lastActivityMaxLen = 13;
+		unsigned int activityCountMaxLen = 1;
+		unsigned int activityScoreMaxLen = 1;
+		unsigned int refusedCountMaxLen = 1;
+		unsigned int tmp = 0;
+		std::time_t currentRawTime;
+		std::time(&currentRawTime);
+		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
+		// Find max for padding
+		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
+			if (tmp == 0) {
+				tmp = formatDateTime((const time_t)sait->second.lastActivity, this->config->dateTimeFormat.c_str()).length();
+				if (tmp > lastActivityMaxLen) lastActivityMaxLen = tmp;
+			}
+			tmp = std::to_string(sait->second.activityCount).length();
+			if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
+			tmp = std::to_string(sait->second.activityScore).length();
+			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
+			tmp = std::to_string(sait->second.refusedCount).length();
+			if (tmp > refusedCountMaxLen) refusedCountMaxLen = tmp;
+		}
+		// Output all blockecd addresses
+		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
+			// Whitelisted addresses are not blocked
+			if (sait->second.whitelisted) {
+				continue;
+			}
+			if (sait->second.blacklisted
+				|| (this->config->keepBlockedScoreMultiplier > 0 && currentTime < sait->second.lastActivity + sait->second.activityScore)
+				|| (this->config->keepBlockedScoreMultiplier == 0 && sait->second.activityScore > this->config->activityScoreToBlock) ) {
+				std::cout << std::left << std::setw(15) << sait->first;
+				if (count) {
+					std::cout << ' ' << std::left << std::setw(activityCountMaxLen) << sait->second.activityCount;
+					std::cout << ' ' << std::left << std::setw(activityScoreMaxLen) << sait->second.activityScore;
+					std::cout << ' ' << std::left << std::setw(refusedCountMaxLen) << sait->second.refusedCount;
+				}
+				if (time) {
+					std::cout << ' ' << hb::Data::formatDateTime((const time_t)sait->second.lastActivity, this->config->dateTimeFormat.c_str());
+				}
+				std::cout << std::endl;
+			}
+		}
+	} else {
+		std::cout << "No data!" << std::endl;
+	}
+}
