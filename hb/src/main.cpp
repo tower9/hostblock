@@ -224,7 +224,6 @@ int main(int argc, char *argv[])
 			std::time(&currentTime);
 			hb::SuspiciosAddressType dataRecord;
 			dataRecord.lastActivity = (unsigned long long int)currentTime;
-			dataRecord.blacklisted = true;
 			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
 			data.addAddress(ipAddress);
 		}
@@ -281,7 +280,6 @@ int main(int argc, char *argv[])
 			std::time(&currentTime);
 			hb::SuspiciosAddressType dataRecord;
 			dataRecord.lastActivity = (unsigned long long int)currentTime;
-			dataRecord.whitelisted = true;
 			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
 			data.addAddress(ipAddress);
 		}
