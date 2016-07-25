@@ -210,21 +210,121 @@ int main(int argc, char *argv[])
 			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (listFlag) {// Output list of blocked suspicious addresses
+	} else if (listFlag) {// 	Output list of blocked suspicious addresses
 		data.printBlocked(countFlag, timeFlag);
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
 			log.debug("List of blocked addresses outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (blacklistFlag) {// TODO: Toggle whether address is in blacklist
+	} else if (blacklistFlag) {// Toggle whether address is in blacklist
+		// Save address if there is no previous activity from this address
+		if (data.suspiciousAddresses.count(ipAddress) == 0) {
+			std::time_t currentTime;
+			std::time(&currentTime);
+			hb::SuspiciosAddressType dataRecord;
+			dataRecord.lastActivity = (unsigned long long int)currentTime;
+			dataRecord.blacklisted = true;
+			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
+			data.addAddress(ipAddress);
+		}
+		
+		if (data.suspiciousAddresses[ipAddress].whitelisted) {
+			// If address is in whitelist, ask user to confirm
+			std::cout << "Address is already whitelisted, would you like to remove it from whitelist and add to blacklist instead? [y/n]";
+			char choice = 'n';
+			std::cin >> choice;
+			if (choice == 'y') {
+				data.suspiciousAddresses[ipAddress].whitelisted = false;
+				data.suspiciousAddresses[ipAddress].blacklisted = true;
+				data.updateAddress(ipAddress);
+			}
+		} else {
+			// Address not in whitelist, just change blacklisted flag
+			if (data.suspiciousAddresses[ipAddress].blacklisted) {
+				data.suspiciousAddresses[ipAddress].blacklisted = false;
+			} else {
+				data.suspiciousAddresses[ipAddress].blacklisted = true;
+			}
+			data.updateAddress(ipAddress);
+		}
+
+		// If daemon is running, signal to reload datafile
+		struct cstat::stat buffer;
+		if (cstat::stat(PID_PATH, &buffer) == 0) {
+			// Get PID from file
+			std::ifstream f(PID_PATH);
+			if (f.is_open()){
+				std::string line;
+				std::getline(f, line);
+				pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
+				// If process with this PID exists
+				if (csignal::kill(pid, 0) == 0) {
+					// Send SIGUSR1
+					if (csignal::kill(pid, SIGUSR1) != 0) {
+						std::cout << "Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed." << std::endl;
+						log.warning("Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed.");
+					}
+				}
+			}
+		}
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
 			log.debug("Address blacklist change " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (whitelistFlag) {// TODO: Toggle whether address is in whitelist
+	} else if (whitelistFlag) {// Toggle whether address is in whitelist
+		// Save address if there is no previous activity from this address
+		if (data.suspiciousAddresses.count(ipAddress) == 0) {
+			std::time_t currentTime;
+			std::time(&currentTime);
+			hb::SuspiciosAddressType dataRecord;
+			dataRecord.lastActivity = (unsigned long long int)currentTime;
+			dataRecord.whitelisted = true;
+			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
+			data.addAddress(ipAddress);
+		}
+		
+		if (data.suspiciousAddresses[ipAddress].blacklisted) {
+			// If address is in whitelist, ask user to confirm
+			std::cout << "Address is already blacklist, would you like to remove it from blacklist and add to whitelist instead? [y/n]";
+			char choice = 'n';
+			std::cin >> choice;
+			if (choice == 'y') {
+				data.suspiciousAddresses[ipAddress].blacklisted = false;
+				data.suspiciousAddresses[ipAddress].whitelisted = true;
+				data.updateAddress(ipAddress);
+			}
+		} else {
+			// Address not in whitelist, just change blacklisted flag
+			if (data.suspiciousAddresses[ipAddress].whitelisted) {
+				data.suspiciousAddresses[ipAddress].whitelisted = false;
+			} else {
+				data.suspiciousAddresses[ipAddress].whitelisted = true;
+			}
+			data.updateAddress(ipAddress);
+		}
+
+		// If daemon is running, signal to reload datafile
+		struct cstat::stat buffer;
+		if (cstat::stat(PID_PATH, &buffer) == 0) {
+			// Get PID from file
+			std::ifstream f(PID_PATH);
+			if (f.is_open()){
+				std::string line;
+				std::getline(f, line);
+				pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
+				// If process with this PID exists
+				if (csignal::kill(pid, 0) == 0) {
+					// Send SIGUSR1
+					if (csignal::kill(pid, SIGUSR1) != 0) {
+						std::cout << "Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed." << std::endl;
+						log.warning("Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed.");
+					}
+				}
+			}
+		}
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
@@ -274,8 +374,8 @@ int main(int argc, char *argv[])
 					std::remove(PID_PATH);
 				}
 			} else {
-				std::cerr << "Unable to start! Another instance of hostblock is already running!" << std::endl;
-				log.error("Unable to start! Another instance of hostblock is already running!");
+				std::cerr << "Unable to start! Failed to check if hostblock is already running!" << std::endl;
+				log.error("Unable to start! Failed to check if hostblock is already running!");
 				exit(1);
 			}
 		}
