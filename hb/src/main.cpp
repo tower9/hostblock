@@ -329,7 +329,14 @@ int main(int argc, char *argv[])
 			log.debug("Address whitelist change " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (removeFlag) {// TODO: Remove address from datafile
+	} else if (removeFlag) {// Remove address from datafile
+		if (data.suspiciousAddresses.count(ipAddress) > 0) {
+			if (!data.removeAddress(ipAddress)) {
+				std::cerr << "Failed to remove address!" << std::endl;
+			}
+		} else {
+			std::cout << "Unable to remove " << ipAddress << ", address not found in datafile!" << std::endl;
+		}
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
