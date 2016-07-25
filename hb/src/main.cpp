@@ -557,6 +557,9 @@ int main(int argc, char *argv[])
 					} else {
 						// dataFileMTime = statbuf.st_mtime;
 					}
+					if (!data.checkIptables()) {
+						log.error("Failed to compare data with iptables...");
+					}
 					reloadDataFile = false;
 				}
 
