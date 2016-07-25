@@ -386,6 +386,26 @@ int main(int argc, char *argv[])
 			std::cout << "Unable to remove " << ipAddress << ", address not found in datafile!" << std::endl;
 		}
 
+		// If daemon is running, signal to reload datafile
+		struct cstat::stat buffer;
+		if (cstat::stat(PID_PATH, &buffer) == 0) {
+			// Get PID from file
+			std::ifstream f(PID_PATH);
+			if (f.is_open()){
+				std::string line;
+				std::getline(f, line);
+				pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
+				// If process with this PID exists
+				if (csignal::kill(pid, 0) == 0) {
+					// Send SIGUSR1
+					if (csignal::kill(pid, SIGUSR1) != 0) {
+						std::cout << "Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed." << std::endl;
+						log.warning("Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed.");
+					}
+				}
+			}
+		}
+
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
 			log.debug("Address removed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
