@@ -100,15 +100,45 @@ Last activity:
  - Score - currently calculated score
  - Refused - dropped packet count by iptables, will count only with appripriate configuration (separate iptables chain, appropriate block rule for hostblock and pattern)
  - Last activity - Date and time of last activity, when pattern is matched this will show date and time when hostblock matched that pattern not time when line was written to log file
- - Status - whether address is whitelisted, blacklisted, blocked or if score multiplier is configured, then date and time until automatic removal from iptables
+ - Status - whether address is whitelisted, blacklisted, blocked or, if score multiplier is configured, then date and time until rule should be removed from iptables
 
-#### TODO: Output list of blocked addresses
+#### Output list of blocked addresses
 
-#### TODO: Blacklist
+List all blocked addresses:
+```
+$ sudo hostblock -l
+```
 
-#### TODO: Whitelist
+List all blocked addresses with activity count, score and refused count:
+```
+$ sudo hostblock -lc
+```
 
-#### TODO: Manually remove address from data file
+List all blocked addresses with last activity time:
+```
+$ sudo hostblock -lt
+```
+
+#### Blacklist
+
+To blacklist address:
+```
+$ sudo hostblock -b10.10.10.10
+```
+
+#### Whitelist
+
+To whitelist address:
+```
+$ sudo hostblock -w192.168.0.2
+```
+
+#### Remove address from data file
+
+To remove address from datafile:
+```
+$ sudo hostblock -r192.168.0.3
+```
 
 #### Start as daemon
 
