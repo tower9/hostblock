@@ -333,6 +333,54 @@ int main(int argc, char *argv[])
 		if (data.suspiciousAddresses.count(ipAddress) > 0) {
 			if (!data.removeAddress(ipAddress)) {
 				std::cerr << "Failed to remove address!" << std::endl;
+				exit(1);
+			} else {
+				// Check if there is iptables rule for this address
+				std::map<unsigned int, std::string> rules = iptables.listRules("INPUT");
+				try {
+
+					// Regex to search for IP address
+					std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+
+					// Loop through all rules
+					std::map<unsigned int, std::string>::iterator rit;
+					std::size_t checkStart = 0, checkEnd = 0;
+					std::smatch regexSearchResults;
+					std::string regexSearchResult;
+					std::size_t posip = config.iptablesRule.find("%i");
+					std::string ruleStart = "";
+					std::string ruleEnd = "";
+					if (posip != std::string::npos) {
+						ruleStart = config.iptablesRule.substr(0, posip);
+						ruleEnd = config.iptablesRule.substr(posip + 2);
+					}
+					for(rit=rules.begin(); rit!=rules.end(); ++rit){
+						checkStart = rit->second.find(ruleStart);
+						checkEnd = rit->second.find(ruleEnd);
+						if (checkStart != std::string::npos && checkEnd != std::string::npos) {
+							if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
+								if (regexSearchResults.size() == 1) {
+									regexSearchResult = regexSearchResults[0].str();
+									if (regexSearchResult == ipAddress) {
+										// iptables rule found, remove from iptables
+										if (iptables.remove("INPUT", ruleStart + ipAddress + ruleEnd) == false) {
+											std::cerr << "Address " << ipAddress << " no longer needs iptables rule, but failed to remove rule from chain!" << std::endl;
+											log.error("Address " + ipAddress + " no longer needs iptables rule, but failed to remove rule from chain!");
+											exit(1);
+										}
+									}
+								}
+							}
+						}
+					}
+
+				} catch (std::regex_error& e) {
+					std::string message = e.what();
+					log.error(message + ": " + std::to_string(e.code()));
+					log.error(hb::Util::regexErrorCode2Text(e.code()));
+					std::cerr << "iptables check failed!" << std::endl;
+					exit(1);
+				}
 			}
 		} else {
 			std::cout << "Unable to remove " << ipAddress << ", address not found in datafile!" << std::endl;
