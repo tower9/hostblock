@@ -16,8 +16,6 @@ Features
  - Whitelist to ignore some addresses
  - Allows to manually remove IP addresses from data file (clean slate)
 
-Note, if this tool does not allow you to use iptables the way you like (is limiting you), please register issue, maybe some solution can be found. It would be nice not to limit iptables functionality that is being used if iptables are used together with hostblock. Maybe hostblock config should be extended for more flexible integration with iptables...
-
 Setup
 -----
 
@@ -49,9 +47,9 @@ $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 ```
  - TODO: Automatic startup script
 
- - For first hostblock start truncate/rotate/archive log files so that hostblock starts monitoring log files from sratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
+ - For first hostblock start truncate/rotate/archive log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
 
- - Start hostblock in background
+ - Start hostblock in background to monitor and automatically block access
 ```
 $ sudo hostblock -d
 ```
@@ -121,21 +119,21 @@ $ sudo hostblock -lt
 
 #### Blacklist
 
-To blacklist address:
+To blacklist address - keep iptables rule regardless of suspicious activity:
 ```
 $ sudo hostblock -b10.10.10.10
 ```
 
 #### Whitelist
 
-To whitelist address:
+To whitelist address - do not create iptables rule even if suspicious activity is detected:
 ```
 $ sudo hostblock -w192.168.0.2
 ```
 
 #### Remove address from data file
 
-To remove address from datafile:
+To delete information about address:
 ```
 $ sudo hostblock -r192.168.0.3
 ```
