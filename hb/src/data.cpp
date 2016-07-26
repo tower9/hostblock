@@ -1187,9 +1187,9 @@ void Data::printStats()
 		activityScoreMaxLen = 5;
 		refusedCountMaxLen = 7;
 		statusMaxLen = 7;
-		tmp = std::to_string(last5[0].activityCount).length();
-		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
+			tmp = std::to_string(l5it->activityCount).length();
+			if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 			tmp = std::to_string(l5it->activityScore).length();
 			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
 			tmp = std::to_string(l5it->refusedCount).length();
