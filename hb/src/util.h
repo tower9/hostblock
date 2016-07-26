@@ -27,6 +27,7 @@ struct LogFile {
 	std::string path = "";// Path (config file)
 	unsigned long long int bookmark = 0;// Bookmark for seekg (data file)
 	unsigned long long int size = 0;// File size when last processed (data file)
+	bool dataFileRecord = false;
 };
 
 /*
