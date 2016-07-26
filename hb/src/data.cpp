@@ -854,9 +854,21 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 			activityScore = activityScore * this->config->keepBlockedScoreMultiplier;
 		}
 
-		this->suspiciousAddresses[address].activityScore += activityScore;
-		this->suspiciousAddresses[address].activityCount += activityCount;
-		this->suspiciousAddresses[address].refusedCount += refusedCount;
+		if (this->suspiciousAddresses[address].activityScore + activityScore < this->suspiciousAddresses[address].activityScore) {
+			this->suspiciousAddresses[address].activityScore = UINT_MAX;
+		} else {
+			this->suspiciousAddresses[address].activityScore += activityScore;
+		}
+		if (this->suspiciousAddresses[address].activityCount + activityCount < this->suspiciousAddresses[address].activityCount) {
+			this->suspiciousAddresses[address].activityCount = UINT_MAX;
+		} else {
+			this->suspiciousAddresses[address].activityCount += activityCount;
+		}
+		if (this->suspiciousAddresses[address].refusedCount + refusedCount < this->suspiciousAddresses[address].refusedCount) {
+			this->suspiciousAddresses[address].refusedCount = UINT_MAX;
+		} else {
+			this->suspiciousAddresses[address].refusedCount += refusedCount;
+		}
 
 	} else {
 
