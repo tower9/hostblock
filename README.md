@@ -45,11 +45,16 @@ $ sudo iptables -N HB_LOG_AND_DROP
 $ sudo iptables -A HB_LOG_AND_DROP -j LOG --log-prefix "IPTABLES-DROPPED: " --log-level 4
 $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 ```
- - TODO: Automatic startup script
-
  - For first hostblock start truncate/rotate/archive log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
-
- - Start hostblock in background to monitor and automatically block access
+ - make install should detect systemd if it is available and install service script. If systemd is used, start hostblock:
+```
+$ sudo systemctl start hostblock
+```
+ - make install should detect upstart if it is available and add configuration. If upstart is used, start hostblock:
+ ```
+ $ sudo service hostblock start
+ ```
+ - If systemctl or upstart is not available, write your own init script or start manually hostblock as background process to monitor and automatically block access
 ```
 $ sudo hostblock -d
 ```
