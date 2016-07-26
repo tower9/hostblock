@@ -3,8 +3,6 @@ HostBlock
 
 Tool for log file monitoring and automatic blocking of remote hosts based on configured patterns.
 
-I guess every admin of servers that are connected to internet have noticed some suspicious activity in log files. You can find some good suggestions to adjust server configuration so that it would be harder to get access to these servers, like completely disable root user SSH access, etc. Start with that ;) This is also a kind reminder to recheck config you made 10 years ago. Once finished and still interested to automatically monitor log files and adjust iptables, see Setup and Usage chapters.
-
 Features
 --------
 
