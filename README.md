@@ -54,9 +54,9 @@ $ sudo systemctl start hostblock
 ```
 
  - make install should detect upstart if it is available and add configuration. If upstart is used, start hostblock:
- ```
- $ sudo service hostblock start
- ```
+```
+$ sudo service hostblock start
+```
 
  - If systemctl or upstart is not available, write your own init script or start manually hostblock as background process to monitor and automatically block access
 ```
