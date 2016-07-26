@@ -171,6 +171,7 @@ bool Data::loadData()
 						if (itlf->path == logFilePath) {
 							itlf->bookmark = bookmark;
 							itlf->size = size;
+							itlf->dataFileRecord = true;
 							logFileFound = true;
 							this->log->debug("Bookmark: " + std::to_string(bookmark) + " Size: " + std::to_string(size) + " Path: " + logFilePath);
 							break;
@@ -192,6 +193,16 @@ bool Data::loadData()
 
 		// Finished reading file, close it
 		f.close();
+
+		// Check if all configured log files are present in datafile (add if needed)
+		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+				if (!itlf->dataFileRecord) {
+					this->addFile(itlf->path);
+					itlf->dataFileRecord = true;
+				}
+			}
+		}
 
 		// If duplicates found, rename current data file to serve as backup and save new data file without duplicates
 		if (duplicatesFound) {
