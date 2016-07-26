@@ -23,37 +23,41 @@ Setup
 ```
 $ git clone https://github.com/tower9/hostblock.git
 ```
- - This version of hostblock is currently only in branch 2.0 without version, so check out branch 2.0
-```
-$ git checkout 2.0
-```
+
  - Compile
 ```
 $ make
 ```
+
  - Install
 ```
 $ sudo make install
 ```
+
  - Adjust configuration, review and adjust patterns
 ```
 $ sudo vi /etc/hostblock.conf
 ```
+
  - To count refused connection count create new iptables chain and adjust hostblock configuration to use this new chain:
 ```
 $ sudo iptables -N HB_LOG_AND_DROP
 $ sudo iptables -A HB_LOG_AND_DROP -j LOG --log-prefix "IPTABLES-DROPPED: " --log-level 4
 $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 ```
+
  - For first hostblock start truncate/rotate/archive log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
+
  - make install should detect systemd if it is available and install service script. If systemd is used, start hostblock:
 ```
 $ sudo systemctl start hostblock
 ```
+
  - make install should detect upstart if it is available and add configuration. If upstart is used, start hostblock:
  ```
  $ sudo service hostblock start
  ```
+
  - If systemctl or upstart is not available, write your own init script or start manually hostblock as background process to monitor and automatically block access
 ```
 $ sudo hostblock -d
@@ -141,13 +145,6 @@ $ sudo hostblock -w192.168.0.2
 To delete information about address:
 ```
 $ sudo hostblock -r192.168.0.3
-```
-
-#### Start as daemon
-
-To start hostblock as background process to monitor log files and automatically adjust iptables:
-```
-$ sudo hostblock -d
 ```
 
 #### Order daemon to reload configuration and datafile
