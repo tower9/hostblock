@@ -10,6 +10,8 @@
 namespace csyslog{
 	#include <syslog.h>
 }
+// Limits
+#include <climits>
 // Logger
 #include "../src/logger.h"
 // Iptables
@@ -83,6 +85,9 @@ int main(int argc, char *argv[])
 		std::cout << "Loading configuration file..." << std::endl;
 		if (!cfg.load()){
 			std::cerr << "Failed to load configuration!" << std::endl;
+		}
+		if (!cfg.processPatterns()){
+			std::cerr << "Failed to parse configured patterns!" << std::endl;
 		}
 		if (testConfig){
 			std::cout << "Printing configuration to stdout..." << std::endl;
@@ -184,10 +189,17 @@ int main(int argc, char *argv[])
 			if (!data.removeAddress("10.10.10.13")) {
 				std::cerr << "Failed to remove record from datafile!" << std::endl;
 			}
-			// TODO: check data.saveActivity here and see int limits
+			// Check data.saveActivity here and see int limits
 			std::cout << "Updating 10.10.10.11 activity..." << std::endl;
 			data.saveActivity("10.10.10.11",10,1,0);
 			data.saveActivity("10.10.10.11",5,0,1);
+			data.saveActivity("10.10.11.1",UINT_MAX,1,0);
+			data.saveActivity("10.10.11.1",10,1,0);
+			data.saveActivity("10.10.11.2",10,UINT_MAX,0);
+			data.saveActivity("10.10.11.2",100,10,0);
+			data.saveActivity("10.10.11.3",0,1,UINT_MAX);
+			data.saveActivity("10.10.11.3",0,10,10);
+			data.saveActivity("10.10.11.3",100,1,10);
 			// Add new log file to datafile
 			std::cout << "Adding /var/log/messages to data file..." << std::endl;
 			for (itlg = cfg.logGroups.begin(); itlg != cfg.logGroups.end(); ++itlg) {
