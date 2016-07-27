@@ -5,7 +5,10 @@ After=syslog.target network.target
 [Service]
 Type=forking
 PIDFile=/var/run/hostblock.pid
-ExecStart=/usr/bin/hostblock --daemon
+Restart=on-failure
+RestartSec=3
+ExecStart=/usr/local/bin/hostblock --daemon
+ExecReload=/bin/kill -SIGUSR1 $MAINPID
 
 [Install]
 WantedBy=multi-user.target
