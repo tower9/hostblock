@@ -999,7 +999,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
  */
 bool Data::sortByActivityCount(const hb::SuspiciosAddressStatType& la, const hb::SuspiciosAddressStatType& ra)
 {
-	return la.activityCount > ra.activityCount;
+	return (unsigned long int)la.activityCount + la.refusedCount > (unsigned long int)ra.activityCount + ra.refusedCount;
 }
 
 /*
@@ -1063,6 +1063,7 @@ void Data::printStats()
 		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
 		unsigned int activityCountMin = UINT_MAX;
 		unsigned long long int lastActivityMin = ULLONG_MAX;
+		bool replace = false;
 
 		// Get top 5 addresses by activity count and last 5 addresses by last activity time
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
@@ -1072,25 +1073,44 @@ void Data::printStats()
 			address.activityCount = sait->second.activityCount;
 			address.refusedCount = sait->second.refusedCount;
 
-			// BUG HERE, without order this does not work! Top one can replace other top one leaving less better results in top!
-			// Need to replace weakest element!
 			if (top5.size() < 5) {
 				// First fill up top5
 				top5.push_back(address);
 			} else {
+				// Once top5 is filled, check if other records have better count
+				replace = false;
+
 				// Find min activity count
 				activityCountMin = UINT_MAX;
 				for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
-					if (t5it->activityCount < activityCountMin) activityCountMin = t5it->activityCount;
+					if (t5it->activityCount + t5it->refusedCount >= t5it->activityCount
+						&& t5it->activityCount + t5it->refusedCount >= t5it->refusedCount) {
+						if (t5it->activityCount + t5it->refusedCount < activityCountMin) {
+							activityCountMin = t5it->activityCount + t5it->refusedCount;
+						}
+					}
 				}
 
-				// Once top5 is filled, check if other records have better count
-				if (address.activityCount > activityCountMin) {
+				// Check if there is record with more activity
+				if (address.activityCount + address.refusedCount < address.activityCount
+					|| address.activityCount + address.refusedCount < address.refusedCount) {
+					if (UINT_MAX > activityCountMin) {
+						replace = true;
+					}
+				} else{
+					if (address.activityCount + address.refusedCount > activityCountMin) {
+						replace = true;
+					}
+				}
+				if (replace) {
 					for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
-						if (t5it->activityCount == activityCountMin) {
-							top5.erase(t5it);
-							top5.push_back(address);
-							break;
+						if (t5it->activityCount + t5it->refusedCount >= t5it->activityCount
+						&& t5it->activityCount + t5it->refusedCount >= t5it->refusedCount) {
+							if (t5it->activityCount + t5it->refusedCount == activityCountMin) {
+								top5.erase(t5it);
+								top5.push_back(address);
+								break;
+							}
 						}
 					}
 				}
@@ -1128,9 +1148,9 @@ void Data::printStats()
 		// Calculate needed padding
 		tmp = formatDateTime((const time_t)top5[0].lastActivity, this->config->dateTimeFormat.c_str()).length();
 		if (tmp > lastActivityMaxLen) lastActivityMaxLen = tmp;
-		tmp = std::to_string(top5[0].activityCount).length();
-		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 		for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
+			tmp = std::to_string(t5it->activityCount).length();
+		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 			tmp = std::to_string(t5it->activityScore).length();
 			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
 			tmp = std::to_string(t5it->refusedCount).length();

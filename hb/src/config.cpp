@@ -180,8 +180,6 @@ bool Config::load()
 								// Pattern must contain %i, a placeholder to find IP address
 								posip = pattern.patternString.find("%i");
 								if (posip != std::string::npos) {
-									pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-									pattern.pattern = std::regex(pattern.patternString);// TODO: This is slow, maybe implement some flag so that this is done only for daemon startup?
 									itp = itlg->patterns.end();
 									itp = itlg->patterns.insert(itp,pattern);
 									if (logDetails) this->log->debug("Pattern to match: " + pattern.patternString);
@@ -204,8 +202,6 @@ bool Config::load()
 								// Pattern must contain %i, which is placeholder for where to find IP address
 								posip = pattern.patternString.find("%i");
 								if (posip != std::string::npos) {
-									pattern.patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-									pattern.pattern = std::regex(pattern.patternString);// TODO: This is slow, maybe implement some flag so that this is done only for daemon startup?
 									itp = itlg->refusedPatterns.end();
 									itp = itlg->refusedPatterns.insert(itp,pattern);
 									if (logDetails) this->log->debug("Pattern to match blocked access: " + pattern.patternString);
@@ -238,13 +234,43 @@ bool Config::load()
 }
 
 /*
+ * Process patterns
+ * std::string patternString -> std::regex pattern
+ */
+bool Config::processPatterns()
+{
+	std::vector<LogGroup>::iterator itlg;
+	std::vector<Pattern>::iterator itpa;
+	std::size_t posip;
+	try{
+		for (itlg = this->logGroups.begin(); itlg != this->logGroups.end(); ++itlg) {
+			for (itpa = itlg->patterns.begin(); itpa != itlg->patterns.end(); ++itpa) {
+				posip = itpa->patternString.find("%i");
+				if (posip != std::string::npos) {
+					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"));
+				} else {
+					this->log->error("Unable to find ip address placeholder \%i in pattern, failed to parse pattern: " + itpa->patternString);
+					return false;
+				}
+			}
+		}
+	} catch (std::regex_error& e){
+		std::string message = e.what();
+		this->log->error(message + ": " + std::to_string(e.code()));
+		this->log->error(Util::regexErrorCode2Text(e.code()));
+		return false;
+	}
+	return true;
+}
+
+/*
  * Print (stdout) currently loaded config
  */
 void Config::print()
 {
 	time_t currentTime;
 	time(&currentTime);
-	std::cout << "## Hostblock configuration, generated automatically" << std::endl;
+	std::cout << "## Automatically generated Hostblock configuration" << std::endl;
 	std::cout << "## Timestamp: " << currentTime << std::endl << std::endl;
 	std::cout << "[General]" << std::endl << std::endl;
 	std::cout << "## Interval for log file check (seconds, default 30)" << std::endl;
@@ -265,8 +291,6 @@ void Config::print()
 		std::cout << "[Log." << itlg->name << "]" << std::endl << std::endl;
 		std::cout << "## Path to log file(s)" << std::endl;
 		for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-			std::cout << "## " << itlf->bookmark << std::endl;
-			std::cout << "## " << itlf->size << std::endl;
 			std::cout << "log.path = " << itlf->path << std::endl << std::endl;
 		}
 		std::cout << "## Patterns to match with scores to use for calculation" << std::endl;

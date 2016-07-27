@@ -1,7 +1,7 @@
 HostBlock
 =========
 
-Tool for log file monitoring and automatic blocking of remote hosts based on configured patterns.
+Tool for log file monitoring and automatic blocking of remote IP hosts based on configured patterns.
 
 Features
 --------
@@ -9,10 +9,10 @@ Features
  - Checks log files for suspicious activity and automatically adjusts iptables rules
  - Runs as daemon
  - Keeps some data about suspicious activity for some simple statistics and to compare with iptables
- - Daemon processes only new bytes from log files (until file is rotated)
+ - Daemon processes only new bytes from log files and detects if log file is rotated
  - Blacklist to manually blacklist some addresses
  - Whitelist to ignore some addresses
- - Allows to manually remove IP addresses from data file (clean slate)
+ - Allows to manually remove IP addresses from data file
 
 Setup
 -----
@@ -51,7 +51,12 @@ $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 $ sudo systemctl start hostblock
 ```
 
- - make install should detect upstart if it is available and add configuration. If upstart is used, start hostblock:
+- If systemd is used, enable service to automatically start hostblock after reboot:
+```
+$ sudo systemctl enable hostblock
+```
+
+ - make install should detect upstart if it is available and add configuration for hostblock. If upstart is used, start hostblock:
 ```
 $ sudo service hostblock start
 ```
@@ -69,6 +74,12 @@ Usage
 To get short usage information:
 ```
 $ hostblock -h
+```
+
+#### Currently loaded configuration
+To output currently loaded configuration:
+```
+$ sudo hostblock -p
 ```
 
 #### Statistics
@@ -156,7 +167,7 @@ Configuration
 -------------
 Default path for configuration file is /etc/hostblock.conf, which can be changed with environment variable HOSTBLOCK_CONFIG.
 
-Main configuration is under [Global] section. Since log files can have different contents, configuration for them can be divided into [Log.*] sections, for example [Log.SSH].
+Main configuration is under [Global] section. Log file contents are different for each service and can have different log levels. Configuration can be divided into [Log.*] sections to specify separate patterns for each log group, for example [Log.SSH].
 
 More details can be found in default configuration file.
 

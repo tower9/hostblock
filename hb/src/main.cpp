@@ -64,9 +64,12 @@ bool reloadConfig = false;
  */
 void printUsage()
 {
-	std::cout << "Hostblock v.2.0" << std::endl << std::endl;
+	std::cout << "Hostblock v.2.0" << std::endl;
+	std::cout << "https://github.com/tower9/hostblock" << std::endl;
+	std::cout << std::endl;
 	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-b<ip_address> | --blacklist=<ip_address>] [-w<ip_address> | --whitelist=<ip_address>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
 	std::cout << " -h             | --help                   - this information" << std::endl;
+	std::cout << " -p             | --print-config           - output configuration" << std::endl;
 	std::cout << " -s             | --statistics             - statistics" << std::endl;
 	std::cout << " -l             | --list                   - list of blocked suspicious IP addresses" << std::endl;
 	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count, score and refused count" << std::endl;
@@ -108,6 +111,7 @@ int main(int argc, char *argv[])
 
 	// Option flags
 	int c;
+	bool printConfigFlag = false;
 	bool statisticsFlag = false;
 	bool listFlag = false;
 	bool countFlag = false;
@@ -121,26 +125,30 @@ int main(int argc, char *argv[])
 	// Options
 	static struct cgetopt::option long_options[] = 
 	{
-		{"help",       no_argument,       0, 'h'},
-		{"statistics", no_argument,       0, 's'},
-		{"list",       no_argument,       0, 'l'},
-		{"count",      no_argument,       0, 'c'},
-		{"time",       no_argument,       0, 't'},
-		{"blacklist",  required_argument, 0, 'b'},
-		{"whitelist",  required_argument, 0, 'w'},
-		{"remove",     required_argument, 0, 'r'},
-		{"daemon",     no_argument,       0, 'd'},
+		{"help",         no_argument,       0, 'h'},
+		{"print-config", no_argument,       0, 'p'},
+		{"statistics",   no_argument,       0, 's'},
+		{"list",         no_argument,       0, 'l'},
+		{"count",        no_argument,       0, 'c'},
+		{"time",         no_argument,       0, 't'},
+		{"blacklist",    required_argument, 0, 'b'},
+		{"whitelist",    required_argument, 0, 'w'},
+		{"remove",       required_argument, 0, 'r'},
+		{"daemon",       no_argument,       0, 'd'},
 	};
 
 	// Option index
 	int option_index = 0;
 
 	// Check options
-	while ((c = cgetopt::getopt_long(argc, argv, "hslctb:w:r:d", long_options, &option_index)) != -1)
+	while ((c = cgetopt::getopt_long(argc, argv, "hpslctb:w:r:d", long_options, &option_index)) != -1)
 		switch (c) {
 			case 'h':
 				printUsage();
 				exit(0);
+				break;
+			case 'p':
+				printConfigFlag = true;
 				break;
 			case 's':
 				statisticsFlag = true;
@@ -203,7 +211,14 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (statisticsFlag) {// Output statistics
+	if (printConfigFlag) {// Output configuration
+		config.print();
+		if (config.logLevel == "DEBUG") {
+			initEnd = clock();
+			log.debug("Configuration outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+		}
+		exit(0);
+	} else if (statisticsFlag) {// Output statistics
 		data.printStats();
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
@@ -473,6 +488,12 @@ int main(int argc, char *argv[])
 			exit(0);
 		} else {// Child (pid == 0), daemon process
 
+			// Parse regex patterns
+			if (!config.processPatterns()) {
+				std::cerr << "Failed to parse configured patterns!" << std::endl;
+				exit(1);
+			}
+
 			// To keep main loop running
 			running = true;
 
@@ -555,6 +576,10 @@ int main(int argc, char *argv[])
 					log.info("Daemon configuration reload...");
 					if (!config.load()) {
 						log.error("Failed to reload configuration for daemon!");
+					}
+					// Parse regex patterns
+					if (!config.processPatterns()) {
+						std::cerr << "Failed to parse configured patterns for daemon!" << std::endl;
 					}
 
 					// Reset so that we do not reload on each iteration
@@ -642,7 +667,8 @@ int main(int argc, char *argv[])
 					// Check log files for suspicious activity and update iptables if needed
 					logParser.checkFiles();
 
-					// Check iptables rules if any are expired and should be removed (TODO: move to new method in Data?)
+					// Check iptables rules if any are expired and should be removed
+					// TODO: Since needed in multiple places, maybe move this check to new method in Data?
 					for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait) {
 						// If address has rule
 						if (sait->second.iptableRule) {

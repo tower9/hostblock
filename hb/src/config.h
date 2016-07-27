@@ -97,6 +97,12 @@ class Config{
 		bool load();
 
 		/*
+		 * Process patterns
+		 * std::string patternString -> std::regex pattern
+		 */
+		bool processPatterns();
+
+		/*
 		 * Print (stdout) currently loaded config
 		 */
 		void print();
