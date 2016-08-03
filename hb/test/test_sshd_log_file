@@ -5,3 +5,4 @@ Jun  3 12:00:00 somehost sshd[1313]: ROOT LOGIN REFUSED FROM 10.10.10.10
 Jun  4 09:00:00 somehost sshd[127127]: SSH: Server;Ltype: Authname;Remote: 10.10.10.12-40935;Name: root [preauth]
 Jun 11 20:35:00 somehost sshd[1313]: Did not receive identification string from 10.10.10.13
 Jun 12 08:40:15 somehost sshd[127127]: User root from 10.10.10.14 not allowed because not listed in AllowUsers
+Aug  3 04:04:33 somehost kernel: [13186.494602] IPTABLES-DROPPED: IN=lo OUT= MAC=00:00:00:00:00:00:00:00:00:00:00:00:08:00 SRC=10.10.10.14 DST=10.10.10.100 LEN=65 TOS=0x00 PREC=0x00 TTL=64 ID=54757 DF PROTO=UDP SPT=45214 DPT=53 LEN=45

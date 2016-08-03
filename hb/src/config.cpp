@@ -262,6 +262,15 @@ bool Config::processPatterns()
 					return false;
 				}
 			}
+			for (itpa = itlg->refusedPatterns.begin(); itpa != itlg->refusedPatterns.end(); ++itpa) {
+				posip = itpa->patternString.find("%i");
+				if (posip != std::string::npos) {
+					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"));
+				} else {
+					this->log->error("Unable to find ip address placeholder \%i in pattern, failed to parse pattern: " + itpa->patternString);
+					return false;
+				}
+			}
 		}
 	} catch (std::regex_error& e){
 		std::string message = e.what();
