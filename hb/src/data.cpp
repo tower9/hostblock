@@ -5,10 +5,10 @@
  * First position means type of record, almost all data is in fixed position
  * left padded with space to fill specified len. As exception to fixed position
  * is file_path. If filename will change, old one will be marked for removal and
- * new one added to end of file. Delete replaces whole line with "r" right
- * padded with spaces until end of line. Daemon start checks for removed record
- * count, if it exceeds 100, data file is rewritten with latest data and lines
- * starting with "r" are not saved (to get rid of them eventually).
+ * new one added to end of file. Delete replaces first position of record with
+ * "r". Daemon start checks for removed record count, if it exceeds 100, data
+ * file is rewritten with latest data and lines starting with "r" are not saved
+ * (to get rid of them eventually).
  * 
  * Data about suspicious activity from address:
  * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted

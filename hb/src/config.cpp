@@ -20,6 +20,12 @@
 namespace csyslog{
 	#include <syslog.h>
 }
+// Linux stat
+namespace cstat{
+	#include <errno.h>
+	#include <sys/types.h>
+	#include <sys/stat.h>
+}
 
 // Hostblock namespace
 using namespace hb;
@@ -52,6 +58,7 @@ bool Config::load()
 		std::vector<hb::Pattern>::iterator itp;
 		std::size_t pos, posip;
 		bool logDetails = true;
+		struct cstat::stat buffer;
 
 		try{
 			std::smatch groupSearchResults;
@@ -166,9 +173,11 @@ bool Config::load()
 						if (line.substr(0,8) == "log.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								// TODO: check if file exists
 								hb::LogFile logFile;
 								logFile.path = hb::Util::ltrim(line.substr(pos+1));
+								if (cstat::stat(logFile.path.c_str(), &buffer) != 0) {
+									this->log->warning("Log file found in configuration, but not found in file system! Path: " + logFile.path);
+								}
 								itlg->logFiles.push_back(logFile);
 								if (logDetails) this->log->debug("Logfile path: " + hb::Util::ltrim(line.substr(pos+1)));
 							}

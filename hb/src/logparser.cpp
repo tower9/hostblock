@@ -73,6 +73,7 @@ void LogParser::checkFiles()
 				if (fileSize < itlf->size) {
 					itlf->bookmark = 0;
 					this->log->warning("Last known size reset for " + itlf->path);
+					this->data->updateFile(itlf->path);
 				}
 				this->log->debug("Current size: " + std::to_string(fileSize) + " Last known size: " + std::to_string(itlf->size));
 			} else {
