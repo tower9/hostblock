@@ -22,6 +22,11 @@ Setup
 $ git clone https://github.com/tower9/hostblock.git
 ```
 
+ - Checkout latest tag
+```
+$ git checkout `git describe --abbrev=0`
+```
+
  - Compile
 ```
 $ make
