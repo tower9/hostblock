@@ -187,6 +187,16 @@ int main(int argc, char *argv[])
 
 	// To work with iptables
 	hb::Iptables iptables = hb::Iptables();
+	/*hb::Iptables* iptables;
+	try {
+		// hb::Iptables iptables = hb::Iptables();
+		iptables = hb::Iptables();
+	} catch (std::runtime_error& e) {
+		std::string message = e.what();
+		log.error(message);
+		std::cerr << message << std::endl;
+		exit(1);
+	}*/
 
 	// Init config, default path to config file is /etc/hostblock.conf
 	hb::Config config = hb::Config(&log, "/etc/hostblock.conf");
@@ -197,8 +207,14 @@ int main(int argc, char *argv[])
 	}
 
 	// Load config
-	if (!config.load()) {
-		std::cerr << "Failed to load configuration file!" << std::endl;
+	try {
+		if (!config.load()) {
+			std::cerr << "Failed to load configuration from file!" << std::endl;
+			exit(1);
+		}
+	} catch (std::runtime_error &e) {
+		std::string message = e.what();
+		std::cerr << message << std::endl;
 		exit(1);
 	}
 

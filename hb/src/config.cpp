@@ -237,7 +237,9 @@ bool Config::load()
 			return false;
 		}
 	} else {
-		throw std::runtime_error("Error, failed to open configuration file!");
+		std::string message = "Failed to open configuration file!";
+		message += " " + std::to_string(errno) + ": " + strerror(errno);
+		throw std::runtime_error(message);
 	}
 	return true;
 }

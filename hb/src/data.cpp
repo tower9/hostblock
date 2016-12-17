@@ -1102,6 +1102,8 @@ void Data::printStats()
 						replace = true;
 					}
 				}
+
+				// Replace if needed
 				if (replace) {
 					for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
 						if (t5it->activityCount + t5it->refusedCount >= t5it->activityCount
@@ -1202,7 +1204,7 @@ void Data::printStats()
 			std::cout << std::endl;
 		}
 
-		// Recalculate some padding
+		// Recalculate padding
 		activityCountMaxLen = 5;
 		activityScoreMaxLen = 5;
 		refusedCountMaxLen = 7;
@@ -1223,7 +1225,7 @@ void Data::printStats()
 			}
 		}
 
-		// Output last 5 addresses by last activity
+		// Output 5 addresses by last activity
 		std::cout << std::endl << "Last activity:" << std::endl;
 		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		std::cout << "     Address     |";
