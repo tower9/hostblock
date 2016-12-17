@@ -1,4 +1,4 @@
-/* 
+/*
  * Hostblock 2.0
  *
  * Automatic blocking of suspicious remote IP hosts - tool monitors log files
@@ -64,7 +64,7 @@ bool reloadConfig = false;
  */
 void printUsage()
 {
-	std::cout << "Hostblock v.2.0" << std::endl;
+	std::cout << "Hostblock v.1.0" << std::endl;
 	std::cout << "https://github.com/tower9/hostblock" << std::endl;
 	std::cout << std::endl;
 	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-b<ip_address> | --blacklist=<ip_address>] [-w<ip_address> | --whitelist=<ip_address>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 	bool daemonFlag = false;
 
 	// Options
-	static struct cgetopt::option long_options[] = 
+	static struct cgetopt::option long_options[] =
 	{
 		{"help",         no_argument,       0, 'h'},
 		{"print-config", no_argument,       0, 'p'},
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
 			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
 			data.addAddress(ipAddress);
 		}
-		
+
 		if (data.suspiciousAddresses[ipAddress].whitelisted) {
 			// If address is in whitelist, ask user to confirm
 			std::cout << "Address is already whitelisted, would you like to remove it from whitelist and add to blacklist instead? [y/n]";
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
 			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
 			data.addAddress(ipAddress);
 		}
-		
+
 		if (data.suspiciousAddresses[ipAddress].blacklisted) {
 			// If address is in whitelist, ask user to confirm
 			std::cout << "Address is already blacklist, would you like to remove it from blacklist and add to whitelist instead? [y/n]";
