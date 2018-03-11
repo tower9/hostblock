@@ -1,7 +1,7 @@
-/* 
+/*
  * Class to work with suspicious activity and log file data. Read further for
  * small details about how data file looks like.
- * 
+ *
  * First position means type of record, almost all data is in fixed position
  * left padded with space to fill specified len. As exception to fixed position
  * is file_path. If filename will change, old one will be marked for removal and
@@ -9,10 +9,10 @@
  * "r". Daemon start checks for removed record count, if it exceeds 100, data
  * file is rewritten with latest data and lines starting with "r" are not saved
  * (to get rid of them eventually).
- * 
+ *
  * Data about suspicious activity from address:
  * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted
- * 
+ *
  * Log file bookmark to check for log rotation and for seekg to read only new
  * lines:
  * b|bookmark|size|file_path
@@ -20,7 +20,7 @@
  * Marked for removal (any type of line), right padded with spaces according to
  * original length of line:
  * r
- * 
+ *
  * addr        - IPv4 address, len 39, current implementation for IPv4, but len
  *               for easier IPv6 implementation in future
  * lastact     - unix timestamp of last activity, len 20
@@ -85,7 +85,7 @@ Data::Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables)
  */
 bool Data::loadData()
 {
-	this->log->info("Loading data from " + this->config->dataFilePath);
+	this->log->debug("Loading data from " + this->config->dataFilePath);
 
 	// Open data file
 	std::ifstream f(this->config->dataFilePath.c_str());
@@ -253,7 +253,7 @@ bool Data::loadData()
 		}
 
 		// Data file processing finished
-		this->log->info("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
+		this->log->debug("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
 	} else {
 		this->log->warning("Unable to open datafile for reading!");
 		if (this->saveData() == false) {
@@ -955,7 +955,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 		ruleEnd = this->config->iptablesRule.substr(posip + 2);
 	}
 	if (createRule == true) {
-		this->log->debug("Adding rule for " + address + " to iptables chain!");
+		this->log->info("Adding rule for " + address + " to iptables chain!");
 		try {
 			if (this->iptables->append("INPUT", ruleStart + address + ruleEnd) == false) {
 				this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
@@ -969,7 +969,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 		}
 	}
 	if(removeRule == true) {
-		this->log->debug("Removing rule of " + address + " from iptables chain!");
+		this->log->info("Removing rule for " + address + " from iptables chain!");
 		try {
 			if(this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
 				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
