@@ -1,4 +1,4 @@
-/* 
+/*
  * Class to work with hostblock config file.
  */
 

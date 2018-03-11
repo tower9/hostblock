@@ -1,4 +1,4 @@
-/* 
+/*
  * Simple class to work with iptables
  * No API at the moment so using stdio, see:
  * http://www.netfilter.org/documentation/FAQ/netfilter-faq-4.html#ss4.5
@@ -29,7 +29,7 @@ using namespace hb;
 
 Iptables::Iptables()
 {
-	
+
 }
 
 /*
@@ -125,7 +125,7 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 	if (cunistd::getuid() != 0) {
 		throw std::runtime_error("Error, root access required to work with iptables!");
 	}
-	
+
 	std::map<unsigned int, std::string> rules;
 	unsigned int ruleInd = 0;
 	rules.clear();
@@ -194,7 +194,7 @@ std::map<unsigned int, std::string> Iptables::custom(std::string options)
 	if (cunistd::getuid() != 0) {
 		throw std::runtime_error("Error, root access required to work with iptables!");
 	}
-	
+
 	std::map<unsigned int, std::string> stdoutResult;
 	unsigned int stdoutResultInd = 0;
 	stdoutResult.clear();
@@ -223,5 +223,5 @@ std::map<unsigned int, std::string> Iptables::custom(std::string options)
 		stdoutResult.insert(std::pair<unsigned int, std::string>(stdoutResultInd,line));
 		++stdoutResultInd;
 	}
-	return stdoutresult;
+	return stdoutResult;
 }

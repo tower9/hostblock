@@ -1,4 +1,4 @@
-/* 
+/*
  * Simple class to work with iptables
  */
 
@@ -21,6 +21,11 @@ class Iptables{
 		Iptables();
 
 		/*
+		 * Create new chain
+		 */
+		bool newChain(std::string chain);
+
+		/*
 		 * Append chain with new rule
 		 */
 		bool append(std::string chain, std::string rule);
@@ -34,6 +39,16 @@ class Iptables{
 		 * Get rule list
 		 */
 		std::map<unsigned int, std::string> listRules(std::string chain);
+
+		/*
+		 * Exec iptables any command with custom options
+		 */
+		bool command(std::string options);
+
+		/*
+		 * Exec iptables any command with custom options and return stdout in map each line as entry in map
+		 */
+		std::map<unsigned int, std::string> custom(std::string options);
 
 };
 
