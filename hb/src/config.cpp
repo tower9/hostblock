@@ -91,22 +91,22 @@ bool Config::load()
 
 					// Group handling - Gobal and Log.*
 					if (std::regex_search(line, groupSearchResults, groupSearchPattern) && groupSearchResults.size() == 1) {
-						if (line.substr(1,6) == "Global") {
+						if (line.substr(1, 6) == "Global") {
 							group = 0;
-						} else if (line.substr(1,4) == "Log.") {
+						} else if (line.substr(1, 4) == "Log.") {
 							group = 1;
 							hb::LogGroup logGroup;
-							logGroup.name = line.substr(5,line.length()-6);
+							logGroup.name = line.substr(5, line.length() - 6);
 							if (logDetails) this->log->debug("Log file group: " + logGroup.name);
 							itlg = this->logGroups.insert(itlg, logGroup);
 						}
 					}
 
 					if (group == 0) {// Global section
-						if (line.substr(0,9) == "log.level") {
+						if (line.substr(0, 9) == "log.level") {
 							pos = line.find_first_of('=');
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								if (line == "ERROR") {
 									this->logLevel = "ERROR";
 									this->log->setLevel(LOG_ERR);
@@ -122,31 +122,31 @@ bool Config::load()
 								}
 								if (logDetails) this->log->debug("Log level: " + line);
 							}
-						} else if (line.substr(0,18) == "log.check.interval") {
+						} else if (line.substr(0, 18) == "log.check.interval") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								this->logCheckInterval = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Interval for log file check: " + std::to_string(this->logCheckInterval));
 							}
-						} else if (line.substr(0,19) == "address.block.score") {
+						} else if (line.substr(0, 19) == "address.block.score") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								this->activityScoreToBlock = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Needed score to block IP address: " + std::to_string(this->activityScoreToBlock));
 							}
-						} else if (line.substr(0,24) == "address.block.multiplier") {
+						} else if (line.substr(0, 24) == "address.block.multiplier") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								this->keepBlockedScoreMultiplier = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score multiplier for rule keeping: " + std::to_string(this->keepBlockedScoreMultiplier));
 							}
-						} else if (line.substr(0,20) == "iptables.rules.block") {
+						} else if (line.substr(0, 20) == "iptables.rules.block") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								posip = line.find("%i");
 								if (posip != std::string::npos) {
 									this->iptablesRule = line;
@@ -155,73 +155,73 @@ bool Config::load()
 									this->log->error("Failed to parse iptables.rules.block, IP address placeholder not found! Will use default value.");
 								}
 							}
-						} else if (line.substr(0,15) == "datetime.format") {
+						} else if (line.substr(0, 15) == "datetime.format") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								this->dateTimeFormat = line;
 								if (logDetails) this->log->debug("Datetime format: " + this->dateTimeFormat);
 							}
-						} else if (line.substr(0,13) == "datafile.path") {
+						} else if (line.substr(0, 13) == "datafile.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								this->dataFilePath = hb::Util::ltrim(line.substr(pos+1));
+								this->dataFilePath = hb::Util::ltrim(line.substr(pos + 1));
 								if (logDetails) this->log->debug("Datafile path: " + this->dataFilePath);
 							}
 						}
 					} else if (group == 1) {// Log group section
-						if (line.substr(0,8) == "log.path") {
+						if (line.substr(0, 8) == "log.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								hb::LogFile logFile;
-								logFile.path = hb::Util::ltrim(line.substr(pos+1));
+								logFile.path = hb::Util::ltrim(line.substr(pos + 1));
 								if (cstat::stat(logFile.path.c_str(), &buffer) != 0) {
 									this->log->warning("Log file found in configuration, but not found in file system! Path: " + logFile.path);
 								}
 								itlg->logFiles.push_back(logFile);
 								if (logDetails) this->log->debug("Logfile path: " + hb::Util::ltrim(line.substr(pos+1)));
 							}
-						} else if (line.substr(0,11) == "log.pattern") {
+						} else if (line.substr(0, 11) == "log.pattern") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								hb::Pattern pattern;
-								pattern.patternString = hb::Util::ltrim(line.substr(pos+1));
+								pattern.patternString = hb::Util::ltrim(line.substr(pos + 1));
 								// Pattern must contain %i, a placeholder to find IP address
 								posip = pattern.patternString.find("%i");
 								if (posip != std::string::npos) {
 									itp = itlg->patterns.end();
-									itp = itlg->patterns.insert(itp,pattern);
+									itp = itlg->patterns.insert(itp, pattern);
 									if (logDetails) this->log->debug("Pattern to match: " + pattern.patternString);
 								} else {
 									this->log->warning("Unable to find \%i in pattern, pattern skipped: " + pattern.patternString);
 								}
 							}
-						} else if (line.substr(0,9) == "log.score") {
+						} else if (line.substr(0, 9) == "log.score") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								itp->score = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
 							}
-						} else if (line.substr(0,19) == "log.refused.pattern") {
+						} else if (line.substr(0, 19) == "log.refused.pattern") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								hb::Pattern pattern;
-								pattern.patternString = hb::Util::ltrim(line.substr(pos+1));
+								pattern.patternString = hb::Util::ltrim(line.substr(pos + 1));
 								// Pattern must contain %i, which is placeholder for where to find IP address
 								posip = pattern.patternString.find("%i");
 								if (posip != std::string::npos) {
 									itp = itlg->refusedPatterns.end();
-									itp = itlg->refusedPatterns.insert(itp,pattern);
+									itp = itlg->refusedPatterns.insert(itp, pattern);
 									if (logDetails) this->log->debug("Pattern to match blocked access: " + pattern.patternString);
 								} else {
 									this->log->warning("Unable to find \%i in pattern, pattern skipped: " + pattern.patternString);
 								}
 							}
-						} else if (line.substr(0,17) == "log.refused.score") {
+						} else if (line.substr(0, 17) == "log.refused.score") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
-								line = hb::Util::ltrim(line.substr(pos+1));
+								line = hb::Util::ltrim(line.substr(pos + 1));
 								itp->score = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
 							}

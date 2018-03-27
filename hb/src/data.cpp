@@ -115,19 +115,19 @@ bool Data::loadData()
 			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
 
 				// IP address
-				address = hb::Util::ltrim(line.substr(1,39));
+				address = hb::Util::ltrim(line.substr(1, 39));
 
 				// Timestamp of last activity
-				data.lastActivity = std::strtoull(hb::Util::ltrim(line.substr(40,20)).c_str(), NULL, 10);
+				data.lastActivity = std::strtoull(hb::Util::ltrim(line.substr(40, 20)).c_str(), NULL, 10);
 
 				// Total score of activity calculated at last activity
-				data.activityScore = std::strtoul(hb::Util::ltrim(line.substr(60,10)).c_str(), NULL, 10);
+				data.activityScore = std::strtoul(hb::Util::ltrim(line.substr(60, 10)).c_str(), NULL, 10);
 
 				// Suspicious activity count
-				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70,10)).c_str(), NULL, 10);
+				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70, 10)).c_str(), NULL, 10);
 
 				// Refused connection count
-				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80,10)).c_str(), NULL, 10);
+				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80, 10)).c_str(), NULL, 10);
 
 				// Whether IP address is in whitelist
 				if (line[90] == 'y') data.whitelisted = true;
@@ -156,10 +156,10 @@ bool Data::loadData()
 			} else if (recordType == 'b') {// Log file bookmarks
 
 				// Bookmark
-				bookmark = std::strtoull(hb::Util::ltrim(line.substr(1,20)).c_str(), NULL, 10);
+				bookmark = std::strtoull(hb::Util::ltrim(line.substr(1, 20)).c_str(), NULL, 10);
 
 				// Last known size to detect if log file has been rotated
-				size = std::strtoull(hb::Util::ltrim(line.substr(21,20)).c_str(), NULL, 10);
+				size = std::strtoull(hb::Util::ltrim(line.substr(21, 20)).c_str(), NULL, 10);
 
 				// Path to log file
 				logFilePath = hb::Util::rtrim(hb::Util::ltrim(line.substr(41)));
@@ -1190,7 +1190,7 @@ void Data::printStats()
 				std::cout << "blacklisted" << std::string(statusMaxLen - 11,' ');
 			} else if (this->config->keepBlockedScoreMultiplier > 0) {
 				// Score multiplier used
-				if (currentTime < t5it->lastActivity + t5it->activityScore) {
+				if (currentTime < (t5it->lastActivity + t5it->activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)) {
 					std::cout << hb::Data::formatDateTime((const time_t)(t5it->lastActivity + t5it->activityScore), this->config->dateTimeFormat.c_str());
 				} else {
 					std::cout << std::string(statusMaxLen,' ');
@@ -1248,7 +1248,7 @@ void Data::printStats()
 			} else if (this->suspiciousAddresses[l5it->address].blacklisted) {
 				std::cout << "blacklisted" << std::string(statusMaxLen - 11,' ');
 			} else if (this->config->keepBlockedScoreMultiplier > 0) {
-				if (currentTime < l5it->lastActivity + l5it->activityScore) {
+				if (currentTime < (l5it->lastActivity + l5it->activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)) {
 					std::cout << hb::Data::formatDateTime((const time_t)(l5it->lastActivity + l5it->activityScore), this->config->dateTimeFormat.c_str());
 				} else {
 					std::cout << std::string(statusMaxLen,' ');
@@ -1265,9 +1265,9 @@ void Data::printStats()
 }
 
 /*
- * Print (stdout) list of all blocked addresses
+ * Print (stdout) list of all blocked addresses or all addresses (flag)
  */
-void Data::printBlocked(bool count, bool time)
+void Data::printBlocked(bool count, bool time, bool all)
 {
 	if (this->suspiciousAddresses.size() > 0) {
 		std::map<std::string, SuspiciosAddressType>::iterator sait;
@@ -1295,12 +1295,13 @@ void Data::printBlocked(bool count, bool time)
 		// Output all blockecd addresses
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
 			// Whitelisted addresses are not blocked
-			if (sait->second.whitelisted) {
+			if (sait->second.whitelisted && all == false) {
 				continue;
 			}
 			if (sait->second.blacklisted
-				|| (this->config->keepBlockedScoreMultiplier > 0 && currentTime < sait->second.lastActivity + sait->second.activityScore)
-				|| (this->config->keepBlockedScoreMultiplier == 0 && sait->second.activityScore > this->config->activityScoreToBlock) ) {
+				|| (this->config->keepBlockedScoreMultiplier > 0 && currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier))
+				|| (this->config->keepBlockedScoreMultiplier == 0 && sait->second.activityScore > this->config->activityScoreToBlock)
+				|| all) {
 				std::cout << std::left << std::setw(15) << sait->first;
 				if (count) {
 					std::cout << ' ' << std::left << std::setw(activityCountMaxLen) << sait->second.activityCount;

@@ -1,5 +1,5 @@
 /*
- * Hostblock 2.0
+ * Hostblock 1.0.1
  *
  * Automatic blocking of suspicious remote IP hosts - tool monitors log files
  * for suspicious activity to automatically deny further access.
@@ -64,14 +64,15 @@ bool reloadConfig = false;
  */
 void printUsage()
 {
-	std::cout << "Hostblock v.1.0" << std::endl;
+	std::cout << "Hostblock v.1.0.1" << std::endl;
 	std::cout << "https://github.com/tower9/hostblock" << std::endl;
 	std::cout << std::endl;
-	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-c | --count] [-t | --time]] [-b<ip_address> | --blacklist=<ip_address>] [-w<ip_address> | --whitelist=<ip_address>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
+	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-a | --all] [-c | --count] [-t | --time]] [-b<ip_address> | --blacklist=<ip_address>] [-w<ip_address> | --whitelist=<ip_address>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
 	std::cout << " -h             | --help                   - this information" << std::endl;
 	std::cout << " -p             | --print-config           - output configuration" << std::endl;
 	std::cout << " -s             | --statistics             - statistics" << std::endl;
 	std::cout << " -l             | --list                   - list of blocked suspicious IP addresses" << std::endl;
+	std::cout << " -a             | --all                    - list all IP addresses, not only blocked" << std::endl;
 	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count, score and refused count" << std::endl;
 	std::cout << " -lt            | --list --time            - list of blocked suspicious IP addresses with last suspicious activity time" << std::endl;
 	std::cout << " -lct           | --list --count --time    - list of blocked suspicious IP addresses with suspicious activity count, score, refused count and last suspicious activity time" << std::endl;
@@ -114,6 +115,7 @@ int main(int argc, char *argv[])
 	bool printConfigFlag = false;
 	bool statisticsFlag = false;
 	bool listFlag = false;
+	bool allFlag = false;
 	bool countFlag = false;
 	bool timeFlag = false;
 	bool blacklistFlag = false;
@@ -129,6 +131,7 @@ int main(int argc, char *argv[])
 		{"print-config", no_argument,       0, 'p'},
 		{"statistics",   no_argument,       0, 's'},
 		{"list",         no_argument,       0, 'l'},
+		{"all",          no_argument,       0, 'a'},
 		{"count",        no_argument,       0, 'c'},
 		{"time",         no_argument,       0, 't'},
 		{"blacklist",    required_argument, 0, 'b'},
@@ -141,7 +144,7 @@ int main(int argc, char *argv[])
 	int option_index = 0;
 
 	// Check options
-	while ((c = cgetopt::getopt_long(argc, argv, "hpslctb:w:r:d", long_options, &option_index)) != -1)
+	while ((c = cgetopt::getopt_long(argc, argv, "hpslactb:w:r:d", long_options, &option_index)) != -1)
 		switch (c) {
 			case 'h':
 				printUsage();
@@ -156,6 +159,9 @@ int main(int argc, char *argv[])
 			case 'l':
 				listFlag = true;
 				break;
+			case 'a':
+				allFlag = true;
+				break;
 			case 'c':
 				countFlag = true;
 				break;
@@ -164,15 +170,15 @@ int main(int argc, char *argv[])
 				break;
 			case 'b':
 				blacklistFlag = true;
-				ipAddress = cgetopt::optarg;
+				ipAddress = cunistd::optarg;
 				break;
 			case 'w':
 				whitelistFlag = true;
-				ipAddress = cgetopt::optarg;
+				ipAddress = cunistd::optarg;
 				break;
 			case 'r':
 				removeFlag = true;
-				ipAddress = cgetopt::optarg;
+				ipAddress = cunistd::optarg;
 				break;
 			case 'd':
 				daemonFlag = true;
@@ -231,21 +237,21 @@ int main(int argc, char *argv[])
 		config.print();
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
-			log.debug("Configuration outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			log.debug("Configuration outputed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
 	} else if (statisticsFlag) {// Output statistics
 		data.printStats();
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
-			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
-	} else if (listFlag) {// 	Output list of blocked suspicious addresses
-		data.printBlocked(countFlag, timeFlag);
+	} else if (listFlag) {// 	Output list of addresses/blocked suspicious addresses
+		data.printBlocked(countFlag, timeFlag, allFlag);
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
-			log.debug("List of blocked addresses outputed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			log.debug("List of addresses/blocked addresses outputed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
 	} else if (blacklistFlag) {// Toggle whether address is in blacklist
@@ -255,7 +261,7 @@ int main(int argc, char *argv[])
 			std::time(&currentTime);
 			hb::SuspiciosAddressType dataRecord;
 			dataRecord.lastActivity = (unsigned long long int)currentTime;
-			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
+			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress, dataRecord));
 			data.addAddress(ipAddress);
 		}
 
@@ -301,7 +307,7 @@ int main(int argc, char *argv[])
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
-			log.debug("Address blacklist change " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			log.debug("Address blacklist change " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
 	} else if (whitelistFlag) {// Toggle whether address is in whitelist
@@ -311,13 +317,13 @@ int main(int argc, char *argv[])
 			std::time(&currentTime);
 			hb::SuspiciosAddressType dataRecord;
 			dataRecord.lastActivity = (unsigned long long int)currentTime;
-			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress,dataRecord));
+			data.suspiciousAddresses.insert(std::pair<std::string,hb::SuspiciosAddressType>(ipAddress, dataRecord));
 			data.addAddress(ipAddress);
 		}
 
 		if (data.suspiciousAddresses[ipAddress].blacklisted) {
 			// If address is in whitelist, ask user to confirm
-			std::cout << "Address is already blacklist, would you like to remove it from blacklist and add to whitelist instead? [y/n]";
+			std::cout << "Address is already blacklisted, would you like to remove it from blacklist and add to whitelist instead? [y/n]";
 			char choice = 'n';
 			std::cin >> choice;
 			if (choice == 'y') {
@@ -357,7 +363,7 @@ int main(int argc, char *argv[])
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
-			log.debug("Address whitelist change " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			log.debug("Address whitelist change " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
 	} else if (removeFlag) {// Remove address from datafile
@@ -439,7 +445,7 @@ int main(int argc, char *argv[])
 
 		if (config.logLevel == "DEBUG") {
 			initEnd = clock();
-			log.debug("Address removed in " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+			log.debug("Address removed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 		}
 		exit(0);
 	} else if (daemonFlag) {// Run as daemon
@@ -564,7 +570,7 @@ int main(int argc, char *argv[])
 
 			if (config.logLevel == "DEBUG") {
 				initEnd = clock();
-				log.debug("Daemon initialization exec time: " + std::to_string((double)(initEnd - initStart)/CLOCKS_PER_SEC) + " sec");
+				log.debug("Daemon initialization exec time: " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
 			}
 
 			// Main loop
@@ -685,7 +691,7 @@ int main(int argc, char *argv[])
 
 					// Check iptables rules if any are expired and should be removed
 					// TODO: Since needed in multiple places, maybe move this check to new method in Data?
-					for (sait = data.suspiciousAddresses.begin(); sait!=data.suspiciousAddresses.end(); ++sait) {
+					for (sait = data.suspiciousAddresses.begin(); sait != data.suspiciousAddresses.end(); ++sait) {
 						// If address has rule
 						if (sait->second.iptableRule) {
 							// Reset rule removal flag

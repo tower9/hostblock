@@ -2,8 +2,8 @@ OBJS = logger.o iptables.o util.o config.o data.o logparser.o main.o
 TOBJS = logger.o iptables.o util.o config.o data.o logparser.o test.o
 CC = g++
 DEBUG = -g
-CFLAGS = -std=c++11 -Wall -c $(DEBUG)
-LFLAGS = -std=c++11 -Wall $(DEBUG)
+CFLAGS = -std=c++14 -Wall -c $(DEBUG)
+LFLAGS = -std=c++14 -Wall $(DEBUG)
 
 prefix = /usr/local
 

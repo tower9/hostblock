@@ -151,7 +151,7 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 	std::istringstream iss(result);
 	std::string line;
 	for (line = ""; std::getline(iss, line);) {
-		rules.insert(std::pair<unsigned int, std::string>(ruleInd,line));
+		rules.insert(std::pair<unsigned int, std::string>(ruleInd, line));
 		++ruleInd;
 	}
 	return rules;
@@ -220,7 +220,7 @@ std::map<unsigned int, std::string> Iptables::custom(std::string options)
 	std::istringstream iss(result);
 	std::string line;
 	for (line = ""; std::getline(iss, line);) {
-		stdoutResult.insert(std::pair<unsigned int, std::string>(stdoutResultInd,line));
+		stdoutResult.insert(std::pair<unsigned int, std::string>(stdoutResultInd, line));
 		++stdoutResultInd;
 	}
 	return stdoutResult;

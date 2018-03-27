@@ -1,4 +1,4 @@
-/* 
+/*
  * Misc
  */
 
@@ -29,7 +29,7 @@ std::string Util::rtrim(std::string str)
 {
 	size_t endpos = str.find_last_not_of(" ");
 	if (endpos != std::string::npos) {
-		return str.substr(0,endpos + 1);
+		return str.substr(0, endpos + 1);
 	}
 	return str;
 }

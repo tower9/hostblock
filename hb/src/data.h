@@ -1,4 +1,4 @@
-/* 
+/*
  * Class to work with data file.
  */
 #ifndef HBDATA_H
@@ -118,7 +118,7 @@ class Data{
 		/*
 		 * Print (stdout) list of all blocked addresses
 		 */
-		void printBlocked(bool count = false, bool time = false);
+		void printBlocked(bool count = false, bool time = false, bool all = false);
 
 };
 
