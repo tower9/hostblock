@@ -1,4 +1,4 @@
-/* 
+/*
  * Class to work with hostblock config file.
  */
 #ifndef HBCONFIG_H
@@ -60,13 +60,13 @@ class Config{
 		/*
 		 * Score multiplier to calculate for how long time to keep address blocked (result is in seconds)
 		 * 0 - will keep forever
-		 * 
+		 *
 		 * If score == 1:
 		 * 1*3600 - hour
 		 * 1*86400 - day
 		 * 1*432000 - 5 days
 		 * 1*2592000 - 30 days
-		 * 
+		 *
 		 * If score == 4:
 		 * 4*3600 - 4 hours
 		 * 4*86400 - 4 days
@@ -79,6 +79,11 @@ class Config{
 		 * Path to data file
 		 */
 		std::string dataFilePath = "/usr/share/hostblock/hostblock.data";
+
+		/*
+		 * AbuseIPDB API key
+		 */
+		std::string abuseipdbKey = "";
 
 		/*
 		 * Log groups

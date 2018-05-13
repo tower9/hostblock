@@ -687,6 +687,8 @@ int main(int argc, char *argv[])
 				if ((unsigned int)(currentTime - lastLogCheck) >= config.logCheckInterval) {
 
 					// Check log files for suspicious activity and update iptables if needed
+					// TODO make this function responsive to kill
+					// TODO check file size also in this function since this can take longer than log rotate
 					logParser.checkFiles();
 
 					// Check iptables rules if any are expired and should be removed

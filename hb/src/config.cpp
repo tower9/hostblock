@@ -168,6 +168,12 @@ bool Config::load()
 								this->dataFilePath = hb::Util::ltrim(line.substr(pos + 1));
 								if (logDetails) this->log->debug("Datafile path: " + this->dataFilePath);
 							}
+						} else if (line.substr(0, 17) == "abuseipdb.api.key") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								this->abuseipdbKey = hb::Util::ltrim(line.substr(pos + 1));
+								if (logDetails) this->log->debug("AbuseIPDB API key: " + this->abuseipdbKey);
+							}
 						}
 					} else if (group == 1) {// Log group section
 						if (line.substr(0, 8) == "log.path") {
@@ -303,6 +309,8 @@ void Config::print()
 	std::cout << "datetime.format = " << this->dateTimeFormat << std::endl << std::endl;
 	std::cout << "## Full path to datafile" << std::endl;
 	std::cout << "datafile.path = " << this->dataFilePath << std::endl << std::endl;
+	std::cout << "## AbuseIPDB" << std::endl;
+	std::cout << "abuseipdb.api.key = " << this->abuseipdbKey << std::endl << std::endl;
 	std::vector<LogGroup>::iterator itlg;
 	std::vector<LogFile>::iterator itlf;
 	std::vector<Pattern>::iterator itpa;
@@ -324,8 +332,8 @@ void Config::print()
 		std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
 		std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
 		for (itpa = itlg->refusedPatterns.begin(); itpa != itlg->refusedPatterns.end(); ++itpa) {
-			std::cout << "log.pattern = " << itpa->patternString << std::endl;
-			std::cout << "log.score = " << itpa->score << std::endl;
+			std::cout << "log.refused.pattern = " << itpa->patternString << std::endl;
+			std::cout << "log.refused.score = " << itpa->score << std::endl;
 		}
 	}
 }

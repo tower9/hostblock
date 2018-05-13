@@ -107,7 +107,7 @@ void LogParser::checkFiles()
 								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
 									if (ipSearchResults.size() > 0) {
 
-										// Optmistically, here we hope that first match is address we need
+										// Optimistically, here we hope that first match is the address we need
 										ipAddress = std::string(ipSearchResults[0]);
 										this->log->debug("Suspicious activity pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
 
@@ -136,7 +136,7 @@ void LogParser::checkFiles()
 								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
 									if (ipSearchResults.size() > 0) {
 
-										// Optmistically, here we hope that first match is address we need
+										// Optimistically, here we hope that first match is address we need
 										ipAddress = std::string(ipSearchResults[0]);
 										this->log->debug("Blocked access pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
 
@@ -160,6 +160,21 @@ void LogParser::checkFiles()
 
 					// Update bookmark
 					itlf->bookmark = is.tellg();
+
+					// TODO Check log rotation after each 500 lines (this process can be long running)
+					// if (cstat::stat(itlf->path.c_str(), &buffer) == 0) {
+
+					// }
+
+					// TODO Respond on daemon main loop quit request
+					// if (!running) {
+					// 	// Update datafile
+					// 	if (initialBookmark != itlf->bookmark) {
+					// 		this->data->updateFile(itlf->path);
+					// 	}
+					// 	// Break the loop
+					// 	break;
+					// }
 
 					// Sleep
 					cunistd::usleep(10);
