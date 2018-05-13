@@ -1,5 +1,5 @@
 /*
- * Class to work with hostblock config file.
+ * Class to work with AbuseIPDB API
  */
 #ifndef HBABIPDB_H
 #define HBABIPDB_H
@@ -29,8 +29,20 @@ struct AbuseIPDBCheckResult {
 	std::vector<AbuseIPDBReport> reports;
 };
 
+/*
+ * To store JSON result from abuseipdb.com
+ */
+struct JSONData {
+	char *memory;
+	size_t size;
+};
+
 class AbuseIPDB{
 	private:
+		/*
+		 * cURL
+		 */
+		CURL* curl;
 
 	public:
 

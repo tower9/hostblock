@@ -1,5 +1,6 @@
-OBJS = logger.o iptables.o util.o config.o data.o logparser.o main.o
-TOBJS = logger.o iptables.o util.o config.o data.o logparser.o test.o
+OBJS = logger.o iptables.o util.o config.o data.o logparser.o abuseipdb.o main.o
+TOBJS = logger.o iptables.o util.o config.o data.o logparser.o abuseipdb.o test.o
+LIBS = -lcurl
 CC = g++
 DEBUG = -g
 CFLAGS = -std=c++14 -Wall -c $(DEBUG)
@@ -8,7 +9,7 @@ LFLAGS = -std=c++14 -Wall $(DEBUG)
 prefix = /usr/local
 
 hostblock: $(OBJS)
-	$(CC) $(LFLAGS) $(OBJS) -o hostblock
+	$(CC) $(LFLAGS) $(OBJS) $(LIBS) -o hostblock
 
 main.o: hb/src/main.cpp
 	$(CC) $(CFLAGS) hb/src/main.cpp
@@ -30,6 +31,9 @@ logger.o: hb/src/logger.h hb/src/logger.cpp
 
 util.o: hb/src/util.h hb/src/util.cpp
 	$(CC) $(CFLAGS) hb/src/util.cpp
+
+abuseipdb.o: hb/src/abuseipdb.h hb/src/abuseipdb.cpp
+	$(CC) $(CFLAGS) hb/src/abuseipdb.cpp
 
 .PHONY: install clean
 

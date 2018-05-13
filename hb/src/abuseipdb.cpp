@@ -5,6 +5,8 @@
 #include <vector>
 // Standard string library
 #include <string>
+// cURL
+#include <curl/curl.h>
 // Header
 #include "abuseipdb.h"
 
@@ -13,7 +15,8 @@ using namespace hb;
 
 AbuseIPDB::AbuseIPDB()
 {
-
+	curl_global_init(CURL_GLOBAL_DEFAULT);
+	this->curl = curl_easy_init();
 }
 
 AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address)
