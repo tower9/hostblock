@@ -168,11 +168,24 @@ bool Config::load()
 								this->dataFilePath = hb::Util::ltrim(line.substr(pos + 1));
 								if (logDetails) this->log->debug("Datafile path: " + this->dataFilePath);
 							}
+						} else if (line.substr(0, 17) == "abuseipdb.api.url") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								this->abuseipdbURL = hb::Util::ltrim(line.substr(pos + 1));
+								if (logDetails) this->log->debug("AbuseIPDB API URL: " + this->abuseipdbURL);
+							}
 						} else if (line.substr(0, 17) == "abuseipdb.api.key") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								this->abuseipdbKey = hb::Util::ltrim(line.substr(pos + 1));
 								if (logDetails) this->log->debug("AbuseIPDB API key: " + this->abuseipdbKey);
+							}
+						} else if (line.substr(0, 25) == "abuseipdb.datetime.format") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->abuseipdbDatetimeFormat = line;
+								if (logDetails) this->log->debug("AbuseIPDB API datetime format: " + this->abuseipdbDatetimeFormat);
 							}
 						}
 					} else if (group == 1) {// Log group section
@@ -309,8 +322,12 @@ void Config::print()
 	std::cout << "datetime.format = " << this->dateTimeFormat << std::endl << std::endl;
 	std::cout << "## Full path to datafile" << std::endl;
 	std::cout << "datafile.path = " << this->dataFilePath << std::endl << std::endl;
-	std::cout << "## AbuseIPDB" << std::endl;
+	std::cout << "## AbuseIPDB API URL" << std::endl;
+	std::cout << "abuseipdb.api.url = " << this->abuseipdbURL << std::endl << std::endl;
+	std::cout << "## AbuseIPDB API key" << std::endl;
 	std::cout << "abuseipdb.api.key = " << this->abuseipdbKey << std::endl << std::endl;
+	std::cout << "## AbuseIPDB API date and time format" << std::endl;
+	std::cout << "abuseipdb.datetime.format = " << this->abuseipdbDatetimeFormat << std::endl << std::endl;
 	std::vector<LogGroup>::iterator itlg;
 	std::vector<LogFile>::iterator itlf;
 	std::vector<Pattern>::iterator itpa;

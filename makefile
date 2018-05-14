@@ -1,6 +1,8 @@
 OBJS = logger.o iptables.o util.o config.o data.o logparser.o abuseipdb.o main.o
 TOBJS = logger.o iptables.o util.o config.o data.o logparser.o abuseipdb.o test.o
-LIBS = -lcurl
+# https://curl.haxx.se/libcurl/
+# https://github.com/open-source-parsers/jsoncpp
+LIBS = -lcurl -ljsoncpp
 CC = g++
 DEBUG = -g
 CFLAGS = -std=c++14 -Wall -c $(DEBUG)

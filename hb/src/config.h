@@ -81,9 +81,19 @@ class Config{
 		std::string dataFilePath = "/usr/share/hostblock/hostblock.data";
 
 		/*
+		 * AbuseIPDB API URL
+		 */
+		std::string abuseipdbURL = "https://www.abuseipdb.com";
+
+		/*
 		 * AbuseIPDB API key
 		 */
 		std::string abuseipdbKey = "";
+
+		/*
+		 * AbuseIPDB API date and time format
+		 */
+		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S";
 
 		/*
 		 * Log groups
