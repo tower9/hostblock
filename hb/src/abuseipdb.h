@@ -29,7 +29,7 @@ struct AbuseIPDBReport {
 /*
  * To store JSON result from abuseipdb.com with cURL
  */
-struct JSONData {
+struct AbuseIPDBJSONData {
 	char *memory;
 	size_t size;
 };
@@ -37,7 +37,7 @@ struct JSONData {
 /*
  * AbuseIPDB report categories
  */
-enum Categories {
+enum AbuseIPDBCategories {
 	FraudOrders = 3,
 	DDoSAttach = 4,
 	FTPBruteForce = 5,
@@ -98,7 +98,7 @@ class AbuseIPDB{
 		/*
 		 * Report IP address to abuseipdb.com
 		 */
-		bool reportAddress(std::string address, std::string comment, std::vector<int> categories, bool asynchronous = false);
+		bool reportAddress(std::string address, std::string comment, std::vector<unsigned int> &categories);
 
 		/*
 		 * For cURL response store
