@@ -253,13 +253,13 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 				}
 				// std::cout << "Response: " << response << std::endl;
 
-				// Parse JSON and store into hb::AbuseIPDBCheckResult
+				// Parse JSON
 				Json::Reader reader;
 				Json::Value obj;
 				if (reader.parse(response, obj)) {
 					// std::cout << "count: " << obj.size() << std::endl;
 					if (obj.size() > 0) {
-						// Check response
+						// Check response, whether in JSON we got success == true
 						if (obj["success"] == true) {
 							curl_easy_cleanup(curl);
 							free(chunk.memory);
