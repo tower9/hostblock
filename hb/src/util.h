@@ -1,4 +1,4 @@
-/* 
+/*
  * Misc
  */
 #ifndef HBUTIL_H
@@ -11,6 +11,12 @@
 
 namespace hb{
 
+enum Report {
+	False,
+	True,
+	NotSet
+};
+
 /*
  * Pattern
  */
@@ -18,6 +24,10 @@ struct Pattern {
 	std::string patternString = "";// Regex as string
 	std::regex pattern;// Regex to match
 	unsigned int score = 1;// Score if pattern matched
+	Report abuseipdbReport = Report::NotSet;
+	std::vector<unsigned int> abuseipdbCategories;
+	std::string abuseipdbComment;
+	bool abuseipdbCommentIsSet = false;// Comment is optional, if empty string is set at this level, then do not send comment (do not use comment from global settings)
 };
 
 /*
@@ -38,6 +48,10 @@ struct LogGroup {
 	std::vector<Pattern> refusedPatterns;
 	std::vector<LogFile> logFiles;
 	std::string name = "";
+	Report abuseipdbReport = Report::NotSet;
+	std::vector<unsigned int> abuseipdbCategories;
+	std::string abuseipdbComment;
+	bool abuseipdbCommentIsSet = false;// Comment is optional, if empty string is set at this level, then do not send comment (do not use comment from log group or global settings)
 };
 
 /*
@@ -51,6 +65,7 @@ struct SuspiciosAddressType{
 	bool whitelisted = false;
 	bool blacklisted = false;
 	bool iptableRule = false;
+	unsigned long long int lastReported = 0;
 };
 struct SuspiciosAddressStatType{
 	unsigned long long int lastActivity = 0;
@@ -58,6 +73,38 @@ struct SuspiciosAddressStatType{
 	unsigned int activityCount = 0;
 	unsigned int refusedCount = 0;
 	std::string address = "";
+};
+
+/*
+ * Report data for sending to AbuseIPDB
+ */
+struct ReportToAbuseIPDB {
+	std::string ip;
+	std::vector<unsigned int> categories;
+	std::string comment;
+};
+
+/*
+ * Report data received from AbuseIPDB
+ * Note, comment and userId is returned only with verbose request
+ */
+struct ReportFromAbuseIPDB {
+	std::string ip;
+	std::vector<unsigned int> categories;
+	unsigned long long int created;
+	std::string country;
+	std::string isoCode;
+	bool isWhitelisted;
+	std::string comment;
+	unsigned int userId;
+};
+
+/*
+ * To store JSON result from abuseipdb.com with cURL
+ */
+struct AbuseIPDBJSONData {
+	char *memory;
+	size_t size;
 };
 
 class Util{
@@ -74,6 +121,11 @@ class Util{
 		 * Trim spaces from right side of string
 		 */
 		static std::string rtrim(std::string str);
+
+		/*
+		 * Convert characters to lower case
+		 */
+		static std::string toLower(std::string str);
 
 		/*
 		 * Get textual info about regex error

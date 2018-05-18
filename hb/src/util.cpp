@@ -4,6 +4,8 @@
 
 // Standard string library
 #include <string>
+// std::locale, std::tolower
+#include <locale>
 // Header
 #include "util.h"
 
@@ -33,6 +35,19 @@ std::string Util::rtrim(std::string str)
 	}
 	return str;
 }
+
+/*
+ * Convert characters to lower case
+ */
+std::string Util::toLower(std::string str)
+{
+	std::locale loc;
+	for (std::string::size_type i=0; i<str.length(); ++i) {
+		str[i] = std::tolower(str[i],loc);
+	}
+	return str;
+}
+
 
 /*
  * Regex error code explanations
