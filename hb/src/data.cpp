@@ -560,7 +560,7 @@ bool Data::updateAddress(std::string address)
 					break;
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(53, f.cur);
+				f.seekg(73, f.cur);
 			} else {// Other type of record (file bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
@@ -617,7 +617,7 @@ bool Data::removeAddress(std::string address)
 					break;// No need to continue reading file
 				}
 				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(53, f.cur);
+				f.seekg(73, f.cur);
 			} else {// Variable length record (file bookmark or removed record)
 				// We can skip at min 41 pos
 				f.seekg(41, f.cur);
@@ -711,7 +711,7 @@ bool Data::updateFile(std::string filePath)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Address record, skip to next one
-				f.seekg(92, f.cur);
+				f.seekg(112, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 				// Save current position, will need later if file path will match needed one
 				tmppos = f.tellg();
@@ -790,7 +790,7 @@ bool Data::removeFile(std::string filePath)
 		while (f.get(c)) {
 			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 			if (c == 'd') {// Address record, skip to next one
-				f.seekg(92, f.cur);
+				f.seekg(112, f.cur);
 			} else if (c == 'b') {// Log file record, check if path matches needed one
 
 				// Save current position, will need later if file path will match needed one
