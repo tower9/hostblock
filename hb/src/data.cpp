@@ -32,6 +32,7 @@
  *               this address), y/n, len 1
  * blacklisted - flag if this IP address is blacklisted (manual list) and must
  *               be blocked allways, y/n, len 1
+ * lastreport  - unix timestamp of last report to 3rd part, len 20
  * bookmark    - bookmark with how far this file is already parsed, len 20
  * size        - size of file when it was last read, len 20
  * file_path   - full path to log file, variable len (limits.h/PATH_MAX is not
@@ -102,6 +103,7 @@ bool Data::loadData()
 		std::vector<hb::LogGroup>::iterator itlg;
 		std::vector<hb::LogFile>::iterator itlf;
 		unsigned int removedRecords = 0;
+		bool needUpgrade = false;
 
 		// Clear this->suspiciousAddresses
 		this->suspiciousAddresses.clear();
@@ -112,7 +114,7 @@ bool Data::loadData()
 			// First position is record type
 			recordType = line[0];
 
-			if(recordType == 'd' && line.length() == 92){// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
+			if (recordType == 'd' && (line.length() == 92 || line.length() == 112)) {// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
 
 				// IP address
 				address = hb::Util::ltrim(line.substr(1, 39));
@@ -141,6 +143,14 @@ bool Data::loadData()
 				if (data.whitelisted == true && data.blacklisted == true) {
 					this->log->warning("Address " + address + " is in whitelist and at the same time in blacklist! Removing address from blacklist...");
 					data.blacklisted = false;
+				}
+
+				// Timestamp of last report t 3rd party
+				// TODO, introduce data file version to handle upgrade
+				if (line.length() == 112) {
+					data.lastReported = std::strtoull(hb::Util::ltrim(line.substr(92, 20)).c_str(), NULL, 10);
+				} else {
+					needUpgrade = true;
 				}
 
 				// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
@@ -250,6 +260,12 @@ bool Data::loadData()
 				this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
 				return false;
 			}
+		} else if (needUpgrade) {// Need to upgrade datafile
+			this->log->info("Datafile requires upgrade! Saving new datafile...");
+			if (this->saveData() == false) {
+				this->log->error("Data file requires upgrade, tried saving new data file, but failed!");
+				return false;
+			}
 		}
 
 		// Data file processing finished
@@ -289,6 +305,7 @@ bool Data::saveData()
 			else f << 'n';
 			if(it->second.blacklisted == true) f << 'y';
 			else f << 'n';
+			f << std::right << std::setw(20) << it->second.lastReported;// Last report, left padded with spaces
 			// f << std::endl;// endl should flush buffer
 			f << "\n";// \n should not flush buffer
 		}
@@ -492,6 +509,7 @@ bool Data::addAddress(std::string address)
 		else f << 'n';
 		if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
 		else f << 'n';
+		f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
 		// f << std::endl;// endl should flush buffer
 		f << "\n";// \n should not flush buffer
 
@@ -533,6 +551,7 @@ bool Data::updateAddress(std::string address)
 					else f << 'n';
 					if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
 					else f << 'n';
+					f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
 					// f << std::endl;// endl should flush buffer
 					f << "\n";// \n should not flush buffer
 					recordFound = true;
@@ -888,6 +907,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 		data.refusedCount = refusedCount;
 		data.whitelisted = false;
 		data.blacklisted = false;
+		data.lastReported = 0;
 		this->suspiciousAddresses.insert(std::pair<std::string,SuspiciosAddressType>(address,data));
 		newEntry = true;
 	}
@@ -899,6 +919,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 	this->log->debug("Refused count: " + std::to_string(this->suspiciousAddresses[address].refusedCount));
 	if (this->suspiciousAddresses[address].whitelisted) this->log->debug("Address is in whitelist!");
 	if (this->suspiciousAddresses[address].blacklisted) this->log->debug("Address is in blacklist!");
+	this->log->debug("Last reported: " + std::to_string(this->suspiciousAddresses[address].lastReported));
 
 	// Check new score and see if need to add to/remove from iptables
 	bool createRule = false;
