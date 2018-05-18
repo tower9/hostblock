@@ -92,8 +92,25 @@ class Config{
 
 		/*
 		 * AbuseIPDB API date and time format
+		 * Note,found %z in std::put_time not in std::get_time specs, std::get_time fails with %z :(
 		 */
 		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S";
+
+		/*
+		 * Whether to report all matches to AbuseIPDB (can be overridden at log group and pattern level)
+		 */
+		bool abuseipdbReportAll = false;
+
+		/*
+		 * Default AbuseIPDB categories for reporting (can be overridden at log group and pattern level)
+		 */
+		std::vector<unsigned int> abuseipdbDefaultCategories = std::vector<unsigned int>(1, 15);
+
+		/*
+		 * Default AbuseIPDB comment for reporting (can be overridden at log group and pattern level)
+		 */
+		std::string abuseipdbDefaultComment = "Hostblock (https://github.com/tower9/hostblock) pattern match";
+		bool abuseipdbDefaultCommentIsSet = false;
 
 		/*
 		 * Log groups

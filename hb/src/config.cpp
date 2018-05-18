@@ -56,9 +56,11 @@ bool Config::load()
 		int group = 0;// 0 Global group, 1 Log group
 		std::vector<hb::LogGroup>::iterator itlg;
 		std::vector<hb::Pattern>::iterator itp;
-		std::size_t pos, posip;
+		std::size_t pos, posip, posd;
 		bool logDetails = true;
 		struct cstat::stat buffer;
+		unsigned int category = 0;
+		std::string categoriesS = "";
 
 		try{
 			std::smatch groupSearchResults;
@@ -98,7 +100,7 @@ bool Config::load()
 							hb::LogGroup logGroup;
 							logGroup.name = line.substr(5, line.length() - 6);
 							if (logDetails) this->log->debug("Log file group: " + logGroup.name);
-							itlg = this->logGroups.insert(itlg, logGroup);
+							itlg = this->logGroups.insert(this->logGroups.end(), logGroup);
 						}
 					}
 
@@ -187,9 +189,110 @@ bool Config::load()
 								this->abuseipdbDatetimeFormat = line;
 								if (logDetails) this->log->debug("AbuseIPDB API datetime format: " + this->abuseipdbDatetimeFormat);
 							}
+						} else if (line.substr(0, 20) == "abuseipdb.report.all") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::toLower(hb::Util::ltrim(line.substr(pos + 1)));
+								if (line == "true") {
+									this->abuseipdbReportAll = true;
+								} else {
+									this->abuseipdbReportAll = false;
+								}
+								if (logDetails) this->log->debug("Report all matches to AbuseIPDB: " + std::to_string(this->abuseipdbReportAll));
+							}
+						} else if (line.substr(0, 27) == "abuseipdb.report.categories") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->abuseipdbDefaultCategories.clear();
+								if (line.size() > 0) {
+									try {
+										if (logDetails) categoriesS = "";
+										// Loop delimiters
+										while ((posd = line.find(",")) != std::string::npos) {
+											category = std::stoul(hb::Util::ltrim(line.substr(0, posd)));
+											if (logDetails) categoriesS += std::to_string(category) + ", ";
+											line.erase(0, posd + 1);// position + delimiter length
+											this->abuseipdbDefaultCategories.insert(this->abuseipdbDefaultCategories.end(), category);
+										}
+										// And last one
+										category = std::stoul(hb::Util::ltrim(line.substr(0, posd)));
+										if (logDetails) {
+											categoriesS += std::to_string(category);
+											this->log->debug("AbuseIPDB API default categories for reporting: " + categoriesS);
+										}
+										this->abuseipdbDefaultCategories.insert(this->abuseipdbDefaultCategories.end(), category);
+									} catch (std::invalid_argument& e) {
+										this->log->error("Failed to parse AbuseIPDB API default categories! Failed to parse value!");
+									} catch (std::out_of_range& e) {
+										this->log->error("Failed to parse AbuseIPDB API default categories! Failed to parse value (out of range)!");
+									}
+								} else {
+									this->log->error("Failed to parse AbuseIPDB API default categories! Empty value!");
+								}
+							}
+						} else if (line.substr(0, 24) == "abuseipdb.report.comment") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->abuseipdbDefaultComment = line;
+								this->abuseipdbDefaultCommentIsSet = true;
+								if (logDetails) this->log->debug("AbuseIPDB API default comment for reporting: " + this->abuseipdbDefaultComment);
+							}
 						}
 					} else if (group == 1) {// Log group section
-						if (line.substr(0, 8) == "log.path") {
+						if (line.substr(0, 20) == "abuseipdb.report.all") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::toLower(hb::Util::ltrim(line.substr(pos + 1)));
+								if (line == "true") {
+									itlg->abuseipdbReport = Report::True;
+								} else if (line == "false") {
+									itlg->abuseipdbReport = Report::False;
+								} else {
+									itlg->abuseipdbReport = Report::NotSet;
+								}
+								if (logDetails) this->log->debug("Log group reporting to AbuseIPDB: " + std::to_string(itlg->abuseipdbReport));
+							}
+						} else if (line.substr(0, 27) == "abuseipdb.report.categories") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								if (line.size() > 0) {
+									try {
+										if (logDetails) categoriesS = "";
+										// Loop delimiters
+										while ((posd = line.find(",")) != std::string::npos) {
+											category = std::stoul(hb::Util::ltrim(line.substr(0, posd)));
+											if (logDetails) categoriesS += std::to_string(category) + ", ";
+											line.erase(0, posd + 1);// position + delimiter length
+											itlg->abuseipdbCategories.insert(itlg->abuseipdbCategories.end(), category);
+										}
+										// And last one
+										category = std::stoul(hb::Util::ltrim(line.substr(0, posd)));
+										if (logDetails) {
+											categoriesS += std::to_string(category);
+											this->log->debug("Log group AbuseIPDB categories for reporting: " + categoriesS);
+										}
+										itlg->abuseipdbCategories.insert(itlg->abuseipdbCategories.end(), category);
+									} catch (std::invalid_argument& e) {
+										this->log->error("Failed to parse log group AbuseIPDB categories! Failed to parse value!");
+									} catch (std::out_of_range& e) {
+										this->log->error("Failed to parse log group AbuseIPDB categories! Failed to parse value (out of range)!");
+									}
+								} else {
+									this->log->error("Failed to parse log group AbuseIPDB categories! Empty value!");
+								}
+							}
+						} else if (line.substr(0, 24) == "abuseipdb.report.comment") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								itlg->abuseipdbComment = line;
+								itlg->abuseipdbCommentIsSet = true;
+								if (logDetails) this->log->debug("Log group AbuseIPDB comment for reporting: " + itlg->abuseipdbComment);
+							}
+						} else if (line.substr(0, 8) == "log.path") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
 								hb::LogFile logFile;
@@ -243,6 +346,57 @@ bool Config::load()
 								line = hb::Util::ltrim(line.substr(pos + 1));
 								itp->score = strtoul(line.c_str(), NULL, 10);
 								if (logDetails) this->log->debug("Score for previous pattern: " + std::to_string(itp->score));
+							}
+						} else if (line.substr(0, 20) == "log.abuseipdb.report") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::toLower(hb::Util::ltrim(line.substr(pos + 1)));
+								if (line == "true") {
+									itp->abuseipdbReport = Report::True;
+								} else if (line == "false") {
+									itp->abuseipdbReport = Report::False;
+								} else {
+									itp->abuseipdbReport = Report::NotSet;
+								}
+								if (logDetails) this->log->debug("Log pattern reporting to AbuseIPDB: " + std::to_string(itp->abuseipdbReport));
+							}
+						} else if (line.substr(0, 24) == "log.abuseipdb.categories") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								if (line.size() > 0) {
+									try {
+										if (logDetails) categoriesS = "";
+										// Loop delimiters
+										while ((posd = line.find(",")) != std::string::npos) {
+											category = std::stoul(hb::Util::ltrim(line.substr(0, posd)));
+											if (logDetails) categoriesS += std::to_string(category) + ", ";
+											line.erase(0, posd + 1);// position + delimiter length
+											itp->abuseipdbCategories.insert(itp->abuseipdbCategories.end(), category);
+										}
+										// And last one
+										category = std::stoul(hb::Util::ltrim(line.substr(0, posd)));
+										if (logDetails) {
+											categoriesS += std::to_string(category);
+											this->log->debug("Log pattern AbuseIPDB categories for reporting: " + categoriesS);
+										}
+										itp->abuseipdbCategories.insert(itp->abuseipdbCategories.end(), category);
+									} catch (std::invalid_argument& e) {
+										this->log->error("Failed to parse log pattern AbuseIPDB categories! Failed to parse value!");
+									} catch (std::out_of_range& e) {
+										this->log->error("Failed to parse log pattern AbuseIPDB categories! Failed to parse value (out of range)!");
+									}
+								} else {
+									this->log->error("Failed to parse log pattern AbuseIPDB categories! Empty value!");
+								}
+							}
+						} else if (line.substr(0, 21) == "log.abuseipdb.comment") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								itp->abuseipdbComment = line;
+								itp->abuseipdbCommentIsSet = true;
+								if (logDetails) this->log->debug("Log pattern AbuseIPDB comment for reporting: " + itp->abuseipdbComment);
 							}
 						}
 
@@ -311,46 +465,164 @@ void Config::print()
 	time(&currentTime);
 	std::cout << "## Automatically generated Hostblock configuration" << std::endl;
 	std::cout << "## Timestamp: " << currentTime << std::endl << std::endl;
-	std::cout << "[General]" << std::endl << std::endl;
+	std::cout << "[Global]" << std::endl << std::endl;
+	std::cout << "## Log level (ERROR/WARNING/INFO/DEBUG)" << std::endl;
+	std::cout << "## ERROR - write only error messages to syslog" << std::endl;
+	std::cout << "## WARNING - write error and warning messages to syslog" << std::endl;
+	std::cout << "## INFO - write error, warning and info messages to syslog (default)" << std::endl;
+	std::cout << "## DEBUG - write all messages to syslog" << std::endl;
+	std::cout << "log.level = " << this->logLevel << std::endl << std::endl;
 	std::cout << "## Interval for log file check (seconds, default 30)" << std::endl;
 	std::cout << "log.check.interval = " << this->logCheckInterval << std::endl << std::endl;
-	std::cout << "## Needed score to block IP address (default 10)" << std::endl;
+	std::cout << "Needed score to create iptables rule for IP address connection drop (default 10)" << std::endl;
 	std::cout << "address.block.score = " << this->activityScoreToBlock << std::endl << std::endl;
-	std::cout << "## Score multiplier to calculate how long to keep iptable rules (seconds, default 3600, 0 will not remove)" << std::endl;
+	std::cout << "## Score multiplier to calculate time how long iptables rule should be kept (seconds, default 3600, 0 will not remove automatically)" << std::endl;
 	std::cout << "address.block.multiplier = " << this->keepBlockedScoreMultiplier << std::endl << std::endl;
+	std::cout << "## Rule to use in IP tables rule (use %i as placeholder to specify IP address)" << std::endl;
+	std::cout << "iptables.rules.block = " << this->iptablesRule << std::endl << std::endl;
 	std::cout << "## Datetime format (default %Y-%m-%d %H:%M:%S)" << std::endl;
 	std::cout << "datetime.format = " << this->dateTimeFormat << std::endl << std::endl;
-	std::cout << "## Full path to datafile" << std::endl;
+	std::cout << "## Datafile location" << std::endl;
 	std::cout << "datafile.path = " << this->dataFilePath << std::endl << std::endl;
-	std::cout << "## AbuseIPDB API URL" << std::endl;
+	std::cout << "## AbuseIPDB URL" << std::endl;
 	std::cout << "abuseipdb.api.url = " << this->abuseipdbURL << std::endl << std::endl;
-	std::cout << "## AbuseIPDB API key" << std::endl;
-	std::cout << "abuseipdb.api.key = " << this->abuseipdbKey << std::endl << std::endl;
-	std::cout << "## AbuseIPDB API date and time format" << std::endl;
-	std::cout << "abuseipdb.datetime.format = " << this->abuseipdbDatetimeFormat << std::endl << std::endl;
+	std::vector<unsigned int>::iterator itc;// AbuseipDB category iterator
+	if (this->abuseipdbKey.size() > 0) {
+		std::cout << "## AbuseIPDB API Key" << std::endl;
+		std::cout << "abuseipdb.api.key = " << this->abuseipdbKey << std::endl << std::endl;
+		if (this->abuseipdbDatetimeFormat.size() > 0) {
+			std::cout << "## AbuseIPDB API date time format" << std::endl;
+			std::cout << "abuseipdb.datetime.format = " << this->abuseipdbDatetimeFormat << std::endl << std::endl;
+		}
+		std::cout << "## Whether to report all matches to AbuseIPDB (true|false, default false)" << std::endl;
+		std::cout << "abuseipdb.report.all = ";
+		if (this->abuseipdbReportAll == true) {
+			std::cout << "true";
+		} else {
+			std::cout << "false";
+		}
+		std::cout << std::endl << std::endl;
+		if (this->abuseipdbDefaultCategories.size() > 0) {
+			std::cout << "## Default categories for reporting to AbuseIPDB (default 15, separated with comma, must have at least one category)" << std::endl;
+			std::cout << "abuseipdb.report.categories = ";
+			itc = this->abuseipdbDefaultCategories.begin();
+			std::cout << *itc;
+			++itc;
+			for (; itc != this->abuseipdbDefaultCategories.end(); ++itc) {
+				std::cout << "," << *itc;
+			}
+			std::cout << std::endl << std::endl;
+		}
+		if (this->abuseipdbDefaultCommentIsSet) {
+			std::cout << "## Default comment for AbuseIPDB reports" << std::endl;
+			std::cout << "## Use %m to include matched line" << std::endl;
+			std::cout << "## Use %i to include address" << std::endl;
+			std::cout << "abuseipdb.report.comment = " << this->abuseipdbDefaultComment << std::endl << std::endl;
+		}
+	}
 	std::vector<LogGroup>::iterator itlg;
 	std::vector<LogFile>::iterator itlf;
 	std::vector<Pattern>::iterator itpa;
 	for (itlg = this->logGroups.begin(); itlg != this->logGroups.end(); ++itlg) {
 		std::cout << std::endl << "## Pattern and log file configuration for " << itlg->name << std::endl;
 		std::cout << "[Log." << itlg->name << "]" << std::endl << std::endl;
-		std::cout << "## Path to log file(s)" << std::endl;
+		if (this->abuseipdbKey.size() > 0) {
+			std::cout << "## AbuseIPDB log group level configuration (overrides global settings)" << std::endl;
+			if (itlg->abuseipdbReport != Report::NotSet) {
+				std::cout << "abuseipdb.report.all = ";
+				if (itlg->abuseipdbReport == Report::True) {
+					std::cout << "true";
+				} else {
+					std::cout << "false";
+				}
+				std::cout << std::endl;
+			}
+			if (itlg->abuseipdbCategories.size() > 0) {
+      	std::cout << "abuseipdb.report.categories = ";
+				itc = itlg->abuseipdbCategories.begin();
+				std::cout << *itc;
+				++itc;
+				for (; itc != itlg->abuseipdbCategories.end(); ++itc) {
+					std::cout << "," << *itc;
+				}
+				std::cout << std::endl;
+			}
+			if (itlg->abuseipdbCommentIsSet) {
+				std::cout << "abuseipdb.report.comment = " << itlg->abuseipdbComment << std::endl;
+			}
+			std::cout << std::endl;
+		}
+		std::cout << "## Full path to log file(s)" << std::endl;
 		for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
 			std::cout << "log.path = " << itlf->path << std::endl << std::endl;
 		}
-		std::cout << "## Patterns to match with scores to use for calculation" << std::endl;
-		std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
-		std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
-		for (itpa = itlg->patterns.begin(); itpa != itlg->patterns.end(); ++itpa) {
-			std::cout << "log.pattern = " << itpa->patternString << std::endl;
-			std::cout << "log.score = " << itpa->score << std::endl << std::endl;
+		if (itlg->patterns.size() > 0) {
+			std::cout << "## Patterns to match with scores to use for calculation" << std::endl;
+			std::cout << "## Use %i to specify where in pattern IP address should be looked for" << std::endl;
+			std::cout << "## Score must follow after pattern, if not specified by default will be set 1" << std::endl;
+			for (itpa = itlg->patterns.begin(); itpa != itlg->patterns.end(); ++itpa) {
+				std::cout << "log.pattern = " << itpa->patternString << std::endl;
+				if (itpa->score > 1) {
+					std::cout << "log.score = " << itpa->score << std::endl;
+				}
+				if (itpa->abuseipdbReport != Report::NotSet) {
+					std::cout << "log.abuseipdb.report = ";
+					if (itpa->abuseipdbReport == Report::True) {
+						std::cout << "true";
+					} else {
+						std::cout << "false";
+					}
+					std::cout << std::endl;
+				}
+				if (itpa->abuseipdbCategories.size() > 0) {
+					std::cout << "log.abuseipdb.categories = ";
+					itc = itpa->abuseipdbCategories.begin();
+					std::cout << *itc;
+					++itc;
+					for (; itc != itpa->abuseipdbCategories.end(); ++itc) {
+						std::cout << "," << *itc;
+					}
+					std::cout << std::endl;
+				}
+				if (itpa->abuseipdbCommentIsSet) {
+					std::cout << "log.abuseipdb.comment = " << itpa->abuseipdbComment << std::endl;
+				}
+				std::cout << std::endl;
+			}
 		}
-		std::cout << "## Patterns in log file to count refused connection count" << std::endl;
-		std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
-		std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
-		for (itpa = itlg->refusedPatterns.begin(); itpa != itlg->refusedPatterns.end(); ++itpa) {
-			std::cout << "log.refused.pattern = " << itpa->patternString << std::endl;
-			std::cout << "log.refused.score = " << itpa->score << std::endl;
+		if (itlg->refusedPatterns.size() > 0) {
+			std::cout << "## Patterns in log file to count refused connection count" << std::endl;
+			std::cout << "## Include %i in pattern, will search there for IP address" << std::endl;
+			std::cout << "## Specify score after each pattern, if not specified by default will be set 1" << std::endl;
+			for (itpa = itlg->refusedPatterns.begin(); itpa != itlg->refusedPatterns.end(); ++itpa) {
+				std::cout << "log.refused.pattern = " << itpa->patternString << std::endl;
+				if (itpa->score > 1) {
+					std::cout << "log.refused.score = " << itpa->score << std::endl;
+				}
+				if (itpa->abuseipdbReport != Report::NotSet) {
+					std::cout << "log.abuseipdb.report = ";
+					if (itpa->abuseipdbReport == Report::True) {
+						std::cout << "true";
+					} else {
+						std::cout << "false";
+					}
+					std::cout << std::endl;
+				}
+				if (itpa->abuseipdbCategories.size() > 0) {
+					std::cout << "log.abuseipdb.categories = ";
+					itc = itpa->abuseipdbCategories.begin();
+					std::cout << *itc;
+					++itc;
+					for (; itc != itpa->abuseipdbCategories.end(); ++itc) {
+						std::cout << "," << *itc;
+					}
+					std::cout << std::endl;
+				}
+				if (itpa->abuseipdbCommentIsSet) {
+					std::cout << "log.abuseipdb.comment = " << itpa->abuseipdbComment << std::endl;
+				}
+				std::cout << std::endl;
+			}
 		}
 	}
 }
