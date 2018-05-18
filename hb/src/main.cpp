@@ -12,7 +12,18 @@
 #include <iostream>
 // File stream library (ifstream)
 #include <fstream>
-// Miscellaneous UNIX symbolic constants, types and functions (fork)
+// Queue
+#include <queue>
+// Threads
+#include <thread>
+// Mutex
+#include <mutex>
+// Standard string library
+#include <string>
+// For libcurl in abuseipdb.h
+// Note, suspecting that unistd.h includes some headers that are also needed for socket.h, but it gets under cunistd namespace and cannot find type socklen_t...?
+#include <sys/socket.h>
+// Miscellaneous UNIX symbolic constants, types and functions (fork, usleep, optarg)
 namespace cunistd{
 	#include <unistd.h>
 }
@@ -46,18 +57,30 @@ namespace cstat{
 #include "data.h"
 // LogParser
 #include "logparser.h"
+// AbuseIPDB
+#include "abuseipdb.h"
 
 // Full path to PID file
 const char* PID_PATH = "/var/run/hostblock.pid";
 
 // Variable for main loop, will exit when set to false
 bool running = false;
+bool threadRunning = false;
+std::mutex threadRunningMutex;
 
 // Variable for daemon to reload data file
 bool reloadDataFile = false;
 
 // Variable for daemon to reload configuration
 bool reloadConfig = false;
+
+// Pending reports to be sent to 3rd party (abuse/suspicious activity reporting)
+std::queue<hb::ReportToAbuseIPDB> abuseipdbReportingQueue;
+std::mutex abuseipdbReportingQueueMutex;
+
+// Mutex to work with config object
+std::mutex configMutex;
+
 
 /*
  * Output short help
@@ -90,11 +113,70 @@ void signalHandler(int signal)
 	if (signal == SIGTERM) {
 		// Stop daemon
 		running = false;
+		threadRunningMutex.lock();
+		threadRunning = false;
+		threadRunningMutex.unlock();
 	} else if (signal == SIGUSR1) {
-		// SIGUSR1 to tell daemon to reload data and config
+		// SIGUSR1 to tell daemon to reload data, config and restart threads if needed
 		reloadDataFile = true;
 		reloadConfig = true;
 	}
+}
+
+/*
+ * Thread for suspicious address reporting
+ * Note, using config here only for reading, so mutex is used here and in main() for config changing
+ * Note, syslog is marked as env&locale unsafe, but if env&locale do not change for this context then it should be ok...?
+ */
+void reporterThread(hb::Logger* log, hb::Config* config)
+{
+	log->info("Starting thread for activity reporting to AbuseIPDB...");
+	hb::ReportToAbuseIPDB itemToReport;
+	hb::AbuseIPDB apiClient = hb::AbuseIPDB(log);
+	configMutex.lock();
+	apiClient.abuseipdbURL = config->abuseipdbURL;
+	apiClient.abuseipdbKey = config->abuseipdbKey;
+	apiClient.abuseipdbDatetimeFormat = config->abuseipdbDatetimeFormat;
+	configMutex.unlock();
+	bool isEmpty = false;
+	while (true) {
+		// Check whether should exit this loop
+		threadRunningMutex.lock();
+		if (!threadRunning) {
+			threadRunningMutex.unlock();
+			break;
+		}
+		threadRunningMutex.unlock();
+
+		// Take out one item from queue
+		abuseipdbReportingQueueMutex.lock();
+		isEmpty = abuseipdbReportingQueue.empty();
+		abuseipdbReportingQueueMutex.unlock();
+		if (!isEmpty) {
+			abuseipdbReportingQueueMutex.lock();
+			itemToReport = abuseipdbReportingQueue.front();
+			abuseipdbReportingQueue.pop();
+			abuseipdbReportingQueueMutex.unlock();
+
+			// Send report
+			if (apiClient.reportAddress(itemToReport.ip, itemToReport.comment, itemToReport.categories)) {
+				log->info("Address " + itemToReport.ip + " reported to AbuseIPDB!");
+				log->debug("Comment: " + itemToReport.comment);
+			} else {
+				log->error("Failed to report " + itemToReport.ip + " to AbuseIPDB!");
+			}
+		}
+
+		// Sleep 1/10 of a second
+		// cunistd::usleep(100000);
+		// Sleep 1 second
+		// Note, AbuseIPDB limits to 60 requests per minute, with 1 sec sleep should have a little lower rate than limitation
+		// Wondering whether this limitation is at API key level...
+		// If it is, then need to sync between multiple hosts or to register multiple accounts
+		// Or to create/use central point which registers abuse
+		cunistd::usleep(1000000);
+	}
+	log->info("Thread for Activity reporting to AbuseIPDB stopped");
 }
 
 /*
@@ -547,6 +629,10 @@ int main(int argc, char *argv[])
 			csignal::signal(SIGTERM, signalHandler);// Stop daemon
 			csignal::signal(SIGUSR1, signalHandler);// Reload datafile
 
+			// Fire up thread for mattched pattern reporting
+			threadRunning = true;// No need for mutex, no thread started up until now
+			std::thread abuseipdbReporterThread(reporterThread, &log, &config);
+
 			// Close standard file descriptors
 			cunistd::close(STDIN_FILENO);
 			cunistd::close(STDOUT_FILENO);
@@ -554,6 +640,10 @@ int main(int argc, char *argv[])
 
 			// Init object to work with log files (check for suspicious activity)
 			hb::LogParser logParser = hb::LogParser(&log, &config, &data);
+
+			// Provide pointer to queue for log parser
+			logParser.abuseipdbReportingQueue = &abuseipdbReportingQueue;
+			logParser.abuseipdbReportingQueueMutex = &abuseipdbReportingQueueMutex;
 
 			// File modification times (for main loop to check if there have been changes to files and relaod is needed)
 			/*struct cstat::stat statbuf;
@@ -596,15 +686,25 @@ int main(int argc, char *argv[])
 				// Reload configuration
 				if (reloadConfig) {
 					log.info("Daemon configuration reload...");
+					configMutex.lock();
 					if (!config.load()) {
 						log.error("Failed to reload configuration for daemon!");
 					}
+					configMutex.unlock();
+					// Restart abuseipdbReporterThread with new config
+					log.info("Restarting thread for mattern match reporting to AbuseIPDB...");
+					threadRunningMutex.lock();
+					threadRunning = false;
+					threadRunningMutex.unlock();
+					abuseipdbReporterThread.join();// Wait for thread to finish
+					threadRunning = true;
+					std::thread abuseipdbReporterThread(reporterThread, &log, &config);
 					// Parse regex patterns
 					if (!config.processPatterns()) {
 						std::cerr << "Failed to parse configured patterns for daemon!" << std::endl;
 					}
 
-					// Reset so that we do not reload on each iteration
+					// Reset config relad flag (so that it is not reladed again on next iteration)
 					reloadConfig = false;
 
 					// Recheck iptables rule since it can be changed in config
@@ -620,7 +720,7 @@ int main(int argc, char *argv[])
 							rules = iptables.listRules("INPUT");
 
 							// Loop all rules
-							for(rit=rules.begin(); rit!=rules.end(); ++rit){
+							for (rit=rules.begin(); rit!=rules.end(); ++rit) {
 								checkStart = rit->second.find(ruleStart);
 								checkEnd = rit->second.find(ruleEnd);
 								checkEnd = rit->second.find(ruleEnd);
@@ -688,7 +788,7 @@ int main(int argc, char *argv[])
 
 					// Check log files for suspicious activity and update iptables if needed
 					// TODO make this function responsive to kill
-					// TODO check file size also in this function since this can take longer than log rotate
+					// TODO check file size also in this function since this proces can take longer than log rotate
 					logParser.checkFiles();
 
 					// Check iptables rules if any are expired and should be removed

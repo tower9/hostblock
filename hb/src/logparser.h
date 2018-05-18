@@ -5,6 +5,12 @@
 #ifndef HBLOGPARSE_H
 #define HBLOGPARSE_H
 
+// Queue
+#include <queue>
+// Mutex
+#include <mutex>
+// Util
+#include "util.h"
 // Logger
 #include "logger.h"
 // Config
@@ -33,6 +39,12 @@ class LogParser{
 		 * Data object
 		 */
 		hb::Data* data;
+
+		/*
+		 * Queue for AbuseIPDB reporting
+		 */
+		std::queue<ReportToAbuseIPDB>* abuseipdbReportingQueue;
+		std::mutex* abuseipdbReportingQueueMutex;
 
 		/*
 		 * Constructor

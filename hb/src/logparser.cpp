@@ -1,6 +1,6 @@
 /*
  * Log file parser, match patterns with lines in log files
- * 
+ *
  * Some notes, seems that std regex is slower than boost version, maybe worth a switch...
  */
 
@@ -58,6 +58,12 @@ void LogParser::checkFiles()
 	lastInfo = currentTime;
 	unsigned long long int jobTotal = 0, jobDone = 0;
 	float jobPercentage = 0;
+	bool sendReport = false;
+	ReportToAbuseIPDB reportToSend;
+	std::vector<unsigned int> reportCategories;
+	std::string reportComment = "";
+	std::size_t posc;
+	std::map<std::string, hb::SuspiciosAddressType>::iterator itsa;
 
 	// Loop log groups
 	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
@@ -113,6 +119,94 @@ void LogParser::checkFiles()
 
 										// Update address data
 										this->data->saveActivity(ipAddress, itlp->score, 1, 0);
+
+										// Check whether need to send report about match
+										sendReport = false;
+										reportCategories.clear();
+										reportComment = "";
+										if (this->config->abuseipdbKey.size() > 0) {
+											// Need to send if have global setting
+											if (this->config->abuseipdbReportAll) {
+												sendReport = true;
+											}
+											reportCategories = this->config->abuseipdbDefaultCategories;
+											if (this->config->abuseipdbDefaultCommentIsSet) {
+												reportComment = this->config->abuseipdbDefaultComment;
+											}
+											// Log group setting overrides global setting
+											if (itlg->abuseipdbReport == Report::True) {
+												sendReport = true;
+											} else if (itlg->abuseipdbReport == Report::False) {
+												sendReport = false;
+											}
+											if (itlg->abuseipdbCategories.size() > 0) {
+												reportCategories = itlg->abuseipdbCategories;
+											}
+											if (itlg->abuseipdbCommentIsSet) {
+												reportComment = itlg->abuseipdbComment;
+											}
+											// Pattern setting overrides log group setting
+											if (itlp->abuseipdbReport == Report::True) {
+												sendReport = true;
+											} else if (itlp->abuseipdbReport == Report::False) {
+												sendReport = false;
+											}
+											if (itlp->abuseipdbCategories.size() > 0) {
+												reportCategories = itlp->abuseipdbCategories;
+											}
+											if (itlp->abuseipdbCommentIsSet) {
+												reportComment = itlp->abuseipdbComment;
+											}
+										}
+
+										// Check whether 15 minutes are passed since last report
+										// TODO implement config parameter and use 15 minutes as min with default 1h
+										if (sendReport) {
+											if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
+												if (currentTime - this->data->suspiciousAddresses[ipAddress].lastReported < 900) {
+													this->log->debug("Not enqueuing report about " + ipAddress + " more often than each 15 minutes!");
+													sendReport = false;
+												} else {
+													this->data->suspiciousAddresses[ipAddress].lastReported = currentTime;
+													// this->data->updateAddress(ipAddress);
+												}
+											} else {
+												this->log->warning("Need to send report about address " + ipAddress + ", but data about it is not found in data file! Skipping!");
+												sendReport = false;
+											}
+										}
+
+										// Search for %i and %m placeholders in comment and replace with data if needed
+										if (sendReport) {
+											posc = reportComment.find("%i");
+											if (posc != std::string::npos) {
+												reportComment = reportComment.replace(posc, 2, ipAddress);
+											}
+											posc = reportComment.find("%m");
+											if (posc != std::string::npos) {
+												reportComment = reportComment.replace(posc, 2, line);
+											}
+										}
+
+										// Strip comment to 1500 characters
+										if (sendReport) {
+											if (reportComment.length() > 1500) {
+												reportComment = reportComment.substr(0, 1500);
+												this->log->warning("Comment for AbuseIPDB report is too long, length was reduced by removing characters from end!");
+											}
+										}
+
+										// Put report into queue for sending to AbuseIPDB
+										if (sendReport) {
+											ReportToAbuseIPDB reportToSend;
+											reportToSend.ip = ipAddress;
+											reportToSend.categories = reportCategories;
+											reportToSend.comment = reportComment;
+											this->abuseipdbReportingQueueMutex->lock();
+											this->abuseipdbReportingQueue->push(reportToSend);
+											this->abuseipdbReportingQueueMutex->unlock();
+											this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
+										}
 									}
 								}
 								this->log->debug("Pattern: " + itlp->patternString);
@@ -143,6 +237,94 @@ void LogParser::checkFiles()
 										// Update address data
 										if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
 											this->data->saveActivity(ipAddress, itlp->score, 0, 1);
+
+											// Check whether need to send report about match
+											sendReport = false;
+											reportCategories.clear();
+											reportComment = "";
+											if (this->config->abuseipdbKey.size() > 0) {
+												// Need to send if have global setting
+												if (this->config->abuseipdbReportAll) {
+													sendReport = true;
+												}
+												reportCategories = this->config->abuseipdbDefaultCategories;
+												if (this->config->abuseipdbDefaultCommentIsSet) {
+													reportComment = this->config->abuseipdbDefaultComment;
+												}
+												// Log group setting overrides global setting
+												if (itlg->abuseipdbReport == Report::True) {
+													sendReport = true;
+												} else if (itlg->abuseipdbReport == Report::False) {
+													sendReport = false;
+												}
+												if (itlg->abuseipdbCategories.size() > 0) {
+													reportCategories = itlg->abuseipdbCategories;
+												}
+												if (itlg->abuseipdbCommentIsSet) {
+													reportComment = itlg->abuseipdbComment;
+												}
+												// Pattern setting overrides log group setting
+												if (itlp->abuseipdbReport == Report::True) {
+													sendReport = true;
+												} else if (itlp->abuseipdbReport == Report::False) {
+													sendReport = false;
+												}
+												if (itlp->abuseipdbCategories.size() > 0) {
+													reportCategories = itlp->abuseipdbCategories;
+												}
+												if (itlp->abuseipdbCommentIsSet) {
+													reportComment = itlp->abuseipdbComment;
+												}
+											}
+
+											// Check whether 15 minutes are passed since last report
+											// TODO implement config parameter and use 15 minutes as min with default 1h
+											if (sendReport) {
+												if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
+													if (currentTime - this->data->suspiciousAddresses[ipAddress].lastReported < 900) {
+														this->log->debug("Not enqueuing report about " + ipAddress + " more often than each 15 minutes!");
+														sendReport = false;
+													} else {
+														this->data->suspiciousAddresses[ipAddress].lastReported = currentTime;
+														// this->data->updateAddress(ipAddress);
+													}
+												} else {
+													this->log->warning("Need to send report about address " + ipAddress + ", but data about it is not found in data file! Skipping!");
+													sendReport = false;
+												}
+											}
+
+											// Search for %i and %m placeholders in comment and replace with data if needed
+											if (sendReport) {
+												posc = reportComment.find("%i");
+												if (posc != std::string::npos) {
+													reportComment = reportComment.replace(posc, 2, ipAddress);
+												}
+												posc = reportComment.find("%m");
+												if (posc != std::string::npos) {
+													reportComment = reportComment.replace(posc, 2, line);
+												}
+											}
+
+											// Strip comment to 1500 characters
+											if (sendReport) {
+												if (reportComment.length() > 1500) {
+													reportComment = reportComment.substr(0, 1500);
+													this->log->warning("Comment for AbuseIPDB report is too long, length was reduced by removing characters from end!");
+												}
+											}
+
+											// Put report into queue for sending to AbuseIPDB
+											if (sendReport) {
+												ReportToAbuseIPDB reportToSend;
+												reportToSend.ip = ipAddress;
+												reportToSend.categories = reportCategories;
+												reportToSend.comment = reportComment;
+												this->abuseipdbReportingQueueMutex->lock();
+												this->abuseipdbReportingQueue->push(reportToSend);
+												this->abuseipdbReportingQueueMutex->unlock();
+												this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
+											}
 										} else {
 											this->log->debug("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
 										}
