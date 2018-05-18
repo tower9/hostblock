@@ -8,31 +8,14 @@
 #include <vector>
 // Standard string library
 #include <string>
+// cURL
+#include <curl/curl.h>
+// Util
+#include "util.h"
+// Logger
+#include "logger.h"
 
 namespace hb{
-
-/*
- * AbuseIPDB report
- * Note, comment and userId is returned with verbose request
- */
-struct AbuseIPDBReport {
-	std::string ip;
-	std::vector<unsigned int> categories;
-	unsigned long long int created;
-	std::string country;
-	std::string isoCode;
-	bool isWhitelisted;
-	std::string comment;
-	unsigned int userId;
-};
-
-/*
- * To store JSON result from abuseipdb.com with cURL
- */
-struct AbuseIPDBJSONData {
-	char *memory;
-	size_t size;
-};
 
 /*
  * AbuseIPDB report categories
@@ -46,7 +29,7 @@ enum AbuseIPDBCategories {
 	FraudVoIP = 8,
 	OpenProxy = 9,
 	WebSpam = 10,
-	EmailSPam = 11,
+	EmailSpam = 11,
 	BlogSpam = 12,
 	VPNIP = 13,
 	PortScan = 14,
@@ -68,6 +51,8 @@ class AbuseIPDB{
 		 */
 		CURL* curl;
 
+		void init();
+
 	public:
 
 		/*
@@ -76,14 +61,33 @@ class AbuseIPDB{
 		hb::Logger* log;
 
 		/*
-		 * Config object
+		 * Whether function failed with error
 		 */
-		hb::Config* config;
+		bool isError = false;
+
+		/*
+		 * AbuseIPDB API URL
+		 */
+		std::string abuseipdbURL = "https://www.abuseipdb.com";
+
+		/*
+		 * AbuseIPDB API key
+		 */
+		std::string abuseipdbKey = "";
+
+		/*
+		 * AbuseIPDB API date and time format
+		 * Note,found %z in std::put_time not in std::get_time specs, std::get_time fails with %z :(
+		 */
+		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S";
 
 		/*
 		 * Constructor
 		 */
-		AbuseIPDB(hb::Logger* log, hb::Config* config);
+		AbuseIPDB(hb::Logger* log);
+		AbuseIPDB(hb::Logger* log, std::string abuseipdbURL);
+		AbuseIPDB(hb::Logger* log, std::string abuseipdbURL, std::string abuseipdbKey);
+		AbuseIPDB(hb::Logger* log, std::string abuseipdbURL, std::string abuseipdbKey, std::string abuseipdbDatetimeFormat);
 
 		/*
 		 * Deconstructor
@@ -93,7 +97,7 @@ class AbuseIPDB{
 		/*
 		 * Check IP address in abuseipdb.com
 		 */
-		std::vector<AbuseIPDBReport> checkAddress(std::string address, bool verbose = false);
+		std::vector<ReportFromAbuseIPDB> checkAddress(std::string address, bool verbose = false);
 
 		/*
 		 * Report IP address to abuseipdb.com
