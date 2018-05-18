@@ -11,7 +11,7 @@ LFLAGS = -std=c++14 -Wall $(DEBUG)
 prefix = /usr/local
 
 hostblock: $(OBJS)
-	$(CC) $(LFLAGS) $(OBJS) $(LIBS) -o hostblock
+	$(CC) $(LFLAGS) $(OBJS) $(LIBS) -pthread -o hostblock
 
 main.o: hb/src/main.cpp
 	$(CC) $(CFLAGS) hb/src/main.cpp
@@ -48,7 +48,7 @@ install: hostblock
 	test -d /usr/share/upstart && install -m 0644 init/upstart /etc/init/hostblock.conf || true
 
 test: $(TOBJS)
-	$(CC) $(LFLAGS) $(TOBJS) -o test
+	$(CC) $(LFLAGS) $(TOBJS) $(LIBS) -o test
 
 test.o: hb/test/test.cpp
 	$(CC) $(CFLAGS) hb/test/test.cpp
