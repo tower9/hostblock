@@ -162,15 +162,23 @@ std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bo
 							}
 
 							// Date and time of report
-							std::istringstream ss(obj[i]["created"].asString());
-							ss >> std::get_time(&t, this->abuseipdbDatetimeFormat.c_str());
-							if (ss.fail()) {
+							// std::istringstream ss(obj[i]["created"].asString());
+							// ss >> std::get_time(&t, this->abuseipdbDatetimeFormat.c_str());
+							// if (ss.fail()) {
+							// 	this->isError = true;
+							// 	this->log->error("Failed to parse date and time in AbuseIPDB API response!");
+							// 	report.created = 0;
+							// } else {
+							// 	timestamp = timegm(&t);
+							// 	report.created = (unsigned long long int)timestamp;
+							// }
+							if (strptime(obj[i]["created"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+								timestamp = timegm(&t);
+								report.created = (unsigned long long int)timestamp;
+							} else {
 								this->isError = true;
 								this->log->error("Failed to parse date and time in AbuseIPDB API response!");
 								report.created = 0;
-							} else {
-								timestamp = timegm(&t);
-								report.created = (unsigned long long int)timestamp;
 							}
 
 							// IP address country

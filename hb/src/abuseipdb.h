@@ -77,9 +77,8 @@ class AbuseIPDB{
 
 		/*
 		 * AbuseIPDB API date and time format
-		 * Note,found %z in std::put_time not in std::get_time specs, std::get_time fails with %z :(
 		 */
-		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S";
+		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S %z";
 
 		/*
 		 * Constructor
