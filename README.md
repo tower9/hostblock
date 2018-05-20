@@ -1,10 +1,7 @@
-HostBlock
-=========
 
 Tool for log file monitoring and automatic blocking of remote IP hosts based on configured patterns.
 
-Features
---------
+# Features
 
  - Checks log files for suspicious activity and automatically adjusts iptables rules
  - Runs as daemon
@@ -14,8 +11,7 @@ Features
  - Whitelist to ignore some addresses
  - Allows to manually remove IP addresses from data file
 
-Setup
------
+# Setup
 
  - Get source from github
 ```
@@ -71,23 +67,22 @@ $ sudo service hostblock start
 $ sudo hostblock -d
 ```
 
-Usage
------
+# Usage
 
-#### Help
+### Help
 
 To get short usage information:
 ```
 $ hostblock -h
 ```
 
-#### Currently loaded configuration
+### Currently loaded configuration
 To output currently loaded configuration:
 ```
 $ sudo hostblock -p
 ```
 
-#### Statistics
+### Statistics
 Simple statistics:
 ```
 $ sudo hostblock -s
@@ -123,7 +118,7 @@ Last activity:
  - Last activity - Date and time of last activity, when pattern is matched this will show date and time when hostblock matched that pattern not time when line was written to log file
  - Status - whether address is whitelisted, blacklisted, blocked or, if score multiplier is configured, then date and time until rule should be removed from iptables
 
-#### Output list of blocked addresses
+### Output list of blocked addresses
 
 List all blocked addresses:
 ```
@@ -145,51 +140,81 @@ List all blocked addresses with last activity time:
 $ sudo hostblock -lt
 ```
 
-#### Blacklist
+### Blacklist
 
 To blacklist address - keep iptables rule regardless of suspicious activity:
 ```
 $ sudo hostblock -b10.10.10.10
 ```
 
-#### Whitelist
+### Whitelist
 
 To whitelist address - do not create iptables rule even if suspicious activity is detected:
 ```
 $ sudo hostblock -w192.168.0.2
 ```
 
-#### Remove address from data file
+### Remove address from data file
 
 To delete information about address:
 ```
 $ sudo hostblock -r192.168.0.3
 ```
 
-#### Order daemon to reload configuration and datafile
+### Order daemon to reload configuration and datafile
 
 After changing configuration you can either restart daemon or with SIGUSR1 signal inform daemon that configuration and datafile should be reloaded.
 ```
 $ sudo kill -SIGUSR1 <pid>
 ```
 
-Configuration
--------------
+# Configuration
+
 Default path for configuration file is /etc/hostblock.conf, which can be changed with environment variable HOSTBLOCK_CONFIG.
 
 Main configuration is under [Global] section. Log file contents are different for each service and can have different log levels. Configuration can be divided into [Log.*] sections to specify separate patterns for each log group, for example [Log.SSH].
 
 More details can be found in default configuration file.
 
-Requirements
-------------
+# Requirements
 
+For compilation
  - git or wget to get source from github
  - make
  - iptables
  - g++ >= 4.9
+ - libcurl
+ - libjsoncpp1
 
-Contribution
-------------
+Debian
+------
+
+libjsoncpp
+```
+# apt install libjsoncpp-dev
+```
+
+See options with libcurl-dev, to install openssl version
+```
+# apt install libcurl4-openssl-dev
+```
+
+CentOS
+------
+```
+# yum install libcurl-devel
+```
+```
+# yum install jsoncpp-devel
+```
+
+Gentoo
+------
+libjsoncpp
+```
+# emerge dev-libs/jsoncpp
+```
+
+# Contribution
 
 Source code is available on [GitHub](https://github.com/tower9/hostblock). Just fork, edit and submit pull request. Please be clear on commit messages.
