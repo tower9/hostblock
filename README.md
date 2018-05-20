@@ -186,8 +186,7 @@ For compilation
  - libcurl
  - libjsoncpp1
 
-Debian
-------
+### Debian
 
 libjsoncpp
 ```
@@ -199,8 +198,7 @@ See options with libcurl-dev, to install openssl version
 # apt install libcurl4-openssl-dev
 ```
 
-CentOS
-------
+### CentOS
 ```
 # yum install libcurl-devel
 ```
@@ -208,8 +206,7 @@ CentOS
 # yum install jsoncpp-devel
 ```
 
-Gentoo
-------
+### Gentoo
 libjsoncpp
 ```
 # emerge dev-libs/jsoncpp
