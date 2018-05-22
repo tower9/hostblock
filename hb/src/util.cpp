@@ -48,6 +48,16 @@ std::string Util::toLower(std::string str)
 	return str;
 }
 
+/*
+ * Return formatted datetime string
+ */
+std::string Util::formatDateTime(const time_t rtime, const char* dateTimeFormat)
+{
+	struct tm* itime = localtime(&rtime);
+	char buffer[30];
+	strftime(buffer, sizeof(buffer), dateTimeFormat, itime);
+	return std::string(buffer);
+}
 
 /*
  * Regex error code explanations

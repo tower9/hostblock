@@ -128,6 +128,11 @@ class Util{
 		static std::string toLower(std::string str);
 
 		/*
+		 * Return formatted datetime string
+		 */
+		static std::string formatDateTime(const time_t rtime, const char* dateTimeFormat);
+
+		/*
 		 * Get textual info about regex error
 		 */
 		static std::string regexErrorCode2Text(std::regex_constants::error_type code);
