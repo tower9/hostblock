@@ -64,6 +64,7 @@ void LogParser::checkFiles()
 	std::string reportComment = "";
 	std::size_t posc;
 	std::map<std::string, hb::SuspiciosAddressType>::iterator itsa;
+	std::string currentTimeFormatted = Util::formatDateTime((const time_t)currentTime, this->config->dateTimeFormat.c_str());
 
 	// Loop log groups
 	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
@@ -186,6 +187,10 @@ void LogParser::checkFiles()
 											if (posc != std::string::npos) {
 												reportComment = reportComment.replace(posc, 2, line);
 											}
+											posc = reportComment.find("%d");
+											if (posc != std::string::npos) {
+												reportComment = reportComment.replace(posc, 2, currentTimeFormatted);
+											}
 										}
 
 										// Strip comment to 1500 characters
@@ -303,6 +308,10 @@ void LogParser::checkFiles()
 												posc = reportComment.find("%m");
 												if (posc != std::string::npos) {
 													reportComment = reportComment.replace(posc, 2, line);
+												}
+												posc = reportComment.find("%d");
+												if (posc != std::string::npos) {
+													reportComment = reportComment.replace(posc, 2, currentTimeFormatted);
 												}
 											}
 
