@@ -101,6 +101,11 @@ class Config{
 		bool abuseipdbReportAll = false;
 
 		/*
+		 * Whether to mask hostname in comment (if %m is used) before sending report to AbuseIPDB
+		 */
+		bool abuseipdbReportMask = true;
+
+		/*
 		 * Default AbuseIPDB categories for reporting (can be overridden at log group and pattern level)
 		 */
 		std::vector<unsigned int> abuseipdbDefaultCategories = std::vector<unsigned int>(1, 15);

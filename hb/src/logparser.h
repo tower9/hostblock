@@ -23,6 +23,11 @@ namespace hb{
 class LogParser{
 	private:
 
+		/*
+		 * Hostname
+		 */
+		std::string hostname = "";
+
 	public:
 
 		/*

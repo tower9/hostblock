@@ -34,7 +34,10 @@ using namespace hb;
 LogParser::LogParser(hb::Logger* log, hb::Config* config, hb::Data* data)
 : log(log), config(config), data(data)
 {
-
+	char hname[1024];
+	hname[1023] = '\0';
+	cunistd::gethostname(hname, 1023);
+	this->hostname = std::string(hname);
 }
 
 /*
@@ -62,7 +65,7 @@ void LogParser::checkFiles()
 	ReportToAbuseIPDB reportToSend;
 	std::vector<unsigned int> reportCategories;
 	std::string reportComment = "";
-	std::size_t posc;
+	std::size_t posc, posh;
 	std::map<std::string, hb::SuspiciosAddressType>::iterator itsa;
 	std::string currentTimeFormatted = Util::formatDateTime((const time_t)currentTime, this->config->dateTimeFormat.c_str());
 
@@ -185,7 +188,16 @@ void LogParser::checkFiles()
 											}
 											posc = reportComment.find("%m");
 											if (posc != std::string::npos) {
-												reportComment = reportComment.replace(posc, 2, line);
+												if (this->config->abuseipdbReportMask) {
+													posh = line.find(this->hostname);
+													if (posh != std::string::npos) {
+														reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
+													} else {
+														reportComment = reportComment.replace(posc, 2, line);
+													}
+												} else {
+													reportComment = reportComment.replace(posc, 2, line);
+												}
 											}
 											posc = reportComment.find("%d");
 											if (posc != std::string::npos) {
@@ -307,7 +319,16 @@ void LogParser::checkFiles()
 												}
 												posc = reportComment.find("%m");
 												if (posc != std::string::npos) {
-													reportComment = reportComment.replace(posc, 2, line);
+													if (this->config->abuseipdbReportMask) {
+														posh = line.find(this->hostname);
+														if (posh != std::string::npos) {
+															reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
+														} else {
+															reportComment = reportComment.replace(posc, 2, line);
+														}
+													} else {
+														reportComment = reportComment.replace(posc, 2, line);
+													}
 												}
 												posc = reportComment.find("%d");
 												if (posc != std::string::npos) {

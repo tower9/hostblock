@@ -200,6 +200,17 @@ bool Config::load()
 								}
 								if (logDetails) this->log->debug("Report all matches to AbuseIPDB: " + std::to_string(this->abuseipdbReportAll));
 							}
+						} else if (line.substr(0, 21) == "abuseipdb.report.mask") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::toLower(hb::Util::ltrim(line.substr(pos + 1)));
+								if (line == "true") {
+									this->abuseipdbReportMask = true;
+								} else {
+									this->abuseipdbReportMask = false;
+								}
+								if (logDetails) this->log->debug("Mask comment before sending report to AbuseIPDB: " + std::to_string(this->abuseipdbReportMask));
+							}
 						} else if (line.substr(0, 27) == "abuseipdb.report.categories") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
@@ -497,6 +508,14 @@ void Config::print()
 		std::cout << "## Whether to report all matches to AbuseIPDB (true|false, default false)" << std::endl;
 		std::cout << "abuseipdb.report.all = ";
 		if (this->abuseipdbReportAll == true) {
+			std::cout << "true";
+		} else {
+			std::cout << "false";
+		}
+		std::cout << std::endl << std::endl;
+		std::cout << "## Mask hostname before sending report to AbuseIPDB (true|false, default true)" << std::endl;
+		std::cout << "abuseipdb.report.mask = ";
+		if (this->abuseipdbReportMask == true) {
 			std::cout << "true";
 		} else {
 			std::cout << "false";
