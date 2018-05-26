@@ -80,6 +80,7 @@ std::mutex abuseipdbReportingQueueMutex;
 
 // Mutex to work with config object
 std::mutex configMutex;
+bool reloadThreadConfig = false;
 
 
 /*
@@ -147,6 +148,16 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 			break;
 		}
 		threadRunningMutex.unlock();
+
+		// Check whether config is updated
+		configMutex.lock();
+		if (reloadThreadConfig) {
+			apiClient.abuseipdbURL = config->abuseipdbURL;
+			apiClient.abuseipdbKey = config->abuseipdbKey;
+			apiClient.abuseipdbDatetimeFormat = config->abuseipdbDatetimeFormat;
+			reloadThreadConfig = false;
+		}
+		configMutex.unlock();
 
 		// Take out one item from queue
 		abuseipdbReportingQueueMutex.lock();
@@ -631,7 +642,7 @@ int main(int argc, char *argv[])
 
 			// Fire up thread for mattched pattern reporting
 			threadRunning = true;// No need for mutex, no thread started up until now
-			std::thread abuseipdbReporterThread(reporterThread, &log, &config);
+			std::thread abuseipdbReporterThread(&reporterThread, &log, &config);
 
 			// Close standard file descriptors
 			cunistd::close(STDIN_FILENO);
@@ -639,11 +650,7 @@ int main(int argc, char *argv[])
 			cunistd::close(STDERR_FILENO);
 
 			// Init object to work with log files (check for suspicious activity)
-			hb::LogParser logParser = hb::LogParser(&log, &config, &data);
-
-			// Provide pointer to queue for log parser
-			logParser.abuseipdbReportingQueue = &abuseipdbReportingQueue;
-			logParser.abuseipdbReportingQueueMutex = &abuseipdbReportingQueueMutex;
+			hb::LogParser logParser = hb::LogParser(&log, &config, &data, &abuseipdbReportingQueue, &abuseipdbReportingQueueMutex);
 
 			// File modification times (for main loop to check if there have been changes to files and relaod is needed)
 			/*struct cstat::stat statbuf;
@@ -690,15 +697,9 @@ int main(int argc, char *argv[])
 					if (!config.load()) {
 						log.error("Failed to reload configuration for daemon!");
 					}
+					reloadThreadConfig = true;
 					configMutex.unlock();
-					// Restart abuseipdbReporterThread with new config
-					log.info("Restarting thread for mattern match reporting to AbuseIPDB...");
-					threadRunningMutex.lock();
-					threadRunning = false;
-					threadRunningMutex.unlock();
-					abuseipdbReporterThread.join();// Wait for thread to finish
-					threadRunning = true;
-					std::thread abuseipdbReporterThread(reporterThread, &log, &config);
+
 					// Parse regex patterns
 					if (!config.processPatterns()) {
 						std::cerr << "Failed to parse configured patterns for daemon!" << std::endl;

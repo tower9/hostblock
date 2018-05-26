@@ -31,8 +31,8 @@ using namespace hb;
 /*
  * Constructor
  */
-LogParser::LogParser(hb::Logger* log, hb::Config* config, hb::Data* data)
-: log(log), config(config), data(data)
+LogParser::LogParser(hb::Logger* log, hb::Config* config, hb::Data* data, std::queue<ReportToAbuseIPDB>* abuseipdbReportingQueue, std::mutex* abuseipdbReportingQueueMutex)
+: log(log), config(config), data(data), abuseipdbReportingQueue(abuseipdbReportingQueue), abuseipdbReportingQueueMutex(abuseipdbReportingQueueMutex)
 {
 	char hname[1024];
 	hname[1023] = '\0';

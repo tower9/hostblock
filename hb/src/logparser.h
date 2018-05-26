@@ -54,7 +54,7 @@ class LogParser{
 		/*
 		 * Constructor
 		 */
-		LogParser(hb::Logger* log, hb::Config* config, hb::Data* data);
+		LogParser(hb::Logger* log, hb::Config* config, hb::Data* data, std::queue<ReportToAbuseIPDB>* abuseipdbReportingQueue, std::mutex* abuseipdbReportingQueueMutex);
 
 		/*
 		 * Check all log files for suspicious activity
