@@ -1055,7 +1055,6 @@ void Data::printStats()
 	std::cout << "Total suspicious IP address count: " << this->suspiciousAddresses.size() << std::endl;
 
 	if (this->suspiciousAddresses.size() > 0) {
-		std::cout << std::endl;
 		std::map<std::string, SuspiciosAddressType>::iterator sait;
 		std::vector<hb::SuspiciosAddressStatType> top5;
 		std::vector<hb::SuspiciosAddressStatType>::iterator t5it;
@@ -1074,6 +1073,11 @@ void Data::printStats()
 		unsigned int activityCountMin = UINT_MAX;
 		unsigned long long int lastActivityMin = ULLONG_MAX;
 		bool replace = false;
+		unsigned int totalBlocked = 0;
+		unsigned int totalWhitelisted = 0;
+		unsigned int totalBlacklisted = 0;
+		unsigned int totalActivityCout = 0;
+		unsigned int totalRefusedCount = 0;
 
 		// Get top 5 addresses by activity count and last 5 addresses by last activity time
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
@@ -1149,7 +1153,33 @@ void Data::printStats()
 					}
 				}
 			}
+
+			// Totals
+			if (sait->second.whitelisted) {
+				++totalWhitelisted;
+			} else if (sait->second.blacklisted) {
+				++totalBlacklisted;
+				++totalBlocked;
+			} else if (this->config->keepBlockedScoreMultiplier > 0) {
+				// Score multiplier used
+				if (currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)) {
+					++totalBlocked;
+				}
+			} else {
+				// Score multiplier not used
+				if (sait->second.activityScore > this->config->activityScoreToBlock) {
+					++totalBlocked;
+				}
+			}
+			totalActivityCout += sait->second.activityCount;
+			totalRefusedCount += sait->second.refusedCount;
 		}
+
+		std::cout << "Total suspicious activity: " << totalActivityCout << std::endl;
+		std::cout << "Total refused: " << totalRefusedCount << std::endl;
+		std::cout << "Total whitelisted: " << totalWhitelisted << std::endl;
+		std::cout << "Total blacklisted: " << totalBlacklisted << std::endl;
+		std::cout << "Total blocked: " << totalBlocked << std::endl;
 
 		// Sort top5 addresses
 		std::sort(top5.begin(), top5.end(), this->sortByActivityCount);
@@ -1177,7 +1207,7 @@ void Data::printStats()
 		}
 
 		// Output top 5 addresses by activity
-		std::cout << "Top 5 most active addresses:" << std::endl;
+		std::cout << std::endl << "Top 5 most active addresses:" << std::endl;
 		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		std::cout << "     Address     |";
 		std::cout << ' ' << Data::centerString("Count", activityCountMaxLen) << " |";

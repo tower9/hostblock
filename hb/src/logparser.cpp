@@ -189,6 +189,7 @@ void LogParser::checkFiles()
 											posc = reportComment.find("%m");
 											if (posc != std::string::npos) {
 												if (this->config->abuseipdbReportMask) {
+													// TODO put in loop, there can be multiple occurrences
 													posh = line.find(this->hostname);
 													if (posh != std::string::npos) {
 														reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
@@ -320,6 +321,7 @@ void LogParser::checkFiles()
 												posc = reportComment.find("%m");
 												if (posc != std::string::npos) {
 													if (this->config->abuseipdbReportMask) {
+														// TODO put in loop, there can be multiple occurrences
 														posh = line.find(this->hostname);
 														if (posh != std::string::npos) {
 															reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
