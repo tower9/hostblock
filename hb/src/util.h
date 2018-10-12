@@ -96,6 +96,7 @@ struct ReportFromAbuseIPDB {
 	std::string country;
 	std::string isoCode;
 	bool isWhitelisted;
+	unsigned int score;
 	std::string comment;
 	unsigned int userId;
 };

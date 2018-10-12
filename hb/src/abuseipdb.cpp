@@ -193,6 +193,12 @@ std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bo
 								report.isWhitelisted = true;
 							}
 
+							if (obj[i].isMember("abuseConfidenceScore")) {
+								report.score =  obj[i]["abuseConfidenceScore"].asUInt();
+							} else {
+								report.score = 0;
+							}
+
 							// Comment
 							if (obj[i].isMember("comment")) {
 								report.comment = obj[i]["comment"].asString();
