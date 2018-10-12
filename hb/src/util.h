@@ -22,6 +22,7 @@ enum Report {
  */
 struct Pattern {
 	std::string patternString = "";// Regex as string
+	bool portSearch = false;// Whether should search for port in pattern
 	std::regex pattern;// Regex to match
 	unsigned int score = 1;// Score if pattern matched
 	Report abuseipdbReport = Report::NotSet;

@@ -1,7 +1,7 @@
 /*
  * Log file parser, match patterns with lines in log files
  *
- * Some notes, seems that std regex is slower than boost version, maybe worth a switch...
+ * Some notes, seems that std regex is slower than boost version, maybe worth to switch...
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog)
@@ -53,9 +53,8 @@ void LogParser::checkFiles()
 	unsigned long long int fileSize = 0;
 	unsigned long long int initialBookmark = 0;
 	std::string line;
-	std::string ipAddress;
-	std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-	std::smatch ipSearchResults;
+	std::string ipAddress, port;
+	std::smatch patternMatchResults;
 	time_t currentTime, lastInfo;
 	time(&currentTime);
 	lastInfo = currentTime;
@@ -110,19 +109,202 @@ void LogParser::checkFiles()
 					for (itlp = itlg->patterns.begin(); itlp != itlg->patterns.end(); ++itlp) {
 						try {
 
-							// Match line with pattern
-							if (std::regex_match(line, itlp->pattern)) {
+							/*
+							 * Match line with pattern
+							 * Note, using regex groups to get IP address and port
+							 * http://www.cplusplus.com/reference/regex/ECMAScript/#groups
+							 * Match results:
+							 *   index 0 - whole match
+							 *   index 1 - IP address
+							 *   index 2 - port (optional)
+							 */
+							if (std::regex_match(line, patternMatchResults, itlp->pattern)) {
+								if (patternMatchResults.size() > 1) {
 
-								// Get IP address out of line
-								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
-									if (ipSearchResults.size() > 0) {
+									// IP address
+									ipAddress = std::string(patternMatchResults[1]);
+									this->log->debug("Suspicious acitivity pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
+									// TODO check that this result is actually an IP address
 
-										// Optimistically, here we hope that first match is the address we need
-										ipAddress = std::string(ipSearchResults[0]);
-										this->log->debug("Suspicious activity pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
+									// Port
+									if (itlp->portSearch) {
+										if (patternMatchResults.size() > 2) {
+											port = std::string(patternMatchResults[2]);
+											// TODO check that this regex result is actually a port (0 - 65535)
+										} else {
+											this->log->warning("Port search is specified in pattern, but was not found in matched line!");
+											port = "";
+										}
+									}
 
-										// Update address data
-										this->data->saveActivity(ipAddress, itlp->score, 1, 0);
+									// Update address data
+									this->data->saveActivity(ipAddress, itlp->score, 1, 0);
+
+									// Check whether need to send report about match
+									sendReport = false;
+									reportCategories.clear();
+									reportComment = "";
+									if (this->config->abuseipdbKey.size() > 0) {
+										// Need to send if have global setting
+										if (this->config->abuseipdbReportAll) {
+											sendReport = true;
+										}
+										reportCategories = this->config->abuseipdbDefaultCategories;
+										if (this->config->abuseipdbDefaultCommentIsSet) {
+											reportComment = this->config->abuseipdbDefaultComment;
+										}
+										// Log group setting overrides global setting
+										if (itlg->abuseipdbReport == Report::True) {
+											sendReport = true;
+										} else if (itlg->abuseipdbReport == Report::False) {
+											sendReport = false;
+										}
+										if (itlg->abuseipdbCategories.size() > 0) {
+											reportCategories = itlg->abuseipdbCategories;
+										}
+										if (itlg->abuseipdbCommentIsSet) {
+											reportComment = itlg->abuseipdbComment;
+										}
+										// Pattern setting overrides log group setting
+										if (itlp->abuseipdbReport == Report::True) {
+											sendReport = true;
+										} else if (itlp->abuseipdbReport == Report::False) {
+											sendReport = false;
+										}
+										if (itlp->abuseipdbCategories.size() > 0) {
+											reportCategories = itlp->abuseipdbCategories;
+										}
+										if (itlp->abuseipdbCommentIsSet) {
+											reportComment = itlp->abuseipdbComment;
+										}
+									}
+
+									// Do not report whitelisted addresses
+									if (this->data->suspiciousAddresses.count(ipAddress) > 0 && this->data->suspiciousAddresses[ipAddress].whitelisted) {
+										sendReport = false;
+									}
+
+									// Check whether 15 minutes are passed since last report
+									// TODO implement config parameter and use 15 minutes as min with default 1h
+									if (sendReport) {
+										if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
+											if (currentTime - this->data->suspiciousAddresses[ipAddress].lastReported < 900) {
+												this->log->debug("Not enqueuing report about " + ipAddress + " more often than each 15 minutes!");
+												sendReport = false;
+											} else {
+												this->data->suspiciousAddresses[ipAddress].lastReported = currentTime;
+												// this->data->updateAddress(ipAddress);
+											}
+										} else {
+											this->log->warning("Need to send report about address " + ipAddress + ", but data about it is not found in data file! Skipping!");
+											sendReport = false;
+										}
+									}
+
+									// Search for %i, %p and %m placeholders in comment and replace with data if needed
+									if (sendReport) {
+										posc = reportComment.find("%i");
+										if (posc != std::string::npos) {
+											reportComment = reportComment.replace(posc, 2, ipAddress);
+										}
+										posc = reportComment.find("%p");
+										if (posc != std::string::npos) {
+											if (itlp->portSearch) {
+												reportComment = reportComment.replace(posc, 2, port);
+											} else {
+												this->log->warning("Comment template contains port placeholder, but port is not found in matched line! Adjust pattern or comment to avoid this warning!");
+											}
+										}
+										posc = reportComment.find("%m");
+										if (posc != std::string::npos) {
+											if (this->config->abuseipdbReportMask) {
+												// TODO put in loop, there can be multiple occurrences
+												posh = line.find(this->hostname);
+												if (posh != std::string::npos) {
+													reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
+												} else {
+													reportComment = reportComment.replace(posc, 2, line);
+												}
+											} else {
+												reportComment = reportComment.replace(posc, 2, line);
+											}
+										}
+										posc = reportComment.find("%d");
+										if (posc != std::string::npos) {
+											reportComment = reportComment.replace(posc, 2, currentTimeFormatted);
+										}
+									}
+
+									// Strip comment to 1500 characters
+									if (sendReport) {
+										if (reportComment.length() > 1500) {
+											reportComment = reportComment.substr(0, 1500);
+											this->log->warning("Comment for AbuseIPDB report is too long, length was reduced by removing characters from end!");
+										}
+									}
+
+									// Put report into queue for sending to AbuseIPDB
+									if (sendReport) {
+										ReportToAbuseIPDB reportToSend;
+										reportToSend.ip = ipAddress;
+										reportToSend.categories = reportCategories;
+										reportToSend.comment = reportComment;
+										this->abuseipdbReportingQueueMutex->lock();
+										this->abuseipdbReportingQueue->push(reportToSend);
+										this->abuseipdbReportingQueueMutex->unlock();
+										this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
+									}
+
+									this->log->debug("Match with pattern: " + itlp->patternString);
+
+									// Line matched with suspicious activity pattern, break the loop
+									break;
+								}
+
+							}
+
+						} catch (std::regex_error& e) {
+							std::string message = e.what();
+							this->log->error(message + ": " + std::to_string(e.code()));
+							this->log->error(hb::Util::regexErrorCode2Text(e.code()));
+						}
+					}
+
+					// Check refused patterns
+					for (itlp = itlg->refusedPatterns.begin(); itlp != itlg->refusedPatterns.end(); ++itlp) {
+						try {
+
+							/*
+							 * Match line with pattern
+							 * Note, using regex groups to get IP address and port
+							 * http://www.cplusplus.com/reference/regex/ECMAScript/#groups
+							 * Match results:
+							 *   index 0 - whole match
+							 *   index 1 - IP address
+							 *   index 2 - port (optional)
+							 */
+							if (std::regex_match(line, patternMatchResults, itlp->pattern)) {
+								if (patternMatchResults.size() > 1) {
+
+									// IP address
+									ipAddress = std::string(patternMatchResults[1]);
+									this->log->debug("Blocked access pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
+									// TODO check that this result is actually an IP address
+
+									// Port
+									if (itlp->portSearch) {
+										if (patternMatchResults.size() > 2) {
+											port = std::string(patternMatchResults[2]);
+											// TODO check that this regex result is actually a port (0 - 65535)
+										} else {
+											this->log->warning("Port search is specified in pattern, but was not found in matched line!");
+											port = "";
+										}
+									}
+
+									// Update address data
+									if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
+										this->data->saveActivity(ipAddress, itlp->score, 0, 1);
 
 										// Check whether need to send report about match
 										sendReport = false;
@@ -163,6 +345,11 @@ void LogParser::checkFiles()
 											}
 										}
 
+										// Do not report whitelisted addresses
+										if (this->data->suspiciousAddresses.count(ipAddress) > 0 && this->data->suspiciousAddresses[ipAddress].whitelisted) {
+											sendReport = false;
+										}
+
 										// Check whether 15 minutes are passed since last report
 										// TODO implement config parameter and use 15 minutes as min with default 1h
 										if (sendReport) {
@@ -180,11 +367,19 @@ void LogParser::checkFiles()
 											}
 										}
 
-										// Search for %i and %m placeholders in comment and replace with data if needed
+										// Search for %i, %p and %m placeholders in comment and replace with data if needed
 										if (sendReport) {
 											posc = reportComment.find("%i");
 											if (posc != std::string::npos) {
 												reportComment = reportComment.replace(posc, 2, ipAddress);
+											}
+											posc = reportComment.find("%p");
+											if (posc != std::string::npos) {
+												if (itlp->portSearch) {
+													reportComment = reportComment.replace(posc, 2, port);
+												} else {
+													this->log->warning("Comment template contains port placeholder, but port is not found in matched line! Adjust pattern or comment to avoid this warning!");
+												}
 											}
 											posc = reportComment.find("%m");
 											if (posc != std::string::npos) {
@@ -225,144 +420,16 @@ void LogParser::checkFiles()
 											this->abuseipdbReportingQueueMutex->unlock();
 											this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
 										}
+									} else {
+										this->log->debug("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
 									}
+
+									this->log->debug("Match with pattern: " + itlp->patternString);
+
+									// Line matched with blocked access pattern, break the loop
+									break;
 								}
-								this->log->debug("Pattern: " + itlp->patternString);
-							}
 
-						} catch (std::regex_error& e) {
-							std::string message = e.what();
-							this->log->error(message + ": " + std::to_string(e.code()));
-							this->log->error(hb::Util::regexErrorCode2Text(e.code()));
-						}
-					}
-
-					// Check refused patterns
-					for (itlp = itlg->refusedPatterns.begin(); itlp != itlg->refusedPatterns.end(); ++itlp) {
-						try {
-
-							// Match line with pattern
-							if (std::regex_match(line, itlp->pattern)) {
-
-								// Get IP address out of line
-								if (std::regex_search(line, ipSearchResults, ipSearchPattern)) {
-									if (ipSearchResults.size() > 0) {
-
-										// Optimistically, here we hope that first match is address we need
-										ipAddress = std::string(ipSearchResults[0]);
-										this->log->debug("Blocked access pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
-
-										// Update address data
-										if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
-											this->data->saveActivity(ipAddress, itlp->score, 0, 1);
-
-											// Check whether need to send report about match
-											sendReport = false;
-											reportCategories.clear();
-											reportComment = "";
-											if (this->config->abuseipdbKey.size() > 0) {
-												// Need to send if have global setting
-												if (this->config->abuseipdbReportAll) {
-													sendReport = true;
-												}
-												reportCategories = this->config->abuseipdbDefaultCategories;
-												if (this->config->abuseipdbDefaultCommentIsSet) {
-													reportComment = this->config->abuseipdbDefaultComment;
-												}
-												// Log group setting overrides global setting
-												if (itlg->abuseipdbReport == Report::True) {
-													sendReport = true;
-												} else if (itlg->abuseipdbReport == Report::False) {
-													sendReport = false;
-												}
-												if (itlg->abuseipdbCategories.size() > 0) {
-													reportCategories = itlg->abuseipdbCategories;
-												}
-												if (itlg->abuseipdbCommentIsSet) {
-													reportComment = itlg->abuseipdbComment;
-												}
-												// Pattern setting overrides log group setting
-												if (itlp->abuseipdbReport == Report::True) {
-													sendReport = true;
-												} else if (itlp->abuseipdbReport == Report::False) {
-													sendReport = false;
-												}
-												if (itlp->abuseipdbCategories.size() > 0) {
-													reportCategories = itlp->abuseipdbCategories;
-												}
-												if (itlp->abuseipdbCommentIsSet) {
-													reportComment = itlp->abuseipdbComment;
-												}
-											}
-
-											// Check whether 15 minutes are passed since last report
-											// TODO implement config parameter and use 15 minutes as min with default 1h
-											if (sendReport) {
-												if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
-													if (currentTime - this->data->suspiciousAddresses[ipAddress].lastReported < 900) {
-														this->log->debug("Not enqueuing report about " + ipAddress + " more often than each 15 minutes!");
-														sendReport = false;
-													} else {
-														this->data->suspiciousAddresses[ipAddress].lastReported = currentTime;
-														// this->data->updateAddress(ipAddress);
-													}
-												} else {
-													this->log->warning("Need to send report about address " + ipAddress + ", but data about it is not found in data file! Skipping!");
-													sendReport = false;
-												}
-											}
-
-											// Search for %i and %m placeholders in comment and replace with data if needed
-											if (sendReport) {
-												posc = reportComment.find("%i");
-												if (posc != std::string::npos) {
-													reportComment = reportComment.replace(posc, 2, ipAddress);
-												}
-												posc = reportComment.find("%m");
-												if (posc != std::string::npos) {
-													if (this->config->abuseipdbReportMask) {
-														// TODO put in loop, there can be multiple occurrences
-														posh = line.find(this->hostname);
-														if (posh != std::string::npos) {
-															reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
-														} else {
-															reportComment = reportComment.replace(posc, 2, line);
-														}
-													} else {
-														reportComment = reportComment.replace(posc, 2, line);
-													}
-												}
-												posc = reportComment.find("%d");
-												if (posc != std::string::npos) {
-													reportComment = reportComment.replace(posc, 2, currentTimeFormatted);
-												}
-											}
-
-											// Strip comment to 1500 characters
-											if (sendReport) {
-												if (reportComment.length() > 1500) {
-													reportComment = reportComment.substr(0, 1500);
-													this->log->warning("Comment for AbuseIPDB report is too long, length was reduced by removing characters from end!");
-												}
-											}
-
-											// Put report into queue for sending to AbuseIPDB
-											if (sendReport) {
-												ReportToAbuseIPDB reportToSend;
-												reportToSend.ip = ipAddress;
-												reportToSend.categories = reportCategories;
-												reportToSend.comment = reportComment;
-												this->abuseipdbReportingQueueMutex->lock();
-												this->abuseipdbReportingQueue->push(reportToSend);
-												this->abuseipdbReportingQueueMutex->unlock();
-												this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
-											}
-										} else {
-											this->log->debug("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
-										}
-									}
-								}
-								this->log->debug("Pattern: " + itlp->patternString);
 							}
 
 						} catch (std::regex_error& e) {

@@ -436,13 +436,18 @@ bool Config::processPatterns()
 {
 	std::vector<LogGroup>::iterator itlg;
 	std::vector<Pattern>::iterator itpa;
-	std::size_t posip;
+	std::size_t posip, posport;
 	try{
 		for (itlg = this->logGroups.begin(); itlg != this->logGroups.end(); ++itlg) {
 			for (itpa = itlg->patterns.begin(); itpa != itlg->patterns.end(); ++itpa) {
 				posip = itpa->patternString.find("%i");
+				posport = itpa->patternString.find("%p");
 				if (posip != std::string::npos) {
-					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"));
+					if (posport != std::string::npos) {
+						itpa->patternString.replace(posport, 2, "(\\d{1,5})");
+						itpa->portSearch = true;
+					}
+					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})"));
 				} else {
 					this->log->error("Unable to find ip address placeholder \%i in pattern, failed to parse pattern: " + itpa->patternString);
 					return false;
@@ -450,8 +455,13 @@ bool Config::processPatterns()
 			}
 			for (itpa = itlg->refusedPatterns.begin(); itpa != itlg->refusedPatterns.end(); ++itpa) {
 				posip = itpa->patternString.find("%i");
+				posport = itpa->patternString.find("%p");
 				if (posip != std::string::npos) {
-					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"));
+					if (posport != std::string::npos) {
+						itpa->patternString.replace(posport, 2, "(\\d{1,5})");
+						itpa->portSearch = true;
+					}
+					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})"));
 				} else {
 					this->log->error("Unable to find ip address placeholder \%i in pattern, failed to parse pattern: " + itpa->patternString);
 					return false;
