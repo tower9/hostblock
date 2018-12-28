@@ -1,6 +1,7 @@
 /*
  * Class to work with AbuseIPDB API
  */
+
 #ifndef HBABIPDB_H
 #define HBABIPDB_H
 
@@ -78,7 +79,7 @@ class AbuseIPDB{
 		/*
 		 * AbuseIPDB API date and time format
 		 */
-		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S %z";
+		std::string abuseipdbDatetimeFormat = "%Y-%m-%dT%H:%M:%S";
 
 		/*
 		 * Constructor
@@ -96,7 +97,7 @@ class AbuseIPDB{
 		/*
 		 * Check IP address in abuseipdb.com
 		 */
-		std::vector<ReportFromAbuseIPDB> checkAddress(std::string address, bool verbose = false);
+		AbuseIPDBCheckResult checkAddress(std::string address, bool verbose = false);
 
 		/*
 		 * Report IP address to abuseipdb.com

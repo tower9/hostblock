@@ -77,7 +77,7 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 	CURLcode res;// cURL response code
 	struct curl_slist *headers=NULL;// Init to NULL is important
 
-	// Prepare URL, header and POST data
+	// Prepare URL, header and request parameters
 	std::string url = this->abuseipdbURL;
 	headers = curl_slist_append(headers, "Accept: application/json");
 	url += "/api/v2/check";
@@ -137,7 +137,7 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 				for (i = 0; i < chunk.size; ++i) {
 					response += chunk.memory[i];
 				}
-				std::cout << "Response: " << response << std::endl;
+				// std::cout << "Response: " << response << std::endl;
 
 				// Parse JSON and store into hb::AbuseIPDBCheckResult
 				Json::Reader reader;
