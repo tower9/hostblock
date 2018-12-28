@@ -1,5 +1,5 @@
 /*
- * Hostblock 1.0.1
+ * Hostblock
  *
  * Automatic blocking of suspicious remote IP hosts - tool monitors log files
  * for suspicious activity to automatically deny further access.
@@ -88,7 +88,7 @@ bool reloadThreadConfig = false;
  */
 void printUsage()
 {
-	std::cout << "Hostblock v.1.0.1" << std::endl;
+	std::cout << "Hostblock v." << hb::kHostblockVersion << std::endl;
 	std::cout << "https://github.com/tower9/hostblock" << std::endl;
 	std::cout << std::endl;
 	std::cout << "hostblock [-h | --help] [-s | --statistics] [-l | --list [-a | --all] [-c | --count] [-t | --time]] [-b<ip_address> | --blacklist=<ip_address>] [-w<ip_address> | --whitelist=<ip_address>] [-r<ip_address> | --remove=<ip_address>] [-d | --daemon]" << std::endl << std::endl;
