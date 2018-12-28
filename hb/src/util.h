@@ -80,6 +80,15 @@ struct SuspiciosAddressStatType{
 };
 
 /*
+ * Data about AbuseIPDB blacklisted address
+ */
+struct AbuseIPDBBlacklistedAddressType{
+	unsigned int totalReports = 0;
+	unsigned int abuseConfidenceScore = 0;
+	bool iptableRule = false;
+};
+
+/*
  * Report data for sending to AbuseIPDB
  */
 struct ReportToAbuseIPDB {

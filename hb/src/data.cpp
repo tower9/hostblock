@@ -11,11 +11,17 @@
  * (to get rid of them eventually).
  *
  * Data about suspicious activity from address:
- * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted
+ * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted|lastreport
  *
  * Log file bookmark to check for log rotation and for seekg to read only new
  * lines:
  * b|bookmark|size|file_path
+ *
+ * Data about IP address received from AbuseIPDB (API blacklist endpoint)
+ * a|addr|repcount|confscore
+ *
+ * Status of data synchronization with AbuseIPDB (API blacklist endpoint)
+ * s|synctime|gentime
  *
  * Marked for removal (any type of line), right padded with spaces according to
  * original length of line:
@@ -32,11 +38,19 @@
  *               this address), y/n, len 1
  * blacklisted - flag if this IP address is blacklisted (manual list) and must
  *               be blocked allways, y/n, len 1
- * lastreport  - unix timestamp of last report to 3rd part, len 20
+ * lastreport  - unix timestamp of last report to AbuseIPDB, len 20
+ *
  * bookmark    - bookmark with how far this file is already parsed, len 20
  * size        - size of file when it was last read, len 20
  * file_path   - full path to log file, variable len (limits.h/PATH_MAX is not
  *               reliable so no max len here)
+ *
+ * repcount    - AbuseIPDB report count, len 10
+ * confscore   - AbuseIPDB confidence score, len 3
+ *               (https://www.abuseipdb.com/faq.html#confidence)
+ *
+ * synctime    - unix timestamp of last syncrhonization with AbuseIPDB, len 20
+ * gentime     - blacklist generation timestamp returned by AbuseIPDB, len 20
  */
 
 // Standard input/output stream library (cin, cout, cerr, clog, etc)
@@ -96,6 +110,8 @@ bool Data::loadData()
 		std::string address;
 		hb::SuspiciosAddressType data;
 		std::pair<std::map<std::string, hb::SuspiciosAddressType>::iterator,bool> chk;
+		hb::AbuseIPDBBlacklistedAddressType abuseIPDBData;
+		std::pair<std::map<std::string, hb::AbuseIPDBBlacklistedAddressType>::iterator,bool> chka;
 		bool duplicatesFound = false;
 		unsigned long long int bookmark, size;
 		std::string logFilePath;
@@ -108,13 +124,16 @@ bool Data::loadData()
 		// Clear this->suspiciousAddresses
 		this->suspiciousAddresses.clear();
 
+		// Clear this->abuseIPDBBlacklist
+		this->abuseIPDBBlacklist.clear();
+
 		// Read data file line by line
 		while (std::getline(f, line)) {
 
 			// First position is record type
 			recordType = line[0];
 
-			if (recordType == 'd' && (line.length() == 92 || line.length() == 112)) {// Data about address (activity score, activity count, blacklisted, whitelisted, etc)
+			if (recordType == 'd' && (line.length() == 92 || line.length() == 112)) {// Data about suspicious address
 
 				// IP address
 				address = hb::Util::ltrim(line.substr(1, 39));
@@ -195,6 +214,35 @@ bool Data::loadData()
 					this->log->warning("Bookmark information in datafile for log file " + logFilePath + " found, but file not present in configuration. Removing from datafile...");
 					this->removeFile(logFilePath);
 				}
+
+			} else if (recordType == 'a') {// AbuseIPDB blacklisted address
+
+				// IP address
+				address = hb::Util::ltrim(line.substr(1, 39));
+
+				// AbuseIPDB report count for this IP address according to specified interval
+				abuseIPDBData.totalReports = std::strtoul(hb::Util::ltrim(line.substr(40, 10)).c_str(), NULL, 10);
+
+				// AbuseIPDB confidence score
+				abuseIPDBData.abuseConfidenceScore = std::strtoul(hb::Util::ltrim(line.substr(50, 3)).c_str(), NULL, 10);
+
+				// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
+				abuseIPDBData.iptableRule = false;
+
+				// Store in this->abuseIPDBBlacklist
+				chka = this->abuseIPDBBlacklist.insert(std::pair<std::string, hb::AbuseIPDBBlacklistedAddressType>(address, abuseIPDBData));
+				if (chka.second == false) {
+					this->log->warning("AbuseIPDB blacklisted address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
+					duplicatesFound = true;
+				}
+
+			} else if (recordType == 's') {// AbuseIPDB sync bookmark
+
+				// Unix timestamp of last sync with AbuseIPDB using blacklist endpoint
+				this->abuseIPDBSyncTime = std::strtoull(hb::Util::ltrim(line.substr(1, 20)).c_str(), NULL, 10);
+
+				// Unix timestamp of AbuseIPDB blacklist generation (returned by AbuseIPDB)
+				this->abuseIPDBBlacklistGenTime =  std::strtoull(hb::Util::ltrim(line.substr(21, 20)).c_str(), NULL, 10);
 
 			} else if (recordType == 'r') {// Record marked for removal
 				removedRecords++;
@@ -323,6 +371,26 @@ bool Data::saveData()
 				f << "\n";// \n should not flush buffer
 			}
 		}
+
+		// Loop all AbuseIPDB blacklisted addresses
+		std::map<std::string, AbuseIPDBBlacklistedAddressType>::iterator itb;
+		for (itb = this->abuseIPDBBlacklist.begin(); itb!=this->abuseIPDBBlacklist.end(); ++itb) {
+			f << 'a';
+			f << std::right << std::setw(39) << itb->first;// Address, left padded with spaces
+			f << std::right << std::setw(10) << itb->second.totalReports;
+			if (itb->second.abuseConfidenceScore <= 100) {
+				f << std::right << std::setw(3) << itb->second.abuseConfidenceScore;
+			} else {
+				f << std::right << std::setw(3) << 0;
+			}
+			f << "\n";// \n should not flush buffer
+		}
+
+		// Bookmark of last sync with AbuseIPDB and blacklist generation timestamp
+		f << 's';
+		f << std::right << std::setw(20) << this->abuseIPDBSyncTime;
+		f << std::right << std::setw(20) << this->abuseIPDBBlacklistGenTime;
+		f << "\n";// \n should not flush buffer
 
 		// Close datafile
 		f.close();

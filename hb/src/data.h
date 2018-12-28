@@ -52,6 +52,21 @@ class Data{
 		std::map<std::string, hb::SuspiciosAddressType> suspiciousAddresses;
 
 		/*
+		 * Timestamp of last syncrhonization with AbuseIPDB blacklist
+		 */
+		unsigned long long int abuseIPDBSyncTime = 0;
+
+		/*
+		 * Timestamp of AbuseIPDB blacklist generation (received from AbuseIPDB)
+		 */
+		unsigned long long int abuseIPDBBlacklistGenTime = 0;
+
+		/*
+		 * Data about AbuseIPDB blacklisted addresses
+		 */
+		std::map<std::string, hb::AbuseIPDBBlacklistedAddressType> abuseIPDBBlacklist;
+
+		/*
 		 * Constructor
 		 */
 		Data(hb::Logger* log, hb::Config* config, hb::Iptables* iptables);
