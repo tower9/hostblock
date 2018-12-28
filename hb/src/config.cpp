@@ -447,7 +447,8 @@ bool Config::processPatterns()
 						itpa->patternString.replace(posport, 2, "(\\d{1,5})");
 						itpa->portSearch = true;
 					}
-					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})"));
+					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})"), std::regex_constants::icase);
+					// std::cout << "Regex pattern: " << itpa->patternString << std::endl;
 				} else {
 					this->log->error("Unable to find ip address placeholder \%i in pattern, failed to parse pattern: " + itpa->patternString);
 					return false;
@@ -461,7 +462,8 @@ bool Config::processPatterns()
 						itpa->patternString.replace(posport, 2, "(\\d{1,5})");
 						itpa->portSearch = true;
 					}
-					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})"));
+					itpa->pattern = std::regex(itpa->patternString.replace(posip, 2, "(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})"), std::regex_constants::icase);
+					// std::cout << "Regex pattern: " << itpa->patternString << std::endl;
 				} else {
 					this->log->error("Unable to find ip address placeholder \%i in pattern, failed to parse pattern: " + itpa->patternString);
 					return false;
