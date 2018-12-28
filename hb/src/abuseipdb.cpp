@@ -1,6 +1,8 @@
 /*
  * Class to work with AbuseIPDB API
+ *
  */
+
 // Standard input/output stream library (cin, cout, cerr, clog, etc)
 #include <iostream>
 // Vector
@@ -55,7 +57,7 @@ AbuseIPDB::~AbuseIPDB()
 	curl_global_cleanup();
 }
 
-std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bool verbose)
+AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 {
 	// No error at start
 	this->isError = false;
@@ -66,25 +68,31 @@ std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bo
 		this->log->error("Cannot call AbuseIPDB API, API key is not provided!");
 	}
 
-	// AbuseIPDBCheckResult result;// Result
-	std::vector<ReportFromAbuseIPDB> result;
+	AbuseIPDBCheckResult result;
 
 	// Init some memory where JSON response will be stored
 	AbuseIPDBJSONData chunk;
 	chunk.memory = (char*)malloc(1); // Will be extended with realloc later
 	chunk.size = 0; // No data yet
 	CURLcode res;// cURL response code
+	struct curl_slist *headers=NULL;// Init to NULL is important
 
-	// Prepare URL and POST data
-	std::string url = this->abuseipdbURL + "/check/" + address + "/json";
-	std::string postFields = "key=" + this->abuseipdbKey;
-	postFields += "&days=7";
+	// Prepare URL, header and POST data
+	std::string url = this->abuseipdbURL;
+	headers = curl_slist_append(headers, "Accept: application/json");
+	url += "/api/v2/check";
+	std::string requestParams = "key=" + this->abuseipdbKey;
+	requestParams += "&ipAddress=" + address;
+	requestParams += "&maxAgeInDays=7";
 	if (verbose) {
-		postFields += "&verbose";
+		requestParams += "&verbose";
 	}
 
 	// Init curl
 	this->curl = curl_easy_init();
+
+	// Set header
+	curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, headers);
 
 	// Store results using callback function
 	curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveJSONResultCallback);
@@ -99,15 +107,12 @@ std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bo
 	curl_easy_setopt(this->curl, CURLOPT_USERAGENT, userAgent.c_str());
 
 	if (this->curl) {
-		// URL
-		curl_easy_setopt(this->curl, CURLOPT_URL, url.c_str());
-
-		// POST data
-		curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, postFields.c_str());
+		// URL and request parameters
+		curl_easy_setopt(this->curl, CURLOPT_URL, (url + "?" + requestParams).c_str());
 
 		// HTTP/HTTPs call
 		this->log->debug("Calling " + url);
-		this->log->debug("POST data: " + postFields);
+		this->log->debug("Data: " + requestParams);
 		res = curl_easy_perform(this->curl);
 
 		if (res != CURLE_OK) {
@@ -132,14 +137,7 @@ std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bo
 				for (i = 0; i < chunk.size; ++i) {
 					response += chunk.memory[i];
 				}
-				// std::cout << "Response: " << response << std::endl;
-
-				// AbuseIPDB doesn't have any reports about this address, return empty result
-				if (response == "[]") {
-					curl_easy_cleanup(this->curl);
-					free(chunk.memory);
-					return result;
-				}
+				std::cout << "Response: " << response << std::endl;
 
 				// Parse JSON and store into hb::AbuseIPDBCheckResult
 				Json::Reader reader;
@@ -150,69 +148,81 @@ std::vector<ReportFromAbuseIPDB> AbuseIPDB::checkAddress(std::string address, bo
 				if (reader.parse(response, obj)) {
 					// std::cout << "count: " << obj.size() << std::endl;
 					if (obj.size() > 0) {
-						for (i = 0; i < obj.size(); ++i) {
-							ReportFromAbuseIPDB report;
+						// IP address
+						result.ipAddress = obj["data"]["ipAddress"].asString();
 
-							// IP address
-							report.ip = obj[i]["ip"].asString();
+						// True if address is from public (internet) range or false if address is from private (LAN) range
+						result.isPublic = true;
+						if (obj["data"]["isPublic"].asString() == "false") {
+							result.isPublic = false;
+						}
 
-							// Categories
-							for (j = 0; j < obj[i]["category"].size(); j++) {
-								report.categories.insert(report.categories.end(), obj[i]["category"][j].asUInt());
-							}
+						// IP address version
+						result.ipVersion = obj["data"]["ipVersion"].asUInt();
 
-							// Date and time of report
-							// std::istringstream ss(obj[i]["created"].asString());
-							// ss >> std::get_time(&t, this->abuseipdbDatetimeFormat.c_str());
-							// if (ss.fail()) {
-							// 	this->isError = true;
-							// 	this->log->error("Failed to parse date and time in AbuseIPDB API response!");
-							// 	report.created = 0;
-							// } else {
-							// 	timestamp = timegm(&t);
-							// 	report.created = (unsigned long long int)timestamp;
-							// }
-							if (strptime(obj[i]["created"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+						// Whether address is in AbuseIPDB whitelist
+						result.isWhitelisted = false;
+						if (obj["data"]["isWhitelisted"].asString() == "true") {
+							result.isWhitelisted = true;
+						}
+
+						// AbuseIPDB confidence score
+						result.abuseConfidenceScore = obj["data"]["abuseConfidenceScore"].asUInt();
+
+						// IP address country
+						result.countryCode = obj["data"]["countryCode"].asString();
+						if (verbose) {
+							result.countryName = obj["data"]["countryName"].asString();
+						}
+
+						// Report count for specified maxAgeInDays
+						result.totalReports = obj["data"]["totalReports"].asUInt();
+
+						// Last activity from this IP address
+						if (obj["data"]["lastReportedAt"].asString().length() > 0) {
+							if (strptime(obj["data"]["lastReportedAt"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
 								timestamp = timegm(&t);
-								report.created = (unsigned long long int)timestamp;
+								result.lastReportedAt = (unsigned long long int)timestamp;
 							} else {
 								this->isError = true;
 								this->log->error("Failed to parse date and time in AbuseIPDB API response!");
-								report.created = 0;
+								result.lastReportedAt = 0;
 							}
+						}
 
-							// IP address country
-							report.country = obj[i]["country"].asString();
+						// Additional details with verbose flag
+						if (verbose) {
+							AbuseIPDBCheckResultReport report;
+							for (i = 0; i < obj["data"]["reports"].size(); ++i) {
+								// Date&time of report
+								if (strptime(obj["data"]["reports"][i]["reportedAt"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+									timestamp = timegm(&t);
+									report.reportedAt = (unsigned long long int)timestamp;
+								} else {
+									this->isError = true;
+									this->log->error("Failed to parse date and time in AbuseIPDB API response!");
+									report.reportedAt = 0;
+								}
 
-							// IP address country ISO code
-							report.isoCode = obj[i]["isoCode"].asString();
+								// Comment
+								report.comment = obj["data"]["reports"][i]["comment"].asString();
 
-							// Whitelist flag
-							report.isWhitelisted = false;
-							if (obj[i]["isWhitelisted"] == "true") {
-								report.isWhitelisted = true;
+								// Categories
+								report.categories.clear();
+								for (j = 0; j < obj["data"]["reports"][i]["categories"].size(); j++) {
+									report.categories.insert(report.categories.end(), obj["data"]["reports"][i]["categories"][j].asUInt());
+								}
+
+								// User identifier of reporter
+								report.reporterId = obj["data"]["reports"][i]["reporterId"].asUInt();
+
+								// Reporter country
+								report.reporterCountryCode = obj["data"]["reports"][i]["reporterCountryCode"].asString();
+								report.reporterCountryName = obj["data"]["reports"][i]["reporterCountryName"].asString();
+
+								// Append to result
+								result.reports.insert(result.reports.end(), report);
 							}
-
-							if (obj[i].isMember("abuseConfidenceScore")) {
-								report.score =  obj[i]["abuseConfidenceScore"].asUInt();
-							} else {
-								report.score = 0;
-							}
-
-							// Comment
-							if (obj[i].isMember("comment")) {
-								report.comment = obj[i]["comment"].asString();
-							} else {
-								report.comment = "";
-							}
-
-							// User who reported
-							if (obj[i].isMember("userId")) {
-								report.userId = obj[i]["userId"].asUInt();
-							} else {
-								report.userId = 0;
-							}
-							result.insert(result.end(), report);
 						}
 					}
 				} else {
