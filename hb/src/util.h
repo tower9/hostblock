@@ -1,6 +1,7 @@
 /*
  * Misc
  */
+
 #ifndef HBUTIL_H
 #define HBUTIL_H
 
@@ -10,6 +11,8 @@
 #include <regex>
 
 namespace hb{
+
+static const std::string kHostblockVersion = "1.0.1";
 
 enum Report {
 	False,
@@ -87,18 +90,31 @@ struct ReportToAbuseIPDB {
 
 /*
  * Report data received from AbuseIPDB
- * Note, comment and userId is returned only with verbose request
  */
-struct ReportFromAbuseIPDB {
-	std::string ip;
-	std::vector<unsigned int> categories;
-	unsigned long long int created;
-	std::string country;
-	std::string isoCode;
-	bool isWhitelisted;
-	unsigned int score;
+struct AbuseIPDBCheckResultReport {
+	unsigned long long int reportedAt = 0;
 	std::string comment;
-	unsigned int userId;
+	std::vector<unsigned int> categories;
+	unsigned int reporterId;
+	std::string reporterCountryCode;
+	std::string reporterCountryName;
+};
+
+/*
+ * IP address check service data received from AbuseIPDB
+ * Note, reports are returned only with verbose flag
+ */
+struct AbuseIPDBCheckResult {
+	std::string ipAddress;
+	bool isPublic = true;
+	unsigned int ipVersion = 4;
+	bool isWhitelisted = false;
+	unsigned int abuseConfidenceScore = 0;
+	std::string countryCode;
+	std::string countryName;
+	unsigned int totalReports = 0;
+	unsigned long long int lastReportedAt = 0;
+	std::vector<AbuseIPDBCheckResultReport> reports;
 };
 
 /*

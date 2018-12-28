@@ -1,6 +1,7 @@
-/* 
+/*
  * Hostblock log writter, simple wrapper for C syslog
  */
+
 #ifndef HBLOGGER_H
 #define HBLOGGER_H
 

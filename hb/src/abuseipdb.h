@@ -1,5 +1,7 @@
 /*
  * Class to work with AbuseIPDB API
+ *
+ * https://docs.abuseipdb.com/
  */
 
 #ifndef HBABIPDB_H

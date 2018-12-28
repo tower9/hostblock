@@ -80,9 +80,9 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 	// Prepare URL, header and request parameters
 	std::string url = this->abuseipdbURL;
 	headers = curl_slist_append(headers, "Accept: application/json");
+	headers = curl_slist_append(headers, ("Key: " + this->abuseipdbKey).c_str());
 	url += "/api/v2/check";
-	std::string requestParams = "key=" + this->abuseipdbKey;
-	requestParams += "&ipAddress=" + address;
+	std::string requestParams = "ipAddress=" + address;
 	requestParams += "&maxAgeInDays=7";
 	if (verbose) {
 		requestParams += "&verbose";
@@ -102,7 +102,9 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 
 	// User agent
 	curl_version_info_data *versionData = curl_version_info(CURLVERSION_NOW);
-	std::string userAgent = "Hostblock/1.0.1 libcurl/";
+	std::string userAgent = "Hostblock/";
+	userAgent += kHostblockVersion;
+	userAgent += " libcurl/";
 	userAgent += versionData->version;
 	curl_easy_setopt(this->curl, CURLOPT_USERAGENT, userAgent.c_str());
 
@@ -260,26 +262,32 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 	chunk.memory = (char*)malloc(1); // Will be extended with realloc later
 	chunk.size = 0; // No data yet
 	CURLcode res;// cURL response code
+	struct curl_slist *headers=NULL;// Init to NULL is important
 
-	// Prepare URL and POST data
-	std::string url = this->abuseipdbURL + "/report/json";
-	std::string postFields = "key=" + this->abuseipdbKey;
-	postFields += "&category=";
+	// Prepare URL, header and request parameters
+	std::string url = this->abuseipdbURL;
+	headers = curl_slist_append(headers, "Accept: application/json");
+	headers = curl_slist_append(headers, ("Key: " + this->abuseipdbKey).c_str());
+	url += "/api/v2/report";
+	std::string requestParams = "categories=";
 	std::vector<unsigned int>::iterator cit;
 	bool firstIteration = true;
 	for (cit = categories.begin(); cit != categories.end(); ++cit) {
 		if (firstIteration) {
-			postFields += std::to_string(*cit);
+			requestParams += std::to_string(*cit);
 			firstIteration = false;
 		} else {
-			postFields += "," + std::to_string(*cit);
+			requestParams += "," + std::to_string(*cit);
 		}
 	}
-	postFields += "&comment=" + std::string(curl_easy_escape(this->curl, comment.c_str(), comment.size()));
-	postFields += "&ip=" + address;
+	requestParams += "&comment=" + std::string(curl_easy_escape(this->curl, comment.c_str(), comment.size()));
+	requestParams += "&ip=" + address;
 
 	// Init curl
 	this->curl = curl_easy_init();
+
+	// Set header
+	curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, headers);
 
 	// Store results using callback function
 	curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveJSONResultCallback);
@@ -289,7 +297,9 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 
 	// User agent
 	curl_version_info_data *versionData = curl_version_info(CURLVERSION_NOW);
-	std::string userAgent = "Hostblock/1.0.1 libcurl/";
+	std::string userAgent = "Hostblock/";
+	userAgent += kHostblockVersion;
+	userAgent += " libcurl/";
 	userAgent += versionData->version;
 	curl_easy_setopt(this->curl, CURLOPT_USERAGENT, userAgent.c_str());
 
@@ -298,11 +308,11 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 		curl_easy_setopt(this->curl, CURLOPT_URL, url.c_str());
 
 		// POST data
-		curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, postFields.c_str());
+		curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, requestParams.c_str());
 
 		// HTTP/HTTPs call
 		this->log->debug("Calling " + url);
-		this->log->debug("POST data: " + postFields);
+		this->log->debug("Data: " + requestParams);
 		res = curl_easy_perform(curl);
 
 		if (res != CURLE_OK) {
@@ -335,11 +345,20 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 				if (reader.parse(response, obj)) {
 					// std::cout << "count: " << obj.size() << std::endl;
 					if (obj.size() > 0) {
-						// Check response, whether in JSON we got success == true
-						if (obj["success"] == true) {
+						if (obj.isMember("data")) {
 							curl_easy_cleanup(this->curl);
 							free(chunk.memory);
 							return true;
+						} else if (obj.isMember("errors")) {
+							this->isError = true;
+							this->log->error("AbuseIPDB report service returned error(s)!");
+							for (i = 0; i < obj["errors"].size(); ++i) {
+								this->log->error(obj["errors"][i]["detail"].asString());
+							}
+							return false;
+						} else {
+							this->isError = true;
+							this->log->error("After calling AbuseIPDB API report servcie, failed to parse AbuseIPDB response!");
 						}
 					} else {
 						// Didn't get any JSON response, assume failure

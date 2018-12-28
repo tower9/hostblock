@@ -1,6 +1,7 @@
 /*
  * Class to work with hostblock config file.
  */
+
 #ifndef HBCONFIG_H
 #define HBCONFIG_H
 

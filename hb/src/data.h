@@ -1,6 +1,7 @@
 /*
  * Class to work with data file.
  */
+
 #ifndef HBDATA_H
 #define HBDATA_H
 
