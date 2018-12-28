@@ -5,64 +5,67 @@ Tool for log file monitoring and automatic blocking of remote IP hosts based on 
 
  - Checks log files for suspicious activity and automatically adjusts iptables rules
  - Runs as daemon
- - Keeps some data about suspicious activity for some simple statistics and to compare with iptables
+ - Keeps local data about suspicious activity for some simple statistics and to compare with iptables
  - Daemon processes only new bytes from log files and detects if log file is rotated
- - Blacklist to manually blacklist some addresses
- - Whitelist to ignore some addresses
- - Allows to manually remove IP addresses from data file
+ - Blacklist to manually blacklist addresses
+ - Whitelist to ignore addresses
+ - Remove IP address from local data file
+ - Automatic reporting to AbuseIPDB using API v2
 
 # Setup
 
- - Get source from github
+Get source from github
 ```
 $ git clone https://github.com/tower9/hostblock.git
 ```
 
- - Checkout latest tag
+Checkout latest tag
 ```
 $ git checkout `git describe --abbrev=0`
 ```
 
- - Compile
+Compile
 ```
 $ make
 ```
 
- - Install
+Install
 ```
 $ sudo make install
 ```
 
- - Adjust configuration, review and adjust patterns
+Adjust configuration, review and adjust patterns
 ```
 $ sudo vi /etc/hostblock.conf
 ```
 
- - To count refused connection count create new iptables chain and adjust hostblock configuration to use this new chain:
+To count refused connection count create new iptables chain and adjust hostblock configuration to use this new chain
 ```
 $ sudo iptables -N HB_LOG_AND_DROP
 $ sudo iptables -A HB_LOG_AND_DROP -j LOG --log-prefix "IPTABLES-DROPPED: " --log-level 4
 $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 ```
 
- - For first hostblock start truncate/rotate/archive log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
+Before first hostblock start consider truncating/rotating/archiving log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
 
- - make install should detect systemd if it is available and install service script. If systemd is used, start hostblock:
+`make install` should detect if systemd or upstart is used and install appropriate service script/configuration.
+
+If systemd is used, start hostblock
 ```
 $ sudo systemctl start hostblock
 ```
 
-- If systemd is used, enable service to automatically start hostblock after reboot:
+If systemd is used, enable service to automatically start hostblock after reboot
 ```
 $ sudo systemctl enable hostblock
 ```
 
- - make install should detect upstart if it is available and add configuration for hostblock. If upstart is used, start hostblock:
+If upstart is used, start hostblock
 ```
 $ sudo service hostblock start
 ```
 
- - If systemctl or upstart is not available, write your own init script or start manually hostblock as background process to monitor and automatically block access
+If systemctl or upstart is not available, write your own init script or start hostblock manually as a background process to monitor and automatically block access
 ```
 $ sudo hostblock -d
 ```
@@ -71,25 +74,31 @@ $ sudo hostblock -d
 
 ### Help
 
-To get short usage information:
+Short usage information
 ```
 $ hostblock -h
 ```
 
 ### Currently loaded configuration
-To output currently loaded configuration:
+Output currently loaded configuration
 ```
 $ sudo hostblock -p
 ```
+Note, output is in the same format as configuration file thus can be used to export current configuration to use for other hosts.
 
 ### Statistics
-Simple statistics:
+Simple statistics
 ```
 $ sudo hostblock -s
 ```
-For example, output:
+Output example
 ```
 Total suspicious IP address count: 1212
+Total suspicious activity: 2424
+Total refused: 1313
+Total whitelisted: 5
+Total blacklisted: 44
+Total blocked: 121
 
 Top 5 most active addresses:
 -------------------------------------------------------------------------------------------
@@ -120,43 +129,43 @@ Last activity:
 
 ### Output list of blocked addresses
 
-List all blocked addresses:
+List all blocked addresses
 ```
 $ sudo hostblock -l
 ```
 
-List all addresses:
+List all addresses
 ```
 $ sudo hostblock -la
 ```
 
-List all blocked addresses with activity count, score and refused count:
+List all blocked addresses with activity count, score and refused count
 ```
 $ sudo hostblock -lc
 ```
 
-List all blocked addresses with last activity time:
+List all blocked addresses with last activity time
 ```
 $ sudo hostblock -lt
 ```
 
 ### Blacklist
 
-To blacklist address - keep iptables rule regardless of suspicious activity:
+To blacklist address - keep iptables rule regardless of suspicious activity
 ```
 $ sudo hostblock -b10.10.10.10
 ```
 
 ### Whitelist
 
-To whitelist address - do not create iptables rule even if suspicious activity is detected:
+To whitelist address - do not create iptables rule even if suspicious activity is detected
 ```
 $ sudo hostblock -w192.168.0.2
 ```
 
 ### Remove address from data file
 
-To delete information about address:
+To delete information about address
 ```
 $ sudo hostblock -r192.168.0.3
 ```
@@ -172,9 +181,40 @@ $ sudo kill -SIGUSR1 <pid>
 
 Default path for configuration file is /etc/hostblock.conf, which can be changed with environment variable HOSTBLOCK_CONFIG.
 
-Main configuration is under [Global] section. Log file contents are different for each service and can have different log levels. Configuration can be divided into [Log.*] sections to specify separate patterns for each log group, for example [Log.SSH].
+Main configuration is under [Global] section. Log file contents are different for each service and can have different log levels. Configuration can be divided into [Log.\*] sections to specify separate patterns for each log group, for example [Log.SSH].
 
-More details can be found in default configuration file.
+More details can be found in [default configuration file](config/hostblock.conf).
+
+## AbuseIPDB
+
+Hostblock allows to automatically report suspicious activity to AbuseIPDB using API v2.
+
+Login into your AbuseIPDB account and create an [API key](https://www.abuseipdb.com/account/api). Specify generated key in configuration file (/etc/hostblock.conf):
+```
+## AbuseIPDB API Key
+abuseipdb.api.key = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+You can choose to either report all matched suspicious activity to AbuseIPDB
+```
+## Whether to report all matches to AbuseIPDB (true|false, default false)
+abuseipdb.report.all = true
+```
+
+Or to specify at log group level to report all matched suspicious activity any of patterns under specific log group/groups
+```
+## AbuseIPDB log group level configuration (overrides global setting)
+abuseipdb.report.all = true
+```
+
+Or to specify at pattern level to report all matched suspicious activity matching specific pattern/patterns
+```
+log.refused.pattern = ^.+? kernel: \[\s?\d+\.\d+\] IPTABLES-DROPPED: .+? SRC=%i .+? DPT=22 .+?
+log.refused.score = 5
+log.abuseipdb.report = true
+```
+
+See description of other available parameters like categories to report, comment and hostname masking in [default configuration file](config/hostblock.conf).
 
 # Requirements
 
@@ -193,7 +233,7 @@ libjsoncpp
 # apt install libjsoncpp-dev
 ```
 
-See options with libcurl-dev, to install openssl version
+libcurl openssl version (see available options by installing libcurl-dev)
 ```
 # apt install libcurl4-openssl-dev
 ```
