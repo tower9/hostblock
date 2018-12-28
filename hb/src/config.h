@@ -84,7 +84,7 @@ class Config{
 		/*
 		 * AbuseIPDB API URL
 		 */
-		std::string abuseipdbURL = "https://www.abuseipdb.com";
+		std::string abuseipdbURL = "https://api.abuseipdb.com";
 
 		/*
 		 * AbuseIPDB API key
@@ -94,7 +94,7 @@ class Config{
 		/*
 		 * AbuseIPDB API date and time format
 		 */
-		std::string abuseipdbDatetimeFormat = "%a, %d %b %Y %H:%M:%S %z";
+		std::string abuseipdbDatetimeFormat = "%Y-%m-%dT%H:%M:%S";
 
 		/*
 		 * Whether to report all matches to AbuseIPDB (can be overridden at log group and pattern level)
