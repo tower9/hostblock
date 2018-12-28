@@ -187,6 +187,8 @@ More details can be found in [default configuration file](config/hostblock.conf)
 
 ## AbuseIPDB
 
+[AbuseIPDB](https://www.abuseipdb.com) is a project dedicated to helping combat the spread of hackers, spammers, and abusive activity on the internet. It is a database of reports of an IP addresses associated with malicious activity and allows it's users to report or check reports related to IP addresses.
+
 Hostblock allows to automatically report suspicious activity to AbuseIPDB using API v2.
 
 Login into your AbuseIPDB account and create an [API key](https://www.abuseipdb.com/account/api). Specify generated key in configuration file (/etc/hostblock.conf):
