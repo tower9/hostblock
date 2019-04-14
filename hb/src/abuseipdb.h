@@ -107,6 +107,11 @@ class AbuseIPDB{
 		bool reportAddress(std::string address, std::string comment, std::vector<unsigned int> &categories);
 
 		/*
+		 * Download blacklist from abuseipdb.com
+		 */
+		bool getBlacklist(unsigned int confidenceMinimum, unsigned long long int* generatedAt, std::map<std::string, hb::AbuseIPDBBlacklistedAddressType>* blacklist);
+
+		/*
 		 * For cURL response store
 		 */
 		static size_t SaveJSONResultCallback(void *contents, size_t size, size_t nmemb, void *userp);
