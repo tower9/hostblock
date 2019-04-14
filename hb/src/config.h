@@ -97,6 +97,16 @@ class Config{
 		std::string abuseipdbDatetimeFormat = "%Y-%m-%dT%H:%M:%S";
 
 		/*
+		 * Blacklist sync interval
+		 */
+		unsigned int abuseipdbBlacklistInterval = 0;
+
+		/*
+		 * Min AbuseIPDB confidence score needed to create iptables rule (also used for blacklist sync to get only results with score higher than this setting)
+		 */
+		unsigned int abuseipdbBlockScore = 90;
+
+		/*
 		 * Whether to report all matches to AbuseIPDB (can be overridden at log group and pattern level)
 		 */
 		bool abuseipdbReportAll = false;

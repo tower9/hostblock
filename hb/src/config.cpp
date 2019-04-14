@@ -189,6 +189,25 @@ bool Config::load()
 								this->abuseipdbDatetimeFormat = line;
 								if (logDetails) this->log->debug("AbuseIPDB API datetime format: " + this->abuseipdbDatetimeFormat);
 							}
+						} else if (line.substr(0, 28) == "abuseipdb.blacklist.interval") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->abuseipdbBlacklistInterval = strtoul(line.c_str(), NULL, 10);
+								if (logDetails) this->log->debug("AbuseIPDB blacklist sync interval: " + std::to_string(this->abuseipdbBlacklistInterval));
+							}
+						} else if (line.substr(0, 21) == "abuseipdb.block.score") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->abuseipdbBlockScore = strtoul(line.c_str(), NULL, 10);
+								if (this->abuseipdbBlockScore < 25) {
+									this->abuseipdbBlockScore = 25;
+								} else if (this->abuseipdbBlockScore > 100) {
+									this->abuseipdbBlockScore = 100;
+								}
+								if (logDetails) this->log->debug("Needed AbuseIPDB confidence score to block address: " + std::to_string(this->abuseipdbBlockScore));
+							}
 						} else if (line.substr(0, 20) == "abuseipdb.report.all") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {
@@ -517,6 +536,14 @@ void Config::print()
 			std::cout << "## AbuseIPDB API date time format" << std::endl;
 			std::cout << "abuseipdb.datetime.format = " << this->abuseipdbDatetimeFormat << std::endl << std::endl;
 		}
+		std::cout << "## Interval to sync AbuseIPDB blacklist, use 0 to disable (seconds, default 0)" << std::endl;
+		std::cout << "## Note, it is recommended to sync no more often than once per 24h, i.e. 86400 seconds" << std::endl;
+		std::cout << "abuseipdb.blacklist.interval = " << this->abuseipdbBlacklistInterval << std::endl << std::endl;
+		std::cout << "## AbuseIPDB min score to block IP address (25 to 100, default 90)" << std::endl;
+		std::cout << "##  If AbuseIPDB confidence score is >= than this setting, then iptables rule to block is created (also used for blacklist sync)" << std::endl;
+		std::cout << "## It is recommended to use value between 75 and 100" << std::endl;
+		std::cout << "## Note, 25 is minimum allowed by AbuseIPDB blacklist API" << std::endl;
+		std::cout << "abuseipdb.block.score = " << this->abuseipdbBlockScore << std::endl << std::endl;
 		std::cout << "## Whether to report all matches to AbuseIPDB (true|false, default false)" << std::endl;
 		std::cout << "abuseipdb.report.all = ";
 		if (this->abuseipdbReportAll == true) {
