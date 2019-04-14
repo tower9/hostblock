@@ -73,6 +73,16 @@ namespace cstat{
 	#include <sys/types.h>
 	#include <sys/stat.h>
 }
+// File control options (lockf)
+namespace cfcntl{
+	#include <fcntl.h>
+}
+// Miscellaneous UNIX symbolic constants, types and functions (open, usleep)
+namespace cunistd{
+	#include <unistd.h>
+}
+// GNU extensions for working with standard C FILE* and POSIX file descriptors
+#include <ext/stdio_filebuf.h>
 // Limits
 #include <climits>
 // Util
@@ -102,229 +112,267 @@ bool Data::loadData()
 {
 	this->log->debug("Loading data from " + this->config->dataFilePath);
 
-	// Open data file
-	std::ifstream f(this->config->dataFilePath.c_str());
-	if (f.is_open()) {
-		std::string line;
-		char recordType;
-		std::string address;
-		hb::SuspiciosAddressType data;
-		std::pair<std::map<std::string, hb::SuspiciosAddressType>::iterator,bool> chk;
-		hb::AbuseIPDBBlacklistedAddressType abuseIPDBData;
-		std::pair<std::map<std::string, hb::AbuseIPDBBlacklistedAddressType>::iterator,bool> chka;
-		bool duplicatesFound = false;
-		unsigned long long int bookmark, size;
-		std::string logFilePath;
-		bool logFileFound = false;
-		std::vector<hb::LogGroup>::iterator itlg;
-		std::vector<hb::LogFile>::iterator itlf;
-		unsigned int removedRecords = 0;
-		bool needUpgrade = false;
-
-		// Clear this->suspiciousAddresses
-		this->suspiciousAddresses.clear();
-
-		// Clear this->abuseIPDBBlacklist
-		this->abuseIPDBBlacklist.clear();
-
-		// Read data file line by line
-		while (std::getline(f, line)) {
-
-			// First position is record type
-			recordType = line[0];
-
-			if (recordType == 'd' && (line.length() == 92 || line.length() == 112)) {// Data about suspicious address
-
-				// IP address
-				address = hb::Util::ltrim(line.substr(1, 39));
-
-				// Timestamp of last activity
-				data.lastActivity = std::strtoull(hb::Util::ltrim(line.substr(40, 20)).c_str(), NULL, 10);
-
-				// Total score of activity calculated at last activity
-				data.activityScore = std::strtoul(hb::Util::ltrim(line.substr(60, 10)).c_str(), NULL, 10);
-
-				// Suspicious activity count
-				data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70, 10)).c_str(), NULL, 10);
-
-				// Refused connection count
-				data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80, 10)).c_str(), NULL, 10);
-
-				// Whether IP address is in whitelist
-				if (line[90] == 'y') data.whitelisted = true;
-				else data.whitelisted = false;
-
-				// Whether IP address in in blacklist
-				if (line[91] == 'y') data.blacklisted = true;
-				else data.blacklisted = false;
-
-				// If IP address is in both, whitelist and blacklist, remove it from blacklist
-				if (data.whitelisted == true && data.blacklisted == true) {
-					this->log->warning("Address " + address + " is in whitelist and at the same time in blacklist! Removing address from blacklist...");
-					data.blacklisted = false;
-				}
-
-				// Timestamp of last report t 3rd party
-				// TODO, introduce data file version to handle upgrade
-				if (line.length() == 112) {
-					data.lastReported = std::strtoull(hb::Util::ltrim(line.substr(92, 20)).c_str(), NULL, 10);
-				} else {
-					needUpgrade = true;
-				}
-
-				// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
-				data.iptableRule = false;
-
-				// Store in this->suspiciousAddresses
-				chk = this->suspiciousAddresses.insert(std::pair<std::string, hb::SuspiciosAddressType>(address, data));
-				if (chk.second == false) {
-					this->log->warning("Address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
-					duplicatesFound = true;
-				}
-
-			} else if (recordType == 'b') {// Log file bookmarks
-
-				// Bookmark
-				bookmark = std::strtoull(hb::Util::ltrim(line.substr(1, 20)).c_str(), NULL, 10);
-
-				// Last known size to detect if log file has been rotated
-				size = std::strtoull(hb::Util::ltrim(line.substr(21, 20)).c_str(), NULL, 10);
-
-				// Path to log file
-				logFilePath = hb::Util::rtrim(hb::Util::ltrim(line.substr(41)));
-
-				// Update info about log file
-				logFileFound = false;
-				for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
-					for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-						if (itlf->path == logFilePath) {
-							itlf->bookmark = bookmark;
-							itlf->size = size;
-							itlf->dataFileRecord = true;
-							logFileFound = true;
-							this->log->debug("Bookmark: " + std::to_string(bookmark) + " Size: " + std::to_string(size) + " Path: " + logFilePath);
-							break;
-						}
-					}
-					if (logFileFound) break;
-				}
-
-				// If log file is not found this->config
-				if (!logFileFound) {
-					this->log->warning("Bookmark information in datafile for log file " + logFilePath + " found, but file not present in configuration. Removing from datafile...");
-					this->removeFile(logFilePath);
-				}
-
-			} else if (recordType == 'a') {// AbuseIPDB blacklisted address
-
-				// IP address
-				address = hb::Util::ltrim(line.substr(1, 39));
-
-				// AbuseIPDB report count for this IP address according to specified interval
-				abuseIPDBData.totalReports = std::strtoul(hb::Util::ltrim(line.substr(40, 10)).c_str(), NULL, 10);
-
-				// AbuseIPDB confidence score
-				abuseIPDBData.abuseConfidenceScore = std::strtoul(hb::Util::ltrim(line.substr(50, 3)).c_str(), NULL, 10);
-
-				// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
-				abuseIPDBData.iptableRule = false;
-
-				// Store in this->abuseIPDBBlacklist
-				chka = this->abuseIPDBBlacklist.insert(std::pair<std::string, hb::AbuseIPDBBlacklistedAddressType>(address, abuseIPDBData));
-				if (chka.second == false) {
-					this->log->warning("AbuseIPDB blacklisted address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
-					duplicatesFound = true;
-				}
-
-			} else if (recordType == 's') {// AbuseIPDB sync bookmark
-
-				// Unix timestamp of last sync with AbuseIPDB using blacklist endpoint
-				this->abuseIPDBSyncTime = std::strtoull(hb::Util::ltrim(line.substr(1, 20)).c_str(), NULL, 10);
-
-				// Unix timestamp of AbuseIPDB blacklist generation (returned by AbuseIPDB)
-				this->abuseIPDBBlacklistGenTime =  std::strtoull(hb::Util::ltrim(line.substr(21, 20)).c_str(), NULL, 10);
-
-			} else if (recordType == 'r') {// Record marked for removal
-				removedRecords++;
-			}
-		}
-
-		// Finished reading file, close it
-		f.close();
-
-		// Check if all configured log files are present in datafile (add if needed)
-		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
-			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-				if (!itlf->dataFileRecord) {
-					this->addFile(itlf->path);
-					itlf->dataFileRecord = true;
-				}
-			}
-		}
-
-		// If duplicates found, rename current data file to serve as backup and save new data file without duplicates
-		if (duplicatesFound) {
-
-			// New filename for data file
-			std::time_t rtime;
-			struct tm * itime;
-			std::time(&rtime);
-			itime = std::localtime(&rtime);
-			std::string month = std::to_string(itime->tm_mon + 1);
-			if(month.length() == 1) month = "0" + month;
-			std::string day = std::to_string(itime->tm_mday);
-			if(day.length() == 1) day = "0" + day;
-			std::string hour = std::to_string(itime->tm_hour);
-			if(hour.length() == 1) hour = "0" + hour;
-			std::string minute = std::to_string(itime->tm_min);
-			if(minute.length() == 1) minute = "0" + minute;
-			std::string second = std::to_string(itime->tm_sec);
-			if(second.length() == 1) second = "0" + second;
-			std::string newDataFileName = this->config->dataFilePath + "_" + std::to_string(itime->tm_year + 1900) + month + day + hour + minute + second + ".bck";
-
-			// Check if new filename doesn't exist (so that it is not overwritten)
-			struct cstat::stat buffer;
-			if (cstat::stat(newDataFileName.c_str(), &buffer) != 0) {
-				if (std::rename(this->config->dataFilePath.c_str(), newDataFileName.c_str()) != 0) {
-					this->log->error("Current data file contains duplicate entries and backup creation failed (file rename failure)!");
-					return false;
-				}
-			} else{
-				this->log->error("Current data file contains duplicate entries and backup creation failed (backup with same name already exists)!");
-				return false;
-			}
-
-			// Save data without duplicates to data file (create new data file)
-			if (this->saveData() == false) {
-				this->log->error("Data file contains duplicate entries, successfully renamed data file, but failed to save new data file!");
-				return false;
-			}
-			this->log->warning("Duplicate data found while reading data file! Old data file stored as " + newDataFileName + ", new data file without duplicates saved! Merge manually if needed.");
-
-		} else if (removedRecords > 100) {// If more than 100 removed records detected in datafile
-
-			// Save data without without removed records data file - small space saving
-			if (this->saveData() == false) {
-				this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
-				return false;
-			}
-		} else if (needUpgrade) {// Need to upgrade datafile
-			this->log->info("Datafile requires upgrade! Saving new datafile...");
-			if (this->saveData() == false) {
-				this->log->error("Data file requires upgrade, tried saving new data file, but failed!");
-				return false;
-			}
-		}
-
-		// Data file processing finished
-		this->log->debug("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
-	} else {
+	// Open file
+	FILE* fp = fopen(this->config->dataFilePath.c_str(), "r");
+	if (fp == NULL) {
+		this->log->warning(std::to_string(errno) + ": " + strerror(errno));
 		this->log->warning("Unable to open datafile for reading!");
 		if (this->saveData() == false) {
-			this->log->error("Unable to create new empty data file!");
+			this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+			this->log->error("Failed to create new datafile!");
+		}
+		return false;
+	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to read datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Do not start full read during long running writes from other processes
+	int fs = cfcntl::lockf(fd, F_TEST, 0);
+	// int fs = cfcntl::lockf(fd, F_LOCK, 0);
+	unsigned int retryCounter = 1;
+	while (fs == -1) {
+		if (retryCounter >= 3) {
+			break;
+		}
+		// Sleep
+		cunistd::usleep(500000);
+		// Retry
+		fs = cfcntl::lockf(fd, F_TEST, 0);
+		// fs = cfcntl::lockf(fd, F_LOCK, 0);
+		++retryCounter;
+	}
+	if (fs == -1) {
+		fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to read datafile, file is locked!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in);
+	std::istream f(&filebuf);
+
+	// Init vars for parsing
+	std::string line;
+	char recordType;
+	std::string address;
+	hb::SuspiciosAddressType data;
+	std::pair<std::map<std::string, hb::SuspiciosAddressType>::iterator,bool> chk;
+	hb::AbuseIPDBBlacklistedAddressType abuseIPDBData;
+	std::pair<std::map<std::string, hb::AbuseIPDBBlacklistedAddressType>::iterator,bool> chka;
+	bool duplicatesFound = false;
+	unsigned long long int bookmark, size;
+	std::string logFilePath;
+	bool logFileFound = false;
+	std::vector<hb::LogGroup>::iterator itlg;
+	std::vector<hb::LogFile>::iterator itlf;
+	unsigned int removedRecords = 0;
+	bool needUpgrade = false;
+
+	// Clear this->suspiciousAddresses
+	this->suspiciousAddresses.clear();
+
+	// Clear this->abuseIPDBBlacklist
+	this->abuseIPDBBlacklist.clear();
+
+	// Read data file line by line
+	while (std::getline(f, line)) {
+
+		// First position is record type
+		recordType = line[0];
+
+		if (recordType == 'd' && (line.length() == 92 || line.length() == 112)) {// Data about suspicious address
+
+			// IP address
+			address = hb::Util::ltrim(line.substr(1, 39));
+
+			// Timestamp of last activity
+			data.lastActivity = std::strtoull(hb::Util::ltrim(line.substr(40, 20)).c_str(), NULL, 10);
+
+			// Total score of activity calculated at last activity
+			data.activityScore = std::strtoul(hb::Util::ltrim(line.substr(60, 10)).c_str(), NULL, 10);
+
+			// Suspicious activity count
+			data.activityCount = std::strtoul(hb::Util::ltrim(line.substr(70, 10)).c_str(), NULL, 10);
+
+			// Refused connection count
+			data.refusedCount = std::strtoul(hb::Util::ltrim(line.substr(80, 10)).c_str(), NULL, 10);
+
+			// Whether IP address is in whitelist
+			if (line[90] == 'y') data.whitelisted = true;
+			else data.whitelisted = false;
+
+			// Whether IP address in in blacklist
+			if (line[91] == 'y') data.blacklisted = true;
+			else data.blacklisted = false;
+
+			// If IP address is in both, whitelist and blacklist, remove it from blacklist
+			if (data.whitelisted == true && data.blacklisted == true) {
+				this->log->warning("Address " + address + " is in whitelist and at the same time in blacklist! Removing address from blacklist...");
+				data.blacklisted = false;
+			}
+
+			// Timestamp of last report to 3rd party
+			// TODO, introduce data file version to handle upgrade
+			if (line.length() == 112) {
+				data.lastReported = std::strtoull(hb::Util::ltrim(line.substr(92, 20)).c_str(), NULL, 10);
+			} else {
+				needUpgrade = true;
+			}
+
+			// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
+			data.iptableRule = false;
+
+			// Store in this->suspiciousAddresses
+			chk = this->suspiciousAddresses.insert(std::pair<std::string, hb::SuspiciosAddressType>(address, data));
+			if (chk.second == false) {
+				this->log->warning("Address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
+				duplicatesFound = true;
+			}
+
+		} else if (recordType == 'b') {// Log file bookmarks
+
+			// Bookmark
+			bookmark = std::strtoull(hb::Util::ltrim(line.substr(1, 20)).c_str(), NULL, 10);
+
+			// Last known size to detect if log file has been rotated
+			size = std::strtoull(hb::Util::ltrim(line.substr(21, 20)).c_str(), NULL, 10);
+
+			// Path to log file
+			logFilePath = hb::Util::rtrim(hb::Util::ltrim(line.substr(41)));
+
+			// Update info about log file
+			logFileFound = false;
+			for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+				for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+					if (itlf->path == logFilePath) {
+						itlf->bookmark = bookmark;
+						itlf->size = size;
+						itlf->dataFileRecord = true;
+						logFileFound = true;
+						this->log->debug("Bookmark: " + std::to_string(bookmark) + " Size: " + std::to_string(size) + " Path: " + logFilePath);
+						break;
+					}
+				}
+				if (logFileFound) break;
+			}
+
+			// If log file is not found this->config
+			if (!logFileFound) {
+				this->log->warning("Bookmark information in datafile for log file " + logFilePath + " found, but file not present in configuration. Removing from datafile...");
+				this->removeFile(logFilePath);
+			}
+
+		} else if (recordType == 'a') {// AbuseIPDB blacklisted address
+
+			// IP address
+			address = hb::Util::ltrim(line.substr(1, 39));
+
+			// AbuseIPDB report count for this IP address according to specified interval
+			abuseIPDBData.totalReports = std::strtoul(hb::Util::ltrim(line.substr(40, 10)).c_str(), NULL, 10);
+
+			// AbuseIPDB confidence score
+			abuseIPDBData.abuseConfidenceScore = std::strtoul(hb::Util::ltrim(line.substr(50, 3)).c_str(), NULL, 10);
+
+			// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
+			abuseIPDBData.iptableRule = false;
+
+			// Store in this->abuseIPDBBlacklist
+			chka = this->abuseIPDBBlacklist.insert(std::pair<std::string, hb::AbuseIPDBBlacklistedAddressType>(address, abuseIPDBData));
+			if (chka.second == false) {
+				this->log->warning("AbuseIPDB blacklisted address" + address + " is duplicated in data file, new datafile without duplicates will be created!");
+				duplicatesFound = true;
+			}
+
+		} else if (recordType == 's') {// AbuseIPDB sync bookmark
+
+			// Unix timestamp of last sync with AbuseIPDB using blacklist endpoint
+			this->abuseIPDBSyncTime = std::strtoull(hb::Util::ltrim(line.substr(1, 20)).c_str(), NULL, 10);
+
+			// Unix timestamp of AbuseIPDB blacklist generation (returned by AbuseIPDB)
+			this->abuseIPDBBlacklistGenTime =  std::strtoull(hb::Util::ltrim(line.substr(21, 20)).c_str(), NULL, 10);
+
+		} else if (recordType == 'r') {// Record marked for removal
+			removedRecords++;
+		}
+	}
+
+	// Finished reading file
+	fclose(fp);
+
+	// Check if all configured log files are present in datafile (add if needed)
+	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+		for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+			if (!itlf->dataFileRecord) {
+				this->addFile(itlf->path);
+				itlf->dataFileRecord = true;
+			}
+		}
+	}
+
+	// If duplicates found, rename current data file to serve as backup and save new data file without duplicates
+	if (duplicatesFound) {
+
+		// New filename for data file
+		std::time_t rtime;
+		struct tm * itime;
+		std::time(&rtime);
+		itime = std::localtime(&rtime);
+		std::string month = std::to_string(itime->tm_mon + 1);
+		if(month.length() == 1) month = "0" + month;
+		std::string day = std::to_string(itime->tm_mday);
+		if(day.length() == 1) day = "0" + day;
+		std::string hour = std::to_string(itime->tm_hour);
+		if(hour.length() == 1) hour = "0" + hour;
+		std::string minute = std::to_string(itime->tm_min);
+		if(minute.length() == 1) minute = "0" + minute;
+		std::string second = std::to_string(itime->tm_sec);
+		if(second.length() == 1) second = "0" + second;
+		std::string newDataFileName = this->config->dataFilePath + "_" + std::to_string(itime->tm_year + 1900) + month + day + hour + minute + second + ".bck";
+
+		// Check if new filename doesn't exist (so that it is not overwritten)
+		struct cstat::stat buffer;
+		if (cstat::stat(newDataFileName.c_str(), &buffer) != 0) {
+			if (std::rename(this->config->dataFilePath.c_str(), newDataFileName.c_str()) != 0) {
+				this->log->error("Current data file contains duplicate entries and backup creation failed (file rename failure)!");
+				return false;
+			}
+		} else{
+			this->log->error("Current data file contains duplicate entries and backup creation failed (backup with same name already exists)!");
+			return false;
+		}
+
+		// Save data without duplicates to data file (create new data file)
+		if (this->saveData() == false) {
+			this->log->error("Data file contains duplicate entries, successfully renamed data file, but failed to save new data file!");
+			return false;
+		}
+		this->log->warning("Duplicate data found while reading data file! Old data file stored as " + newDataFileName + ", new data file without duplicates saved! Merge manually if needed.");
+
+	} else if (removedRecords > 100) {// If more than 100 removed records detected in datafile
+
+		// Save data without without removed records data file - small space saving
+		if (this->saveData() == false) {
+			this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
+			return false;
+		}
+	} else if (needUpgrade) {// Need to upgrade datafile
+		this->log->info("Datafile requires upgrade! Saving new datafile...");
+		if (this->saveData() == false) {
+			this->log->error("Data file requires upgrade, tried saving new data file, but failed!");
 			return false;
 		}
 	}
+
+	// Data file processing finished
+	this->log->debug("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
 
 	return true;
 }
@@ -336,68 +384,107 @@ bool Data::saveData()
 {
 	this->log->info("Updating datafile " + this->config->dataFilePath);
 
-	// Open file
-	std::ofstream f(this->config->dataFilePath.c_str());
-	if (f.is_open()) {
+	// Open file (overwrite)
+	FILE* fp = fopen(this->config->dataFilePath.c_str(), "w");
+	if (fp == NULL) {
+		this->log->error("Unable to open datafile for writing!");
+		return false;
+	}
 
-		// Loop through all addresses
-		std::map<std::string, SuspiciosAddressType>::iterator it;
-		for (it = this->suspiciousAddresses.begin(); it!=this->suspiciousAddresses.end(); ++it) {
-			f << 'd';
-			f << std::right << std::setw(39) << it->first;// Address, left padded with spaces
-			f << std::right << std::setw(20) << it->second.lastActivity;// Last activity, left padded with spaces
-			f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
-			f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
-			f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
-			if(it->second.whitelisted == true) f << 'y';
-			else f << 'n';
-			if(it->second.blacklisted == true) f << 'y';
-			else f << 'n';
-			f << std::right << std::setw(20) << it->second.lastReported;// Last report, left padded with spaces
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		fclose(fp);
+		this->log->error(std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to write to datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Lock file
+	int fs = cfcntl::lockf(fd, F_LOCK, 0);
+	unsigned int retryCounter = 1;
+	while (fs == -1) {
+		if (retryCounter >= 3) {
+			break;
+		}
+		// Sleep
+		cunistd::usleep(500000);
+		// Retry
+		fs = cfcntl::lockf(fd, F_LOCK, 0);
+		++retryCounter;
+	}
+	if (fs == -1) {
+		fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to write to datafile, file is locked!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in);
+	std::ostream f(&filebuf);
+
+	// Loop through all addresses
+	std::map<std::string, SuspiciosAddressType>::iterator it;
+	for (it = this->suspiciousAddresses.begin(); it!=this->suspiciousAddresses.end(); ++it) {
+		f << 'd';
+		f << std::right << std::setw(39) << it->first;// Address, left padded with spaces
+		f << std::right << std::setw(20) << it->second.lastActivity;// Last activity, left padded with spaces
+		f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
+		f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
+		f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
+		if(it->second.whitelisted == true) f << 'y';
+		else f << 'n';
+		if(it->second.blacklisted == true) f << 'y';
+		else f << 'n';
+		f << std::right << std::setw(20) << it->second.lastReported;// Last report, left padded with spaces
+		// f << std::endl;// endl should flush buffer
+		f << "\n";// \n should not flush buffer
+	}
+
+	// Loop all log files
+	std::vector<hb::LogGroup>::iterator itlg;
+	std::vector<hb::LogFile>::iterator itlf;
+	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+		for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+			f << 'b';
+			f << std::right << std::setw(20) << itlf->bookmark;
+			f << std::right << std::setw(20) << itlf->size;
+			f << itlf->path;
 			// f << std::endl;// endl should flush buffer
 			f << "\n";// \n should not flush buffer
 		}
-
-		// Loop all log files
-		std::vector<hb::LogGroup>::iterator itlg;
-		std::vector<hb::LogFile>::iterator itlf;
-		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
-			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-				f << 'b';
-				f << std::right << std::setw(20) << itlf->bookmark;
-				f << std::right << std::setw(20) << itlf->size;
-				f << itlf->path;
-				// f << std::endl;// endl should flush buffer
-				f << "\n";// \n should not flush buffer
-			}
-		}
-
-		// Loop all AbuseIPDB blacklisted addresses
-		std::map<std::string, AbuseIPDBBlacklistedAddressType>::iterator itb;
-		for (itb = this->abuseIPDBBlacklist.begin(); itb!=this->abuseIPDBBlacklist.end(); ++itb) {
-			f << 'a';
-			f << std::right << std::setw(39) << itb->first;// Address, left padded with spaces
-			f << std::right << std::setw(10) << itb->second.totalReports;
-			if (itb->second.abuseConfidenceScore <= 100) {
-				f << std::right << std::setw(3) << itb->second.abuseConfidenceScore;
-			} else {
-				f << std::right << std::setw(3) << 0;
-			}
-			f << "\n";// \n should not flush buffer
-		}
-
-		// Bookmark of last sync with AbuseIPDB and blacklist generation timestamp
-		f << 's';
-		f << std::right << std::setw(20) << this->abuseIPDBSyncTime;
-		f << std::right << std::setw(20) << this->abuseIPDBBlacklistGenTime;
-		f << "\n";// \n should not flush buffer
-
-		// Close datafile
-		f.close();
-	} else {
-		this->log->error("Unable to open datafile for writting!");
-		return false;
 	}
+
+	// Loop all AbuseIPDB blacklisted addresses
+	std::map<std::string, AbuseIPDBBlacklistedAddressType>::iterator itb;
+	for (itb = this->abuseIPDBBlacklist.begin(); itb!=this->abuseIPDBBlacklist.end(); ++itb) {
+		f << 'a';
+		f << std::right << std::setw(39) << itb->first;// Address, left padded with spaces
+		f << std::right << std::setw(10) << itb->second.totalReports;
+		if (itb->second.abuseConfidenceScore <= 100) {
+			f << std::right << std::setw(3) << itb->second.abuseConfidenceScore;
+		} else {
+			f << std::right << std::setw(3) << 0;
+		}
+		f << "\n";// \n should not flush buffer
+	}
+
+	// Bookmark of last sync with AbuseIPDB and blacklist generation timestamp
+	f << 's';
+	f << std::right << std::setw(20) << this->abuseIPDBSyncTime;
+	f << std::right << std::setw(20) << this->abuseIPDBBlacklistGenTime;
+	f << "\n";// \n should not flush buffer
+
+	// Unlock file
+	fs = cfcntl::lockf(fd, F_ULOCK, 0);
+	if (fs == -1) {
+		this->log->warning("Failed to unlock datafile after overwrite!");
+	}
+
+	// Close datafile
+	fclose(fp);
+
 	return true;
 }
 
@@ -427,7 +514,7 @@ bool Data::checkIptables()
 			ruleEnd = this->config->iptablesRule.substr(posip + 2);
 		}
 
-		for(rit=rules.begin(); rit!=rules.end(); ++rit){
+		for (rit=rules.begin(); rit!=rules.end(); ++rit) {
 
 			// Searching for rules similar to ones that are in hostblock configuration to detect if address has iptables rule
 			checkStart = rit->second.find(ruleStart);
@@ -708,12 +795,10 @@ bool Data::removeAddress(std::string address)
 
 	if (!recordFound) {
 		this->log->error("Tried removing address " + address + " from datafile, but record is not present in datafile!");
-		// Maybe better write warning, backup existing datafile and create new one based on data in memory?
 		return false;
 	} else {
 		return true;
 	}
-	return false;
 }
 
 /*
@@ -905,16 +990,293 @@ bool Data::removeFile(std::string filePath)
 }
 
 /*
- * Save suspicious activity to data->suspiciousAddreses and datafile
+ * Add new record to datafile based on this->abuseIPDBBlacklist
+ */
+bool Data::addAbuseIPDBAddress(std::string address)
+{
+	this->log->debug("Adding AbuseIPDB blacklist record to " + this->config->dataFilePath + ", address " + address);
+	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
+	if (f.is_open()) {
+		// Write record to the end of datafile
+		f << 'a';
+		f << std::right << std::setw(39) << address;
+		f << std::right << std::setw(10) << this->abuseIPDBBlacklist[address].totalReports;
+		if (this->abuseIPDBBlacklist[address].abuseConfidenceScore > 999) {
+			this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
+		}
+		f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
+		// f << std::endl;// endl should flush buffer
+		f << "\n";// \n should not flush buffer
+
+		// Close datafile
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for writting!");
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * Update record in datafile based on this->abuseIPDBBlacklist
+ */
+bool Data::updateAbuseIPDBAddress(std::string address)
+{
+	bool recordFound = false;
+	char c;
+	char fAddress[40];
+	this->log->debug("Updating AbuseIPDB blacklist record in " + this->config->dataFilePath + ", updating address " + address);
+	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
+	if (f.is_open()) {
+		while (f.get(c)) {
+			if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
+
+				// Get address
+				f.get(fAddress, 40);
+
+				// If we have found address that we need to update
+				if (hb::Util::ltrim(std::string(fAddress)) == address) {
+					f << std::right << std::setw(10) << this->abuseIPDBBlacklist[address].totalReports;
+					if (this->abuseIPDBBlacklist[address].abuseConfidenceScore > 999) {
+						this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
+					}
+					f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
+					// f << std::endl;// endl should flush buffer
+					f << "\n";// \n should not flush buffer
+					recordFound = true;
+
+					// No need to continue reading file
+					break;
+				}
+				f.seekg(14, f.cur);
+			} else {// Other type of record (suspicious activity, file bookmark or removed record)
+				// We can skip at min 41 pos
+				f.seekg(41, f.cur);
+
+				// Read until end of line
+				while (f.get(c)) {
+					if (c == '\n') {
+						break;
+					}
+				}
+			}
+		}
+
+		// Close data file
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	if (!recordFound) {
+		this->log->error("Unable to update " + address + " in data file, AbuseIPDB blacklist record not found in data file!");
+		return false;
+	} else {
+		return true;
+	}
+}
+
+/*
+ * Mark AbuseIPDB blacklist record for removal in datafile
+ */
+bool Data::removeAbuseIPDBAddress(std::string address)
+{
+	bool recordFound = false;
+	char c;
+	char fAddress[40];
+	// std:string buffer;
+	this->log->debug("Removing AbuseIPDB blacklist record from " + this->config->dataFilePath + ", removing address " + address);
+	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
+	if (f.is_open()) {
+		while (f.get(c)) {
+			if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
+
+				// Get address
+				f.get(fAddress, 40);
+
+				// If we have found address that we need to remove
+				if (hb::Util::ltrim(std::string(fAddress)) == address) {
+					f.seekg(-40, f.cur);
+					f << 'r';
+					recordFound = true;
+					break;// No need to continue reading file
+				}
+				f.seekg(14, f.cur);
+			} else {// Variable length record (file bookmark or removed record)
+				// We can skip at min 41 pos
+				f.seekg(41, f.cur);
+
+				// Read until end of line
+				while (f.get(c)) {
+					if (c == '\n') {
+						break;
+					}
+				}
+			}
+		}
+
+		// Close data file
+		f.close();
+	} else {
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	if (!recordFound) {
+		this->log->error("Tried removing address " + address + " from datafile, but record is not present in datafile!");
+		return false;
+	} else {
+		return true;
+	}
+}
+
+/*
+ * Add/remove iptables rule based on score and blacklist
+ */
+bool Data::updateIptables(std::string address)
+{
+	bool createRule = false;
+	bool removeRule = false;
+
+	std::time_t currentRawTime;
+	std::time(&currentRawTime);
+	unsigned long long int currentTime = (unsigned long long int)currentRawTime;
+
+	// Remove rule if address not present in local data file and is not listed in AbuseIPDB blacklist
+	if (this->suspiciousAddresses.count(address) == 0 && this->abuseIPDBBlacklist.count(address) == 0) {
+		removeRule = true;
+	}
+
+	// Check whether need to create rule based on AbuseIPDB blacklist
+	if (this->abuseIPDBBlacklist.count(address) > 0) {
+		if (this->abuseIPDBBlacklist[address].iptableRule == false) {
+			if (this->abuseIPDBBlacklist[address].abuseConfidenceScore >= this->config->abuseipdbBlockScore) {
+				createRule = true;
+			}
+		}
+	}
+
+	// Check whether need to add/remove rule for address based on hostblock data
+	if (this->suspiciousAddresses.count(address) > 0) {
+		// Check new score and see if need to add to/remove from iptables
+		if (this->suspiciousAddresses[address].iptableRule) {// Rule exists, check if need to remove
+
+			// Whitelisted addresses must not have rule
+			if (this->suspiciousAddresses[address].whitelisted == true) {
+				removeRule = true;
+			}
+
+			// Keep rule for locally blacklisted addresses or if address is in AbuseIPDB blacklist
+			if (this->suspiciousAddresses[address].blacklisted == false && createRule == false) {
+				if (this->config->keepBlockedScoreMultiplier > 0) {
+					// Score multiplier configured, recheck if score is no longer high enough to keep this rule
+					if (currentTime > this->suspiciousAddresses[address].lastActivity + this->suspiciousAddresses[address].activityScore) {
+						removeRule = true;
+					}
+				} else {
+					// Without score multiplier rules are kept unless score is 0
+					if (this->suspiciousAddresses[address].activityScore == 0) {
+						removeRule = true;
+					}
+				}
+			}
+		} else {// Rule does not exist, check if need to add
+
+			// Blacklisted addresses must have rule
+			if (this->suspiciousAddresses[address].blacklisted == true && this->suspiciousAddresses[address].whitelisted == false) {
+				createRule = true;
+			}
+
+			// Whitelisted addresses must not have rule
+			if (this->suspiciousAddresses[address].whitelisted == false && createRule == false) {
+				if (this->config->keepBlockedScoreMultiplier > 0) {
+					// Score multiplier configured, check if score is high enough to create rule
+					if (this->suspiciousAddresses[address].activityScore > 0
+							&& this->suspiciousAddresses[address].lastActivity + this->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier
+							&& currentTime < (this->suspiciousAddresses[address].lastActivity + this->suspiciousAddresses[address].activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)) {
+						createRule = true;
+					}
+				} else {
+					// Without score multiplier rules are created unless score is 0
+					if (this->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock) {
+						createRule = true;
+					}
+				}
+			}
+		}
+	}
+
+	// Adjust iptables rules
+	std::string ruleStart = "";
+	std::string ruleEnd = "";
+	if (createRule == true || removeRule == true) {
+		std::size_t posip = this->config->iptablesRule.find("%i");
+		if (posip != std::string::npos) {
+			ruleStart = this->config->iptablesRule.substr(0, posip);
+			ruleEnd = this->config->iptablesRule.substr(posip + 2);
+		}
+	}
+	if (createRule == true) {
+		this->log->info("Adding rule for " + address + " to iptables chain!");
+		try {
+			if (this->iptables->append("INPUT", ruleStart + address + ruleEnd) == false) {
+				this->log->error("Address " + address + " should have iptables rule, but hostblock failed to append rule to chain!");
+				return false;
+			} else {
+				if (this->suspiciousAddresses.count(address) > 0) {
+					this->suspiciousAddresses[address].iptableRule = true;
+				}
+				if (this->abuseIPDBBlacklist.count(address) > 0) {
+					this->abuseIPDBBlacklist[address].iptableRule = true;
+				}
+			}
+		} catch (std::runtime_error& e) {
+			std::string message = e.what();
+			this->log->error(message);
+			this->log->error("Address " + address + " should have iptables rule, but hostblock failed to append rule to chain!");
+			return false;
+		}
+	}
+	if (removeRule == true) {
+		this->log->info("Removing rule for " + address + " from iptables chain!");
+		try {
+			if(this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
+				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
+				return false;
+			} else {
+				if (this->suspiciousAddresses.count(address) > 0) {
+					this->suspiciousAddresses[address].iptableRule = false;
+				}
+				if (this->abuseIPDBBlacklist.count(address) > 0) {
+					this->abuseIPDBBlacklist[address].iptableRule = false;
+				}
+			}
+		} catch (std::runtime_error& e) {
+			std::string message = e.what();
+			this->log->error(message);
+			this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/*
+ * Save suspicious activity to data->suspiciousAddreses and datafile (add new or update existing)
+ * Additionally add/remove iptables rule
  */
 void Data::saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount)
 {
-	std::time_t currentTime;
-	std::time(&currentTime);
+	std::time_t currentRawTime;
+	std::time(&currentRawTime);
+	unsigned long long int currentTime = (unsigned long long int)currentRawTime;
 
 	// Warning if only last activity time changes
 	if (activityScore == 0 && activityCount == 0 && refusedCount == 0) {
-		this->log->warning("Trying to register activity, but no data about activity! Only last activity time for address " + address + " will be updated!");
+		this->log->warning("Trying to register suspicious activity, but no data about activity! Only last activity time for address " + address + " will be updated!");
 	}
 
 	// Check if new record needs to be added or we need to update existing data
@@ -924,7 +1286,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 		// This address already had some activity previously, need to recalculate score
 		this->log->debug("Previous activity: " + std::to_string(this->suspiciousAddresses[address].lastActivity));
 
-		// Adjust score according to time passed
+		// Adjust old score according to time passed
 		if (this->config->keepBlockedScoreMultiplier > 0 && this->suspiciousAddresses[address].activityScore > 0) {
 			this->log->debug("Adjusting previous score according to time passed...");
 			if (this->suspiciousAddresses[address].activityScore < currentTime - this->suspiciousAddresses[address].lastActivity) {
@@ -933,14 +1295,17 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 				this->suspiciousAddresses[address].activityScore -= currentTime - this->suspiciousAddresses[address].lastActivity;
 			}
 		}
-		this->suspiciousAddresses[address].lastActivity = (unsigned long long int)currentTime;
 
-		// Use score multiplier
+		// Last activity is now
+		this->suspiciousAddresses[address].lastActivity = currentTime;
+
+		// Use score multiplier for score that needs to be added to old one
 		if (this->config->keepBlockedScoreMultiplier > 0) {
 			this->log->debug("Adjusting new score according to multiplier...");
 			activityScore = activityScore * this->config->keepBlockedScoreMultiplier;
 		}
 
+		// Increase score
 		if (this->suspiciousAddresses[address].activityScore + activityScore < this->suspiciousAddresses[address].activityScore) {
 			this->suspiciousAddresses[address].activityScore = UINT_MAX;
 		} else {
@@ -961,11 +1326,10 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 
 		// First time activity from this address
 		SuspiciosAddressType data;
-		data.lastActivity = (unsigned long long int)currentTime;
+		data.lastActivity = currentTime;
 
-		// Adjust score if needed
+		// Set score
 		if (this->config->keepBlockedScoreMultiplier > 0) {
-			this->log->debug("Adjusting new score according to multiplier...");
 			data.activityScore = activityScore * this->config->keepBlockedScoreMultiplier;
 		} else {
 			data.activityScore = activityScore;
@@ -989,98 +1353,46 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 	if (this->suspiciousAddresses[address].blacklisted) this->log->debug("Address is in blacklist!");
 	this->log->debug("Last reported: " + std::to_string(this->suspiciousAddresses[address].lastReported));
 
-	// Check new score and see if need to add to/remove from iptables
-	bool createRule = false;
-	bool removeRule = false;
-	if (this->suspiciousAddresses[address].iptableRule) {// Rule exists, check if need to remove
-
-		// Whitelisted addresses must not have rule
-		if (this->suspiciousAddresses[address].whitelisted == true) {
-			removeRule = true;
-		}
-
-		// Keep rule for blacklisted addresses
-		if (this->suspiciousAddresses[address].blacklisted != true) {
-			// Rule removal only when recalculated score reaches 0
-			if (this->suspiciousAddresses[address].activityScore == 0) {
-				removeRule = true;
-			}
-		}
-	} else {// Rule does not exist, check if need to add
-
-		// Blacklisted addresses must have rule
-		if (this->suspiciousAddresses[address].blacklisted == true) {
-			createRule = true;
-		}
-
-		// Whitelisted addresses must not have rule
-		if (this->suspiciousAddresses[address].whitelisted != true) {
-
-			// There are two modes for rule keeping in iptables
-			if (this->config->keepBlockedScoreMultiplier > 0) {
-
-				// Using score multiplier, recheck if score is enough to create rule, score is already recalculated
-				if (this->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier) {
-					createRule = true;
-				}
-
-			} else{
-
-				// Without multiplier rules are kept forever for cases where there is enough score
-				if (this->suspiciousAddresses[address].activityScore > this->config->activityScoreToBlock) {
-					createRule = true;
-				}
-
-			}
-		}
-	}
-
-	// Adjust iptables rules
-	std::size_t posip = this->config->iptablesRule.find("%i");
-	std::string ruleStart = "";
-	std::string ruleEnd = "";
-	if (posip != std::string::npos) {
-		ruleStart = this->config->iptablesRule.substr(0, posip);
-		ruleEnd = this->config->iptablesRule.substr(posip + 2);
-	}
-	if (createRule == true) {
-		this->log->info("Adding rule for " + address + " to iptables chain!");
-		try {
-			if (this->iptables->append("INPUT", ruleStart + address + ruleEnd) == false) {
-				this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
-			} else {
-				this->suspiciousAddresses[address].iptableRule = true;
-			}
-		} catch (std::runtime_error& e) {
-			std::string message = e.what();
-			this->log->error(message);
-			this->log->error("Address " + address + " has enough score now, should have iptables rule and hostblock failed to append rule to chain!");
-		}
-	}
-	if(removeRule == true) {
-		this->log->info("Removing rule for " + address + " from iptables chain!");
-		try {
-			if(this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
-				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
-			} else {
-				this->suspiciousAddresses[address].iptableRule = false;
-			}
-		} catch (std::runtime_error& e) {
-			std::string message = e.what();
-			this->log->error(message);
-			this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
-		}
-	}
+	this->updateIptables(address);
 
 	// Update data file
-	if(newEntry == true){
+	if (newEntry == true) {
 		// Add new entry to end of data file
 		this->addAddress(address);
-	} else{
+	} else {
 		// Update entry in data file
 		this->updateAddress(address);
 	}
+}
 
+/*
+ * Save AbuseIPDB blacklist record in data->abuseIPDBBlacklist and datafile (add new or update existing)
+ * Additionally add/remove iptables rule
+ */
+void Data::saveAbuseIPDBRecord(std::string address, unsigned int totalReports, unsigned int abuseConfidenceScore)
+{
+	bool newEntry = false;
+
+	if (this->abuseIPDBBlacklist.count(address) > 0) {
+		this->abuseIPDBBlacklist[address].totalReports = totalReports;
+		this->abuseIPDBBlacklist[address].abuseConfidenceScore = abuseConfidenceScore;
+	} else {
+		AbuseIPDBBlacklistedAddressType data;
+		data.totalReports = totalReports;
+		data.abuseConfidenceScore = abuseConfidenceScore;
+		data.iptableRule = false;
+		this->abuseIPDBBlacklist.insert(std::pair<std::string,AbuseIPDBBlacklistedAddressType>(address,data));
+		newEntry = true;
+	}
+
+	this->updateIptables(address);
+
+	// Update data file
+	if (newEntry == true) {
+		this->addAbuseIPDBAddress(address);
+	} else {
+		this->updateAbuseIPDBAddress(address);
+	}
 }
 
 /*
@@ -1248,6 +1560,18 @@ void Data::printStats()
 		std::cout << "Total whitelisted: " << totalWhitelisted << std::endl;
 		std::cout << "Total blacklisted: " << totalBlacklisted << std::endl;
 		std::cout << "Total blocked: " << totalBlocked << std::endl;
+
+		if (this->abuseIPDBSyncTime > 0) {
+			std::cout << "Last AbuseIPDB blacklist sync time: ";
+			std::cout << Util::formatDateTime((const time_t)this->abuseIPDBSyncTime, this->config->dateTimeFormat.c_str());
+			std::cout << std::endl;
+		}
+
+		if (this->abuseIPDBBlacklistGenTime > 0) {
+			std::cout << "AbuseIPDB blacklist generation time: ";
+			std::cout << Util::formatDateTime((const time_t)this->abuseIPDBBlacklistGenTime, this->config->dateTimeFormat.c_str());
+			std::cout << std::endl;
+		}
 
 		// Sort top5 addresses
 		std::sort(top5.begin(), top5.end(), this->sortByActivityCount);

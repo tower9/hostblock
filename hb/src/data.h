@@ -120,9 +120,34 @@ class Data{
 		bool removeFile(std::string filePath);
 
 		/*
-		 * Save suspicious activity
+		 * Add new record to datafile based on this->abuseIPDBBlacklist
+		 */
+		bool addAbuseIPDBAddress(std::string address);
+
+		/*
+		 * Update record in datafile based on this->abuseIPDBBlacklist
+		 */
+		bool updateAbuseIPDBAddress(std::string address);
+
+		/*
+		 * Mark AbuseIPDB blacklist record for removal in datafile
+		 */
+		bool removeAbuseIPDBAddress(std::string address);
+
+		/*
+		 * Add/remove iptables rule based on score and blacklist
+		 */
+		bool updateIptables(std::string address);
+
+		/*
+		 * Save suspicious activity (add new or update existing) and create/remove iptables rule if needed
 		 */
 		void saveActivity(std::string address, unsigned int activityScore, unsigned int activityCount, unsigned int refusedCount);
+
+		/*
+		 * Save AbuseIPDB blacklist record (add new or update existing) and create/remove iptables rule if needed
+		 */
+		void saveAbuseIPDBRecord(std::string address, unsigned int totalReports, unsigned int abuseConfidenceScore);
 
 		/*
 		 * Print (stdout) some statistics about data

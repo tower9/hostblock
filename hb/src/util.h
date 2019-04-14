@@ -127,6 +127,14 @@ struct AbuseIPDBCheckResult {
 };
 
 /*
+ * Blacklist service data received from AbuseIPDB
+ */
+// struct AbuseIPDBBlacklistResult {
+// 	unsigned long long int generatedAt = 0;
+// 	std::map<std::string, hb::AbuseIPDBBlacklistedAddressType> blacklist;
+// };
+
+/*
  * To store JSON result from abuseipdb.com with cURL
  */
 struct AbuseIPDBJSONData {
