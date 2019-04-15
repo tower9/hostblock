@@ -113,7 +113,7 @@ bool Data::loadData()
 	this->log->debug("Loading data from " + this->config->dataFilePath);
 
 	// Open file
-	FILE* fp = fopen(this->config->dataFilePath.c_str(), "r");
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r");
 	if (fp == NULL) {
 		this->log->warning(std::to_string(errno) + ": " + strerror(errno));
 		this->log->warning("Unable to open datafile for reading!");
@@ -127,7 +127,7 @@ bool Data::loadData()
 	// Get file descriptor
 	int fd = fileno(fp);
 	if (fd == -1) {
-		fclose(fp);
+		std::fclose(fp);
 		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to read datafile, failed to get file descriptor!");
 		return false;
@@ -149,7 +149,7 @@ bool Data::loadData()
 		++retryCounter;
 	}
 	if (fs == -1) {
-		fclose(fp);
+		std::fclose(fp);
 		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to read datafile, file is locked!");
 		return false;
@@ -305,7 +305,7 @@ bool Data::loadData()
 	}
 
 	// Finished reading file
-	fclose(fp);
+	std::fclose(fp);
 
 	// Check if all configured log files are present in datafile (add if needed)
 	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
@@ -385,7 +385,7 @@ bool Data::saveData()
 	this->log->info("Updating datafile " + this->config->dataFilePath);
 
 	// Open file (overwrite)
-	FILE* fp = fopen(this->config->dataFilePath.c_str(), "w");
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "w");
 	if (fp == NULL) {
 		this->log->error("Unable to open datafile for writing!");
 		return false;
@@ -394,8 +394,8 @@ bool Data::saveData()
 	// Get file descriptor
 	int fd = fileno(fp);
 	if (fd == -1) {
-		fclose(fp);
-		this->log->error(std::to_string(errno) + ": " + strerror(errno));
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to write to datafile, failed to get file descriptor!");
 		return false;
 	}
@@ -414,14 +414,14 @@ bool Data::saveData()
 		++retryCounter;
 	}
 	if (fs == -1) {
-		fclose(fp);
+		std::fclose(fp);
 		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to write to datafile, file is locked!");
 		return false;
 	}
 
 	// Associate stream buffer with an open POSIX file descriptor
-	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in);
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out);
 	std::ostream f(&filebuf);
 
 	// Loop through all addresses
@@ -438,7 +438,6 @@ bool Data::saveData()
 		if(it->second.blacklisted == true) f << 'y';
 		else f << 'n';
 		f << std::right << std::setw(20) << it->second.lastReported;// Last report, left padded with spaces
-		// f << std::endl;// endl should flush buffer
 		f << "\n";// \n should not flush buffer
 	}
 
@@ -451,8 +450,7 @@ bool Data::saveData()
 			f << std::right << std::setw(20) << itlf->bookmark;
 			f << std::right << std::setw(20) << itlf->size;
 			f << itlf->path;
-			// f << std::endl;// endl should flush buffer
-			f << "\n";// \n should not flush buffer
+			f << std::endl;// endl should flush buffer
 		}
 	}
 
@@ -474,7 +472,7 @@ bool Data::saveData()
 	f << 's';
 	f << std::right << std::setw(20) << this->abuseIPDBSyncTime;
 	f << std::right << std::setw(20) << this->abuseIPDBBlacklistGenTime;
-	f << "\n";// \n should not flush buffer
+	f << std::endl;// endl should flush buffer
 
 	// Unlock file
 	fs = cfcntl::lockf(fd, F_ULOCK, 0);
@@ -483,7 +481,7 @@ bool Data::saveData()
 	}
 
 	// Close datafile
-	fclose(fp);
+	std::fclose(fp);
 
 	return true;
 }
@@ -651,29 +649,69 @@ bool Data::checkIptables()
 bool Data::addAddress(std::string address)
 {
 	this->log->debug("Adding record to " + this->config->dataFilePath + ", adding address " + address);
-	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
-	if (f.is_open()) {
-		// Write record to datafile end
-		f << 'd';
-		f << std::right << std::setw(39) << address;// Address, left padded with spaces
-		f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
-		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
-		f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
-		f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
-		if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
-		else f << 'n';
-		if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
-		else f << 'n';
-		f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
-		// f << std::endl;// endl should flush buffer
-		f << "\n";// \n should not flush buffer
 
-		// Close datafile
-		f.close();
-	} else {
-		this->log->error("Unable to open datafile for writting!");
+	// Open file (overwrite)
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "a");
+	if (fp == NULL) {
+		this->log->error("Unable to open datafile for writing!");
 		return false;
 	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to write to datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Lock file
+	int fs = cfcntl::lockf(fd, F_LOCK, 113);
+	unsigned int retryCounter = 1;
+	while (fs == -1) {
+		if (retryCounter >= 3) {
+			break;
+		}
+		// Sleep
+		cunistd::usleep(500000);
+		// Retry
+		fs = cfcntl::lockf(fd, F_LOCK, 113);
+		++retryCounter;
+	}
+	if (fs == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to write to datafile, file is locked!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out);
+	std::ostream f(&filebuf);
+
+	// Write record to the end of datafile
+	f << 'd';
+	f << std::right << std::setw(39) << address;// Address, left padded with spaces
+	f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
+	f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
+	f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
+	f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
+	if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
+	else f << 'n';
+	if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
+	else f << 'n';
+	f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
+	f << std::endl;
+
+	// Unlock file
+	fs = cfcntl::lockf(fd, F_ULOCK, 0);
+	if (fs == -1) {
+		this->log->warning("Failed to unlock datafile after overwrite!");
+	}
+
+	// Close datafile
+	std::fclose(fp);
 
 	return true;
 }
@@ -707,8 +745,7 @@ bool Data::updateAddress(std::string address)
 					if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
 					else f << 'n';
 					f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
-					// f << std::endl;// endl should flush buffer
-					f << "\n";// \n should not flush buffer
+					f << std::endl;// endl should flush buffer
 					recordFound = true;
 
 					// No need to continue reading file
@@ -823,8 +860,7 @@ bool Data::addFile(std::string filePath)
 					f << std::right << std::setw(20) << itlf->bookmark;
 					f << std::right << std::setw(20) << itlf->size;
 					f << itlf->path;
-					// f << std::endl;// endl should flush buffer
-					f << "\n";// \n should not flush buffer
+					f << std::endl;// endl should flush buffer
 					logFileFound = true;
 					break;
 				}
@@ -1005,8 +1041,7 @@ bool Data::addAbuseIPDBAddress(std::string address)
 			this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
 		}
 		f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
-		// f << std::endl;// endl should flush buffer
-		f << "\n";// \n should not flush buffer
+		f << std::endl;// endl should flush buffer
 
 		// Close datafile
 		f.close();
