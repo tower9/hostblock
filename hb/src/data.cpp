@@ -23,8 +23,7 @@
  * Status of data synchronization with AbuseIPDB (API blacklist endpoint)
  * s|synctime|gentime
  *
- * Marked for removal (any type of line), right padded with spaces according to
- * original length of line:
+ * Marked for removal (any type of line):
  * r
  *
  * addr        - IPv4 address, len 39, current implementation for IPv4, but len
@@ -115,7 +114,6 @@ bool Data::loadData()
 	// Open file
 	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r");
 	if (fp == NULL) {
-		this->log->warning(std::to_string(errno) + ": " + strerror(errno));
 		this->log->warning("Unable to open datafile for reading!");
 		if (this->saveData() == false) {
 			this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
@@ -305,6 +303,7 @@ bool Data::loadData()
 	}
 
 	// Finished reading file
+	filebuf.close();
 	std::fclose(fp);
 
 	// Check if all configured log files are present in datafile (add if needed)
@@ -387,6 +386,7 @@ bool Data::saveData()
 	// Open file (overwrite)
 	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "w");
 	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for writing!");
 		return false;
 	}
@@ -481,6 +481,7 @@ bool Data::saveData()
 	}
 
 	// Close datafile
+	filebuf.close();
 	std::fclose(fp);
 
 	return true;
@@ -650,10 +651,11 @@ bool Data::addAddress(std::string address)
 {
 	this->log->debug("Adding record to " + this->config->dataFilePath + ", adding address " + address);
 
-	// Open file (overwrite)
+	// Open file
 	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "a");
 	if (fp == NULL) {
-		this->log->error("Unable to open datafile for writing!");
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
@@ -662,7 +664,7 @@ bool Data::addAddress(std::string address)
 	if (fd == -1) {
 		std::fclose(fp);
 		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
-		this->log->error("Unable to write to datafile, failed to get file descriptor!");
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
 		return false;
 	}
 
@@ -682,12 +684,12 @@ bool Data::addAddress(std::string address)
 	if (fs == -1) {
 		std::fclose(fp);
 		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
-		this->log->error("Unable to write to datafile, file is locked!");
+		this->log->error("Unable to update datafile, file is locked!");
 		return false;
 	}
 
 	// Associate stream buffer with an open POSIX file descriptor
-	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out);
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out | std::ios::app);
 	std::ostream f(&filebuf);
 
 	// Write record to the end of datafile
@@ -707,10 +709,11 @@ bool Data::addAddress(std::string address)
 	// Unlock file
 	fs = cfcntl::lockf(fd, F_ULOCK, 0);
 	if (fs == -1) {
-		this->log->warning("Failed to unlock datafile after overwrite!");
+		this->log->warning("Failed to unlock datafile after update!");
 	}
 
 	// Close datafile
+	filebuf.close();
 	std::fclose(fp);
 
 	return true;
@@ -724,58 +727,100 @@ bool Data::updateAddress(std::string address)
 	bool recordFound = false;
 	char c;
 	char fAddress[40];
+
 	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating address " + address);
-	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
-	if (f.is_open()) {
-		while (f.get(c)) {
-			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
-			if (c == 'd') {// Data record, check if IP matches
 
-				// Get address
-				f.get(fAddress, 40);
-
-				// If we have found address that we need to update
-				if (hb::Util::ltrim(std::string(fAddress)) == address) {
-					f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
-					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
-					f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
-					f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
-					if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
-					else f << 'n';
-					if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
-					else f << 'n';
-					f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
-					f << std::endl;// endl should flush buffer
-					recordFound = true;
-
-					// No need to continue reading file
-					break;
-				}
-				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(73, f.cur);
-			} else {// Other type of record (file bookmark or removed record)
-				// We can skip at min 41 pos
-				f.seekg(41, f.cur);
-
-				// Read until end of line
-				while (f.get(c)) {
-					if (c == '\n') {
-						break;
-					}
-				}
-			}
-		}
-
-		// Close data file
-		f.close();
-	} else {
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		// std::cerr << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+		if (c == 'd') {// Data record, check if address matches
+
+			// Get address
+			f.get(fAddress, 40);
+
+			// If we have found address that we need to update
+			if (hb::Util::ltrim(std::string(fAddress)) == address) {
+
+				// Lock file
+				int fs = cfcntl::lockf(fd, F_LOCK, 73);
+				unsigned int retryCounter = 1;
+				while (fs == -1) {
+					if (retryCounter >= 3) {
+						break;
+					}
+					// Sleep
+					cunistd::usleep(500000);
+					// Retry
+					fs = cfcntl::lockf(fd, F_LOCK, 73);
+					++retryCounter;
+				}
+				if (fs == -1) {
+					filebuf.close();
+					std::fclose(fp);
+					this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+					this->log->error("Unable to update datafile, file is locked!");
+					return false;
+				}
+
+				f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastActivity;// Last activity, left padded with spaces
+				f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityScore;// Current activity score, left padded with spaces
+				f << std::right << std::setw(10) << this->suspiciousAddresses[address].activityCount;// Total activity count, left padded with spaces
+				f << std::right << std::setw(10) << this->suspiciousAddresses[address].refusedCount;// Total refused connection count, left padded with spaces
+				if(this->suspiciousAddresses[address].whitelisted == true) f << 'y';
+				else f << 'n';
+				if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
+				else f << 'n';
+				f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
+				f << std::endl;// endl should flush buffer
+				recordFound = true;
+
+				// Unlock file
+				fs = cfcntl::lockf(fd, F_ULOCK, 0);
+				if (fs == -1) {
+					this->log->warning("Failed to unlock datafile after update!");
+				}
+
+				break;
+			}
+			// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
+			f.seekg(73, f.cur);
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
 	if (!recordFound) {
-		this->log->error("Unable to update " + address + " in data file, record not found in data file!");
-		// Maybe better write warning, backup existing datafile and create new one based on data in memory?
+		this->log->error("Failed to update address " + address + " in datafile, record not found in data file!");
 		return false;
 	} else {
 		return true;
@@ -790,48 +835,93 @@ bool Data::removeAddress(std::string address)
 	bool recordFound = false;
 	char c;
 	char fAddress[40];
-	// std:string buffer;
+
 	this->log->debug("Removing record from " + this->config->dataFilePath + ", removing address " + address);
-	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
-	if (f.is_open()) {
-		while (f.get(c)) {
-			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
-			if (c == 'd') {// Data record, check if IP matches
 
-				// Get address
-				f.get(fAddress, 40);
-
-				// If we have found address that we need to remove
-				if (hb::Util::ltrim(std::string(fAddress)) == address) {
-					f.seekg(-40, f.cur);
-					f << 'r';
-					recordFound = true;
-					break;// No need to continue reading file
-				}
-				// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-				f.seekg(73, f.cur);
-			} else {// Variable length record (file bookmark or removed record)
-				// We can skip at min 41 pos
-				f.seekg(41, f.cur);
-
-				// Read until end of line
-				while (f.get(c)) {
-					if (c == '\n') {
-						break;
-					}
-				}
-			}
-		}
-
-		// Close data file
-		f.close();
-	} else {
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+		if (c == 'd') {// Data record, check if address matches
+
+			// Get address
+			f.get(fAddress, 40);
+
+			// If we have found address that we need to remove
+			if (hb::Util::ltrim(std::string(fAddress)) == address) {
+				f.seekg(-40, f.cur);
+
+				// Lock file
+				int fs = cfcntl::lockf(fd, F_LOCK, 1);
+				unsigned int retryCounter = 1;
+				while (fs == -1) {
+					if (retryCounter >= 3) {
+						break;
+					}
+					// Sleep
+					cunistd::usleep(500000);
+					// Retry
+					fs = cfcntl::lockf(fd, F_LOCK, 1);
+					++retryCounter;
+				}
+				if (fs == -1) {
+					filebuf.close();
+					std::fclose(fp);
+					this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+					this->log->error("Unable to update datafile, file is locked!");
+					return false;
+				}
+
+				// Mark record as removed
+				f << 'r';
+				recordFound = true;
+
+				// Unlock file
+				fs = cfcntl::lockf(fd, F_ULOCK, 0);
+				if (fs == -1) {
+					this->log->warning("Failed to unlock datafile after update!");
+				}
+
+				break;
+			}
+			// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
+			f.seekg(73, f.cur);
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
 	if (!recordFound) {
-		this->log->error("Tried removing address " + address + " from datafile, but record is not present in datafile!");
+		this->log->error("Failed to mark address " + address + " for removal from datafile, record is not found in datafile!");
 		return false;
 	} else {
 		return true;
@@ -845,47 +935,92 @@ bool Data::addFile(std::string filePath)
 {
 	this->log->debug("Adding record to " + this->config->dataFilePath + ", adding log file " + filePath);
 
-	// Open datafile
-	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
-	if (f.is_open()) {
-		// Find log file in config
-		std::vector<hb::LogGroup>::iterator itlg;
-		std::vector<hb::LogFile>::iterator itlf;
-		bool logFileFound = false;
-		for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
-			for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-				if (itlf->path == filePath) {
-					// Write record to datafile end
-					f << 'b';
-					f << std::right << std::setw(20) << itlf->bookmark;
-					f << std::right << std::setw(20) << itlf->size;
-					f << itlf->path;
-					f << std::endl;// endl should flush buffer
-					logFileFound = true;
-					break;
-				}
-			}
-			if (logFileFound) break;
-		}
-
-		// Report error if log file not found in config
-		if (!logFileFound) {
-			this->log->error("Unable to add " + filePath + " to data file, log file not found in configuration!");
-			return false;
-		}
-
-		// Close datafile
-		f.close();
-	} else {
-		this->log->error("Unable to open datafile for writting!");
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "a");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Lock file
+	int fs = cfcntl::lockf(fd, F_LOCK, filePath.length() + 41);
+	unsigned int retryCounter = 1;
+	while (fs == -1) {
+		if (retryCounter >= 3) {
+			break;
+		}
+		// Sleep
+		cunistd::usleep(500000);
+		// Retry
+		fs = cfcntl::lockf(fd, F_LOCK, filePath.length() + 41);
+		++retryCounter;
+	}
+	if (fs == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, file is locked!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out | std::ios::app);
+	std::ostream f(&filebuf);
+
+	// Find log file in config
+	std::vector<hb::LogGroup>::iterator itlg;
+	std::vector<hb::LogFile>::iterator itlf;
+	bool logFileFound = false;
+	for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+		for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+			if (itlf->path == filePath) {
+				// Write record to the end of datafile
+				f << 'b';
+				f << std::right << std::setw(20) << itlf->bookmark;
+				f << std::right << std::setw(20) << itlf->size;
+				f << itlf->path;
+				f << std::endl;// endl should flush buffer
+				logFileFound = true;
+				break;
+			}
+		}
+		if (logFileFound) break;
+	}
+
+	// Report error if log file not found in config
+	if (!logFileFound) {
+		filebuf.close();
+		std::fclose(fp);
+		this->log->error("Failed to add " + filePath + " to data file, log file not found in configuration!");
+		return false;
+	}
+
+	// Unlock file
+	fs = cfcntl::lockf(fd, F_ULOCK, 0);
+	if (fs == -1) {
+		this->log->warning("Failed to unlock datafile after update!");
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
 
 	return true;
 }
 
 /*
  * Update log file bookmark record in datafile
+ * Note, file path cannot be updated, to update file path - mark old record for
+ * removal and apend new record to datafile
  */
 bool Data::updateFile(std::string filePath)
 {
@@ -894,70 +1029,115 @@ bool Data::updateFile(std::string filePath)
 	char c;
 	std::string fPath;
 	int tmppos;// To temporarly store current position in file
+
 	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating log file " + filePath);
-	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
-	if (f.is_open()) {
-		while (f.get(c)) {
-			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
-			if (c == 'd') {// Address record, skip to next one
-				f.seekg(112, f.cur);
-			} else if (c == 'b') {// Log file record, check if path matches needed one
-				// Save current position, will need later if file path will match needed one
-				tmppos = f.tellg();
 
-				// Skip bookmark and size
-				f.seekg(40, f.cur);
-				std::getline(f, fPath);
-				if (fPath == filePath) {
-					// Go back to bookmark position
-					f.seekg(tmppos, f.beg);
-
-					// Find log file in config
-					std::vector<hb::LogGroup>::iterator itlg;
-					std::vector<hb::LogFile>::iterator itlf;
-					for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
-						for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
-							if (itlf->path == filePath) {
-								// Update bookmark and size in datafile
-								f << std::right << std::setw(20) << itlf->bookmark;
-								f << std::right << std::setw(20) << itlf->size;
-								logFileFound = true;
-								break;
-							}
-						}
-						if (logFileFound) break;
-					}
-					recordFound = true;
-
-					// No need to continue work with file
-					break;
-				}
-			} else {// Variable length record (removed)
-				// We can skip at min 41 pos
-				f.seekg(41, f.cur);
-
-				// Read until end of line
-				while (f.get(c)) {
-					if (c == '\n') {
-						break;
-					}
-				}
-			}
-		}
-
-		// Close file
-		f.close();
-	} else {
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		// std::cerr << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+		if (c == 'd') {// Address record, skip to next one
+			f.seekg(112, f.cur);
+		} else if (c == 'b') {// Log file record, check if path matches needed one
+			// Save current position, will need later if file path will match needed one
+			tmppos = f.tellg();
+
+			// Skip bookmark and size
+			f.seekg(40, f.cur);
+
+			// Read until end of line
+			std::getline(f, fPath);
+
+			if (fPath == filePath) {
+				// Go back to bookmark position
+				f.seekg(tmppos, f.beg);
+
+				// Search for log file in config
+				std::vector<hb::LogGroup>::iterator itlg;
+				std::vector<hb::LogFile>::iterator itlf;
+				for (itlg = this->config->logGroups.begin(); itlg != this->config->logGroups.end(); ++itlg) {
+					for (itlf = itlg->logFiles.begin(); itlf != itlg->logFiles.end(); ++itlf) {
+						if (itlf->path == filePath) {
+							// Lock file
+							int fs = cfcntl::lockf(fd, F_LOCK, 40);
+							unsigned int retryCounter = 1;
+							while (fs == -1) {
+								if (retryCounter >= 3) {
+									break;
+								}
+								// Sleep
+								cunistd::usleep(500000);
+								// Retry
+								fs = cfcntl::lockf(fd, F_LOCK, 40);
+								++retryCounter;
+							}
+							if (fs == -1) {
+								filebuf.close();
+								std::fclose(fp);
+								this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+								this->log->error("Unable to update datafile, file is locked!");
+								return false;
+							}
+
+							// Update bookmark and size in datafile
+							f << std::right << std::setw(20) << itlf->bookmark;
+							f << std::right << std::setw(20) << itlf->size;
+							logFileFound = true;
+
+							// Unlock file
+							fs = cfcntl::lockf(fd, F_ULOCK, 0);
+							if (fs == -1) {
+								this->log->warning("Failed to unlock datafile after update!");
+							}
+
+							break;
+						}
+					}
+					if (logFileFound) break;
+				}
+				recordFound = true;
+
+				break;
+			}
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
 	if (!recordFound) {
-		this->log->error("Unable to update " + filePath + " in data file, record not found in data file!");
-		// Maybe better write warning, backup existing datafile and create new one based on data in memory?
+		this->log->error("Failed to update " + filePath + " in datafile, record not found in datafile!");
 		return false;
 	} else if (!logFileFound) {
-		this->log->error("Unable to update " + filePath + " in datafile, log file not found in configuration!");
+		this->log->error("Failed to update " + filePath + " in datafile, log file not found in configuration!");
 		return false;
 	} else {
 		return true;
@@ -973,52 +1153,98 @@ bool Data::removeFile(std::string filePath)
 	char c;
 	std::string fPath;
 	int tmppos;// To temporarly store current position in file
+
 	this->log->debug("Removing record from " + this->config->dataFilePath + ", removing log file " + filePath);
-	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
-	if (f.is_open()) {
-		while (f.get(c)) {
-			// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
-			if (c == 'd') {// Address record, skip to next one
-				f.seekg(112, f.cur);
-			} else if (c == 'b') {// Log file record, check if path matches needed one
 
-				// Save current position, will need later if file path will match needed one
-				tmppos = f.tellg();
-
-				// Skip bookmark and size
-				f.seekg(40, f.cur);
-				std::getline(f, fPath);
-				if (fPath == filePath) {
-					// Go back to record type position
-					f.seekg(tmppos-1, f.beg);
-					f << 'r';
-					recordFound = true;
-
-					// No need to continue work with file
-					break;
-				}
-			} else {// Variable length record (removed)
-				// We can skip at min 41 pos
-				f.seekg(41, f.cur);
-
-				// Read until end of line
-				while (f.get(c)) {
-					if (c == '\n') {
-						break;
-					}
-				}
-			}
-		}
-
-		// Close file
-		f.close();
-	} else {
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+		if (c == 'd') {// Address record, skip to next one
+			f.seekg(112, f.cur);
+		} else if (c == 'b') {// Log file record, check if path matches needed one
+			// Save current position, will need later if file path will match needed one
+			tmppos = f.tellg();
+
+			// Skip bookmark and size
+			f.seekg(40, f.cur);
+
+			// Read until end of line
+			std::getline(f, fPath);
+
+			if (fPath == filePath) {
+				// Go back to record type position
+				f.seekg(tmppos-1, f.beg);
+
+				// Lock file
+				int fs = cfcntl::lockf(fd, F_LOCK, 1);
+				unsigned int retryCounter = 1;
+				while (fs == -1) {
+					if (retryCounter >= 3) {
+						break;
+					}
+					// Sleep
+					cunistd::usleep(500000);
+					// Retry
+					fs = cfcntl::lockf(fd, F_LOCK, 1);
+					++retryCounter;
+				}
+				if (fs == -1) {
+					filebuf.close();
+					std::fclose(fp);
+					this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+					this->log->error("Unable to update datafile, file is locked!");
+					return false;
+				}
+
+				// Mark record as removed
+				f << 'r';
+				recordFound = true;
+
+				// Unlock file
+				fs = cfcntl::lockf(fd, F_ULOCK, 0);
+				if (fs == -1) {
+					this->log->warning("Failed to unlock datafile after update!");
+				}
+
+				break;
+			}
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
 	if (!recordFound) {
-		this->log->warning("Unable to remove " + filePath + " from data file, record not found in data file!");
+		this->log->warning("Failed to mark " + filePath + " for removal from datafile, record not found in datafile!");
 		return false;
 	} else {
 		return true;
@@ -1026,29 +1252,72 @@ bool Data::removeFile(std::string filePath)
 }
 
 /*
- * Add new record to datafile based on this->abuseIPDBBlacklist
+ * Add new record to datafile end based on this->abuseIPDBBlacklist
  */
 bool Data::addAbuseIPDBAddress(std::string address)
 {
 	this->log->debug("Adding AbuseIPDB blacklist record to " + this->config->dataFilePath + ", address " + address);
-	std::ofstream f(this->config->dataFilePath.c_str(), std::ofstream::out | std::ofstream::app);
-	if (f.is_open()) {
-		// Write record to the end of datafile
-		f << 'a';
-		f << std::right << std::setw(39) << address;
-		f << std::right << std::setw(10) << this->abuseIPDBBlacklist[address].totalReports;
-		if (this->abuseIPDBBlacklist[address].abuseConfidenceScore > 999) {
-			this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
-		}
-		f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
-		f << std::endl;// endl should flush buffer
 
-		// Close datafile
-		f.close();
-	} else {
-		this->log->error("Unable to open datafile for writting!");
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "a");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Lock file
+	int fs = cfcntl::lockf(fd, F_LOCK, 54);
+	unsigned int retryCounter = 1;
+	while (fs == -1) {
+		if (retryCounter >= 3) {
+			break;
+		}
+		// Sleep
+		cunistd::usleep(500000);
+		// Retry
+		fs = cfcntl::lockf(fd, F_LOCK, 54);
+		++retryCounter;
+	}
+	if (fs == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, file is locked!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out | std::ios::app);
+	std::ostream f(&filebuf);
+
+	// Write record to the end of datafile
+	f << 'a';
+	f << std::right << std::setw(39) << address;
+	f << std::right << std::setw(10) << this->abuseIPDBBlacklist[address].totalReports;
+	if (this->abuseIPDBBlacklist[address].abuseConfidenceScore > 999) {
+		this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
+	}
+	f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
+	f << std::endl;
+
+	// Unlock file
+	fs = cfcntl::lockf(fd, F_ULOCK, 0);
+	if (fs == -1) {
+		this->log->warning("Failed to unlock datafile after update!");
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
 
 	return true;
 }
@@ -1061,52 +1330,95 @@ bool Data::updateAbuseIPDBAddress(std::string address)
 	bool recordFound = false;
 	char c;
 	char fAddress[40];
-	this->log->debug("Updating AbuseIPDB blacklist record in " + this->config->dataFilePath + ", updating address " + address);
-	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
-	if (f.is_open()) {
-		while (f.get(c)) {
-			if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
 
-				// Get address
-				f.get(fAddress, 40);
+	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating AbuseIPDB blacklist address " + address);
 
-				// If we have found address that we need to update
-				if (hb::Util::ltrim(std::string(fAddress)) == address) {
-					f << std::right << std::setw(10) << this->abuseIPDBBlacklist[address].totalReports;
-					if (this->abuseIPDBBlacklist[address].abuseConfidenceScore > 999) {
-						this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
-					}
-					f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
-					// f << std::endl;// endl should flush buffer
-					f << "\n";// \n should not flush buffer
-					recordFound = true;
-
-					// No need to continue reading file
-					break;
-				}
-				f.seekg(14, f.cur);
-			} else {// Other type of record (suspicious activity, file bookmark or removed record)
-				// We can skip at min 41 pos
-				f.seekg(41, f.cur);
-
-				// Read until end of line
-				while (f.get(c)) {
-					if (c == '\n') {
-						break;
-					}
-				}
-			}
-		}
-
-		// Close data file
-		f.close();
-	} else {
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		// std::cerr << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
+		if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
+
+			// Get address
+			f.get(fAddress, 40);
+
+			// If we have found address that we need to update
+			if (hb::Util::ltrim(std::string(fAddress)) == address) {
+
+				// Lock file
+				int fs = cfcntl::lockf(fd, F_LOCK, 13);
+				unsigned int retryCounter = 1;
+				while (fs == -1) {
+					if (retryCounter >= 3) {
+						break;
+					}
+					// Sleep
+					cunistd::usleep(500000);
+					// Retry
+					fs = cfcntl::lockf(fd, F_LOCK, 13);
+					++retryCounter;
+				}
+				if (fs == -1) {
+					filebuf.close();
+					std::fclose(fp);
+					this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+					this->log->error("Unable to update datafile, file is locked!");
+					return false;
+				}
+
+				f << std::right << std::setw(10) << this->abuseIPDBBlacklist[address].totalReports;
+				if (this->abuseIPDBBlacklist[address].abuseConfidenceScore > 999) {
+					this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
+				}
+				f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
+				f << std::endl;// endl should flush buffer
+				recordFound = true;
+
+				// Unlock file
+				fs = cfcntl::lockf(fd, F_ULOCK, 0);
+				if (fs == -1) {
+					this->log->warning("Failed to unlock datafile after update!");
+				}
+
+				break;
+			}
+			f.seekg(14, f.cur);
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
 	if (!recordFound) {
-		this->log->error("Unable to update " + address + " in data file, AbuseIPDB blacklist record not found in data file!");
+		this->log->error("Failed to update AbuseIPDB blacklist " + address + " in datafile, record not found in data file!");
 		return false;
 	} else {
 		return true;
@@ -1121,46 +1433,91 @@ bool Data::removeAbuseIPDBAddress(std::string address)
 	bool recordFound = false;
 	char c;
 	char fAddress[40];
-	// std:string buffer;
+
 	this->log->debug("Removing AbuseIPDB blacklist record from " + this->config->dataFilePath + ", removing address " + address);
-	std::fstream f(this->config->dataFilePath.c_str(), std::fstream::in | std::fstream::out);
-	if (f.is_open()) {
-		while (f.get(c)) {
-			if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
 
-				// Get address
-				f.get(fAddress, 40);
-
-				// If we have found address that we need to remove
-				if (hb::Util::ltrim(std::string(fAddress)) == address) {
-					f.seekg(-40, f.cur);
-					f << 'r';
-					recordFound = true;
-					break;// No need to continue reading file
-				}
-				f.seekg(14, f.cur);
-			} else {// Variable length record (file bookmark or removed record)
-				// We can skip at min 41 pos
-				f.seekg(41, f.cur);
-
-				// Read until end of line
-				while (f.get(c)) {
-					if (c == '\n') {
-						break;
-					}
-				}
-			}
-		}
-
-		// Close data file
-		f.close();
-	} else {
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
 		this->log->error("Unable to open datafile for update!");
 		return false;
 	}
 
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
+
+			// Get address
+			f.get(fAddress, 40);
+
+			// If we have found address that we need to remove
+			if (hb::Util::ltrim(std::string(fAddress)) == address) {
+				f.seekg(-40, f.cur);
+
+				// Lock file
+				int fs = cfcntl::lockf(fd, F_LOCK, 1);
+				unsigned int retryCounter = 1;
+				while (fs == -1) {
+					if (retryCounter >= 3) {
+						break;
+					}
+					// Sleep
+					cunistd::usleep(500000);
+					// Retry
+					fs = cfcntl::lockf(fd, F_LOCK, 1);
+					++retryCounter;
+				}
+				if (fs == -1) {
+					filebuf.close();
+					std::fclose(fp);
+					this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+					this->log->error("Unable to update datafile, file is locked!");
+					return false;
+				}
+
+				// Mark record as removed
+				f << 'r';
+				recordFound = true;
+
+				// Unlock file
+				fs = cfcntl::lockf(fd, F_ULOCK, 0);
+				if (fs == -1) {
+					this->log->warning("Failed to unlock datafile after update!");
+				}
+
+				break;
+			}
+			f.seekg(14, f.cur);
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
 	if (!recordFound) {
-		this->log->error("Tried removing address " + address + " from datafile, but record is not present in datafile!");
+		this->log->error("Failed to mark AbuseIPDB blacklist address " + address + " for removal from datafile, record is not found in datafile!");
 		return false;
 	} else {
 		return true;
@@ -1407,6 +1764,11 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 void Data::saveAbuseIPDBRecord(std::string address, unsigned int totalReports, unsigned int abuseConfidenceScore)
 {
 	bool newEntry = false;
+
+	// Max confidence score can be 100
+	if (abuseConfidenceScore > 100) {
+		abuseConfidenceScore = 100;
+	}
 
 	if (this->abuseIPDBBlacklist.count(address) > 0) {
 		this->abuseIPDBBlacklist[address].totalReports = totalReports;
