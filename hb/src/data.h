@@ -135,6 +135,11 @@ class Data{
 		bool removeAbuseIPDBAddress(std::string address);
 
 		/*
+		 * Update AbuseIPDB sync information in datafile
+		 */
+		bool updateAbuseIPDBSyncData(unsigned long long int syncTime, unsigned long long int blacklistGenTime);
+
+		/*
 		 * Add/remove iptables rule based on score and blacklist
 		 */
 		bool updateIptables(std::string address);

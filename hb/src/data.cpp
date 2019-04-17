@@ -1580,8 +1580,6 @@ bool Data::updateAbuseIPDBSyncData(unsigned long long int syncTime, unsigned lon
 				return false;
 			}
 
-			std::cerr << "tellp: " << f.tellp() << " tellg: " << f.tellg() << " beg: " << f.beg << " end: " << f.end << std::endl;
-
 			// Update timestamps
 			f << std::right << std::setw(20) << syncTime;
 			f << std::right << std::setw(20) << blacklistGenTime;
