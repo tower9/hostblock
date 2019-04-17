@@ -476,6 +476,7 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 						if (obj.size() > 0) {
 							// Blacklist generation time
 							if (obj["meta"]["generatedAt"].asString().length() > 0) {
+								this->log->debug("Blacklist generation time: " + obj["meta"]["generatedAt"].asString());
 								if (strptime(obj["meta"]["generatedAt"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
 									timestamp = timegm(&t);
 									*generatedAt = (unsigned long long int)timestamp;
@@ -486,7 +487,12 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 								}
 							}
 
-							// Blacklist
+							// Clear blacklist
+							blacklist->clear();
+
+							this->log->debug("Data array size: " + std::to_string(obj["data"].size()));
+
+							// Fill blacklist with new data
 							for (i = 0; i < obj["data"].size(); ++i) {
 								AbuseIPDBBlacklistedAddressType data;
 
@@ -497,7 +503,7 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 								data.totalReports = obj["data"][i]["totalReports"].asUInt();
 
 								// Confidence score
-								data.abuseConfidenceScore = obj["data"][i]["abuseConfidenceScore"].asUInt();
+								data.abuseConfidenceScore = std::strtoul(obj["data"][i]["abuseConfidenceScore"].asString().c_str(), NULL, 10);
 
 								// Append to blacklist
 								blacklist->insert(std::pair<std::string,AbuseIPDBBlacklistedAddressType>(address, data));
