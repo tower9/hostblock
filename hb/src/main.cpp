@@ -65,8 +65,8 @@ const char* PID_PATH = "/var/run/hostblock.pid";
 
 // Variable for main loop, will exit when set to false
 bool running = false;
-bool threadRunning = false;
-std::mutex threadRunningMutex;
+bool reportingThreadRunning = false;
+std::mutex reportingThreadRunningMutex;
 
 // Variable for daemon to reload data file
 bool reloadDataFile = false;
@@ -104,6 +104,7 @@ void printUsage()
 	std::cout << " -w<IP address> | --whitelist=<IP address> - toggle whether address is in whitelist" << std::endl;
 	std::cout << " -r<IP address> | --remove=<IP address>    - remove IP address from data file" << std::endl;
 	std::cout << " -d             | --daemon                 - run as daemon" << std::endl;
+	std::cout << "                | --sync-blacklist         - sync AbuseIPDB blacklist" << std::endl;
 }
 
 /*
@@ -114,9 +115,9 @@ void signalHandler(int signal)
 	if (signal == SIGTERM) {
 		// Stop daemon
 		running = false;
-		threadRunningMutex.lock();
-		threadRunning = false;
-		threadRunningMutex.unlock();
+		reportingThreadRunningMutex.lock();
+		reportingThreadRunning = false;
+		reportingThreadRunningMutex.unlock();
 	} else if (signal == SIGUSR1) {
 		// SIGUSR1 to tell daemon to reload data, config and restart threads if needed
 		reloadDataFile = true;
@@ -142,12 +143,12 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 	bool isEmpty = false;
 	while (true) {
 		// Check whether should exit this loop
-		threadRunningMutex.lock();
-		if (!threadRunning) {
-			threadRunningMutex.unlock();
+		reportingThreadRunningMutex.lock();
+		if (!reportingThreadRunning) {
+			reportingThreadRunningMutex.unlock();
 			break;
 		}
-		threadRunningMutex.unlock();
+		reportingThreadRunningMutex.unlock();
 
 		// Check whether config is updated
 		configMutex.lock();
@@ -214,23 +215,25 @@ int main(int argc, char *argv[])
 	bool blacklistFlag = false;
 	bool whitelistFlag = false;
 	bool removeFlag = false;
+	bool syncBlacklistFlag = false;
 	std::string ipAddress = "";
 	bool daemonFlag = false;
 
 	// Options
 	static struct cgetopt::option long_options[] =
 	{
-		{"help",         no_argument,       0, 'h'},
-		{"print-config", no_argument,       0, 'p'},
-		{"statistics",   no_argument,       0, 's'},
-		{"list",         no_argument,       0, 'l'},
-		{"all",          no_argument,       0, 'a'},
-		{"count",        no_argument,       0, 'c'},
-		{"time",         no_argument,       0, 't'},
-		{"blacklist",    required_argument, 0, 'b'},
-		{"whitelist",    required_argument, 0, 'w'},
-		{"remove",       required_argument, 0, 'r'},
-		{"daemon",       no_argument,       0, 'd'},
+		{"help",           no_argument,       0, 'h'},
+		{"print-config",   no_argument,       0, 'p'},
+		{"statistics",     no_argument,       0, 's'},
+		{"list",           no_argument,       0, 'l'},
+		{"all",            no_argument,       0, 'a'},
+		{"count",          no_argument,       0, 'c'},
+		{"time",           no_argument,       0, 't'},
+		{"blacklist",      required_argument, 0, 'b'},
+		{"whitelist",      required_argument, 0, 'w'},
+		{"remove",         required_argument, 0, 'r'},
+		{"daemon",         no_argument,       0, 'd'},
+		{"sync-blacklist", no_argument,       0, 0},
 	};
 
 	// Option index
@@ -239,6 +242,14 @@ int main(int argc, char *argv[])
 	// Check options
 	while ((c = cgetopt::getopt_long(argc, argv, "hpslactb:w:r:d", long_options, &option_index)) != -1)
 		switch (c) {
+			case 0:
+				if (strncmp("sync-blacklist", long_options[option_index].name, strlen(long_options[option_index].name)) == 0) {
+					syncBlacklistFlag = true;
+				} else {
+					printUsage();
+					exit(0);
+				}
+				break;
 			case 'h':
 				printUsage();
 				exit(0);
@@ -514,6 +525,7 @@ int main(int argc, char *argv[])
 			}
 		} else {
 			std::cout << "Unable to remove " << ipAddress << ", address not found in datafile!" << std::endl;
+			log.error("Unable to remove " + ipAddress + ", address not found in datafile!");
 		}
 
 		// If daemon is running, signal to reload datafile
@@ -641,7 +653,7 @@ int main(int argc, char *argv[])
 			csignal::signal(SIGUSR1, signalHandler);// Reload datafile
 
 			// Fire up thread for mattched pattern reporting
-			threadRunning = true;// No need for mutex, no thread started up until now
+			reportingThreadRunning = true;// No need for mutex, no threads are running yet
 			std::thread abuseipdbReporterThread(&reporterThread, &log, &config);
 
 			// Close standard file descriptors
@@ -838,7 +850,7 @@ int main(int argc, char *argv[])
 				// Sleep 1/5 of second
 				cunistd::usleep(200000);
 			}
-			log.info("Daemon stop");
+			log.info("Hostblock daemon stop");
 		}
 
 		exit(0);
