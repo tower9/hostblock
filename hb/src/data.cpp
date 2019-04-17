@@ -371,7 +371,10 @@ bool Data::loadData()
 	}
 
 	// Data file processing finished
-	this->log->debug("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " IP address record(s)");
+	this->log->debug("Loaded " + std::to_string(this->suspiciousAddresses.size()) + " suspicious address record(s)");
+	if (this->abuseIPDBBlacklist.size() > 0) {
+		this->log->debug("Loaded " + std::to_string(this->abuseIPDBBlacklist.size()) + " AbuseIPDB blacklist record(s)");
+	}
 
 	return true;
 }
@@ -1524,6 +1527,155 @@ bool Data::removeAbuseIPDBAddress(std::string address)
 	}
 }
 
+bool Data::updateAbuseIPDBSyncData(unsigned long long int syncTime, unsigned long long int blacklistGenTime) {
+	bool recordFound = false;
+	char c;
+	int fs;
+	unsigned int retryCounter;
+
+	this->log->debug("Updating AbuseIPDB sync data");
+
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		if (c == 's') {
+
+			// Lock file
+			fs = cfcntl::lockf(fd, F_LOCK, 40);
+			retryCounter = 1;
+			while (fs == -1) {
+				if (retryCounter >= 3) {
+					break;
+				}
+				// Sleep
+				cunistd::usleep(500000);
+				// Retry
+				fs = cfcntl::lockf(fd, F_LOCK, 40);
+				++retryCounter;
+			}
+			if (fs == -1) {
+				filebuf.close();
+				std::fclose(fp);
+				this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+				this->log->error("Unable to update datafile, file is locked!");
+				return false;
+			}
+
+			std::cerr << "tellp: " << f.tellp() << " tellg: " << f.tellg() << " beg: " << f.beg << " end: " << f.end << std::endl;
+
+			// Update timestamps
+			f << std::right << std::setw(20) << syncTime;
+			f << std::right << std::setw(20) << blacklistGenTime;
+			f << std::endl;// endl should flush buffer
+			recordFound = true;
+
+			// Unlock file
+			fs = cfcntl::lockf(fd, F_ULOCK, 0);
+			if (fs == -1) {
+				this->log->warning("Failed to unlock datafile after update!");
+			}
+
+			break;
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
+	// Sync data not found, append to the end of a file
+	if (recordFound == false) {
+		this->log->info("AbuseIPDB synchronization data not found in datafile, adding new record!");
+
+		// Reopen file in append mode
+		fp = std::fopen(this->config->dataFilePath.c_str(), "a");
+		if (fp == NULL) {
+			this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+			this->log->error("Unable to open datafile for update!");
+			return false;
+		}
+
+		// Get file descriptor
+		fd = fileno(fp);
+		if (fd == -1) {
+			std::fclose(fp);
+			this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+			this->log->error("Unable to update datafile, failed to get file descriptor!");
+			return false;
+		}
+
+		// Associate stream buffer with an open POSIX file descriptor
+		__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out | std::ios::app);
+		std::ostream f(&filebuf);
+
+		// Lock file
+		fs = cfcntl::lockf(fd, F_LOCK, 40);
+		retryCounter = 1;
+		while (fs == -1) {
+			if (retryCounter >= 3) {
+				break;
+			}
+			// Sleep
+			cunistd::usleep(500000);
+			// Retry
+			fs = cfcntl::lockf(fd, F_LOCK, 40);
+			++retryCounter;
+		}
+		if (fs == -1) {
+			filebuf.close();
+			std::fclose(fp);
+			this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+			this->log->error("Unable to update datafile, file is locked!");
+			return false;
+		}
+
+		// Bookmark of last sync with AbuseIPDB and blacklist generation timestamp
+		f << 's';
+		f << std::right << std::setw(20) << syncTime;
+		f << std::right << std::setw(20) << blacklistGenTime;
+		f << std::endl;// endl should flush buffer
+
+		// Unlock file
+		fs = cfcntl::lockf(fd, F_ULOCK, 0);
+		if (fs == -1) {
+			this->log->warning("Failed to unlock datafile after update!");
+		}
+
+		// Close datafile
+		filebuf.close();
+		std::fclose(fp);
+	}
+
+	return true;
+}
+
 /*
  * Add/remove iptables rule based on score and blacklist
  */
@@ -1831,6 +1983,22 @@ void Data::printStats()
 {
 	std::cout << "Total suspicious IP address count: " << this->suspiciousAddresses.size() << std::endl;
 
+	if (this->abuseIPDBBlacklist.size() > 0) {
+		std::cout << "AbuseIPDB blacklist size: " << this->abuseIPDBBlacklist.size() << std::endl;
+	}
+
+	if (this->abuseIPDBSyncTime > 0) {
+		std::cout << "Last AbuseIPDB blacklist sync time: ";
+		std::cout << Util::formatDateTime((const time_t)this->abuseIPDBSyncTime, this->config->dateTimeFormat.c_str());
+		std::cout << std::endl;
+	}
+
+	if (this->abuseIPDBBlacklistGenTime > 0) {
+		std::cout << "AbuseIPDB blacklist generation time: ";
+		std::cout << Util::formatDateTime((const time_t)this->abuseIPDBBlacklistGenTime, this->config->dateTimeFormat.c_str());
+		std::cout << std::endl;
+	}
+
 	if (this->suspiciousAddresses.size() > 0) {
 		std::map<std::string, SuspiciosAddressType>::iterator sait;
 		std::vector<hb::SuspiciosAddressStatType> top5;
@@ -1957,18 +2125,6 @@ void Data::printStats()
 		std::cout << "Total whitelisted: " << totalWhitelisted << std::endl;
 		std::cout << "Total blacklisted: " << totalBlacklisted << std::endl;
 		std::cout << "Total blocked: " << totalBlocked << std::endl;
-
-		if (this->abuseIPDBSyncTime > 0) {
-			std::cout << "Last AbuseIPDB blacklist sync time: ";
-			std::cout << Util::formatDateTime((const time_t)this->abuseIPDBSyncTime, this->config->dateTimeFormat.c_str());
-			std::cout << std::endl;
-		}
-
-		if (this->abuseIPDBBlacklistGenTime > 0) {
-			std::cout << "AbuseIPDB blacklist generation time: ";
-			std::cout << Util::formatDateTime((const time_t)this->abuseIPDBBlacklistGenTime, this->config->dateTimeFormat.c_str());
-			std::cout << std::endl;
-		}
 
 		// Sort top5 addresses
 		std::sort(top5.begin(), top5.end(), this->sortByActivityCount);
