@@ -476,9 +476,20 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 						if (obj.size() > 0) {
 							// Blacklist generation time
 							if (obj["meta"]["generatedAt"].asString().length() > 0) {
-								this->log->debug("Blacklist generation time: " + obj["meta"]["generatedAt"].asString());
-								if (strptime(obj["meta"]["generatedAt"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+								std::string generatedAtStr = obj["meta"]["generatedAt"].asString();
+								this->log->debug("Blacklist generation time (raw): " + generatedAtStr);
+								if (strptime(generatedAtStr.c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
 									timestamp = timegm(&t);
+									// Workaround for AbuseIPDB provided timezone in format +01:00
+									if ((generatedAtStr.substr(generatedAtStr.length() - 6, 1) == "+" || generatedAtStr.substr(generatedAtStr.length() - 6, 1) == "-") && generatedAtStr.substr(generatedAtStr.length() - 3, 1) == ":") {
+										unsigned int offsetH = std::strtoul(generatedAtStr.substr(generatedAtStr.length() - 5, 2).c_str(), NULL, 10);
+										unsigned int offsetM = std::strtoul(generatedAtStr.substr(generatedAtStr.length() - 2, 2).c_str(), NULL, 10);
+										if (generatedAtStr.substr(generatedAtStr.length() - 6, 1) == "+") {
+											timestamp -= (60 * 60 * offsetH) + (60 * offsetM);
+										} else if (generatedAtStr.substr(generatedAtStr.length() - 6, 1) == "-") {
+											timestamp += (60 * 60 * offsetH) + (60 * offsetM);
+										}
+									}
 									*generatedAt = (unsigned long long int)timestamp;
 								} else {
 									this->isError = true;
