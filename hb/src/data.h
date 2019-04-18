@@ -125,14 +125,29 @@ class Data{
 		bool addAbuseIPDBAddress(std::string address);
 
 		/*
+		 * Bulk add to datafile based on this->abuseIPDBBlacklist
+		 */
+		bool addAbuseIPDBAddresses(std::vector<std::string>* addressList);
+
+		/*
 		 * Update record in datafile based on this->abuseIPDBBlacklist
 		 */
 		bool updateAbuseIPDBAddress(std::string address);
 
 		/*
+		 * Bulk update of datafile based on this->abuseIPDBBlacklist
+		 */
+		bool updateAbuseIPDBAddresses(std::vector<std::string>* addressList);
+
+		/*
 		 * Mark AbuseIPDB blacklist record for removal in datafile
 		 */
 		bool removeAbuseIPDBAddress(std::string address);
+
+		/*
+		 * Bulk AbuseIPDB blacklist record marking for removal in datafile based on this->abuseIPDBBlacklist
+		 */
+		bool removeAbuseIPDBAddresses(std::vector<std::string>* addressList);
 
 		/*
 		 * Update AbuseIPDB sync information in datafile

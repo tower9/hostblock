@@ -1261,6 +1261,11 @@ bool Data::addAbuseIPDBAddress(std::string address)
 {
 	this->log->debug("Adding AbuseIPDB blacklist record to " + this->config->dataFilePath + ", address " + address);
 
+	if (this->abuseIPDBBlacklist.count(address) == 0) {
+		this->log->error("Unable to add record to datafile, data about address " + address + " not available!");
+		return false;
+	}
+
 	// Open file
 	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "a");
 	if (fp == NULL) {
@@ -1326,6 +1331,84 @@ bool Data::addAbuseIPDBAddress(std::string address)
 }
 
 /*
+ * Bulk append to datafile end based on this->abuseIPDBBlacklist
+ */
+bool Data::addAbuseIPDBAddresses(std::vector<std::string>* addressList)
+{
+	this->log->debug("Adding " + std::to_string(addressList->size()) + " AbuseIPDB blacklist record(s) to " + this->config->dataFilePath);
+
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "a");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Lock file
+	int fs = cfcntl::lockf(fd, F_LOCK, (addressList->size() * 54));
+	unsigned int retryCounter = 1;
+	while (fs == -1) {
+		if (retryCounter >= 3) {
+			break;
+		}
+		// Sleep
+		cunistd::usleep(500000);
+		// Retry
+		fs = cfcntl::lockf(fd, F_LOCK, (addressList->size() * 54));
+		++retryCounter;
+	}
+	if (fs == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, file is locked!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::out | std::ios::app);
+	std::ostream f(&filebuf);
+
+	for (auto it = addressList->begin(); it != addressList->end(); ++it) {
+		if (this->abuseIPDBBlacklist.count(*it) == 0) {
+			this->log->error("Unable to add record to datafile, data about address " + (*it) + " not available!");
+			continue;
+		}
+
+		// Write record to the end of datafile
+		f << 'a';
+		f << std::right << std::setw(39) << *it;
+		f << std::right << std::setw(10) << this->abuseIPDBBlacklist[*it].totalReports;
+		if (this->abuseIPDBBlacklist[*it].abuseConfidenceScore > 999) {
+			this->abuseIPDBBlacklist[*it].abuseConfidenceScore = 999;
+		}
+		f << std::right << std::setw(3) << this->abuseIPDBBlacklist[*it].abuseConfidenceScore;
+		f << std::endl;
+	}
+
+	// Unlock file
+	fs = cfcntl::lockf(fd, F_ULOCK, 0);
+	if (fs == -1) {
+		this->log->warning("Failed to unlock datafile after update!");
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
+	return true;
+}
+
+/*
  * Update record in datafile based on this->abuseIPDBBlacklist
  */
 bool Data::updateAbuseIPDBAddress(std::string address)
@@ -1335,6 +1418,11 @@ bool Data::updateAbuseIPDBAddress(std::string address)
 	char fAddress[40];
 
 	this->log->debug("Updating record in " + this->config->dataFilePath + ", updating AbuseIPDB blacklist address " + address);
+
+	if (this->abuseIPDBBlacklist.count(address) == 0) {
+		this->log->error("Cannot update record in datafile, data about address " + address + " not available!");
+		return false;
+	}
 
 	// Open file
 	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
@@ -1426,6 +1514,106 @@ bool Data::updateAbuseIPDBAddress(std::string address)
 	} else {
 		return true;
 	}
+}
+
+/*
+ * Bulk update of datafile based on this->abuseIPDBBlacklist
+ */
+bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
+{
+	char c;
+	char fAddress[40];
+
+	this->log->debug("Updating " + std::to_string(addressList->size()) + " AbuseIPDB blacklist record(s) in " + this->config->dataFilePath);
+
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		if (c == 'a') {// AbuseIPDB blacklist record
+			// Get address
+			f.get(fAddress, 40);
+
+			// Check if address needs update
+			for (auto it = addressList->begin(); it != addressList->end(); ++it) {
+				if (hb::Util::ltrim(std::string(fAddress)) == *it) {
+
+					if (this->abuseIPDBBlacklist.count(*it) == 0) {
+						this->log->error("Cannot update record in datafile, data about address " + (*it) + " not available!");
+						break;
+					}
+
+					// Lock file
+					int fs = cfcntl::lockf(fd, F_LOCK, 13);
+					unsigned int retryCounter = 1;
+					while (fs == -1) {
+						if (retryCounter >= 3) {
+							break;
+						}
+						// Sleep
+						cunistd::usleep(500000);
+						// Retry
+						fs = cfcntl::lockf(fd, F_LOCK, 13);
+						++retryCounter;
+					}
+					if (fs == -1) {
+						filebuf.close();
+						std::fclose(fp);
+						this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+						this->log->error("Unable to update datafile, file is locked!");
+						return false;
+					}
+
+					f << std::right << std::setw(10) << this->abuseIPDBBlacklist[*it].totalReports;
+					if (this->abuseIPDBBlacklist[*it].abuseConfidenceScore > 999) {
+						this->abuseIPDBBlacklist[*it].abuseConfidenceScore = 999;
+					}
+					f << std::right << std::setw(3) << this->abuseIPDBBlacklist[*it].abuseConfidenceScore;
+					f << std::endl;// endl should flush buffer
+
+					// Unlock file
+					fs = cfcntl::lockf(fd, F_ULOCK, 0);
+					if (fs == -1) {
+						this->log->warning("Failed to unlock datafile after update!");
+					}
+
+					break;
+				}
+			}
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
+	return true;
 }
 
 /*
@@ -1527,6 +1715,110 @@ bool Data::removeAbuseIPDBAddress(std::string address)
 	}
 }
 
+/*
+ * Mark AbuseIPDB blacklist record for removal in datafile
+ */
+bool Data::removeAbuseIPDBAddresses(std::vector<std::string>* addressList)
+{
+	char c;
+	char fAddress[40];
+
+	this->log->debug("Removing " + std::to_string(addressList->size()) + " AbuseIPDB blacklist record(s) from " + this->config->dataFilePath);
+
+	// Open file
+	FILE* fp = std::fopen(this->config->dataFilePath.c_str(), "r+");
+	if (fp == NULL) {
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to open datafile for update!");
+		return false;
+	}
+
+	// Get file descriptor
+	int fd = fileno(fp);
+	if (fd == -1) {
+		std::fclose(fp);
+		this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+		this->log->error("Unable to update datafile, failed to get file descriptor!");
+		return false;
+	}
+
+	// Associate stream buffer with an open POSIX file descriptor
+	__gnu_cxx::stdio_filebuf<char> filebuf(fd, std::ios::in | std::ios::out);
+	std::iostream f(&filebuf);
+
+	while (f.get(c)) {
+		if (c == 'a') {// AbuseIPDB blacklist record, check if address matches
+
+			// Get address
+			f.get(fAddress, 40);
+
+			// Check if address needs update
+			for (auto it = addressList->begin(); it != addressList->end(); ++it) {
+				if (hb::Util::ltrim(std::string(fAddress)) == *it) {
+					f.seekg(-40, f.cur);
+
+					// Lock file
+					int fs = cfcntl::lockf(fd, F_LOCK, 1);
+					unsigned int retryCounter = 1;
+					while (fs == -1) {
+						if (retryCounter >= 3) {
+							break;
+						}
+						// Sleep
+						cunistd::usleep(500000);
+						// Retry
+						fs = cfcntl::lockf(fd, F_LOCK, 1);
+						++retryCounter;
+					}
+					if (fs == -1) {
+						filebuf.close();
+						std::fclose(fp);
+						this->log->error("Error " + std::to_string(errno) + ": " + strerror(errno));
+						this->log->error("Unable to update datafile, file is locked!");
+						return false;
+					}
+
+					// Mark record as removed
+					f << 'r';
+
+					// Unlock file
+					fs = cfcntl::lockf(fd, F_ULOCK, 0);
+					if (fs == -1) {
+						this->log->warning("Failed to unlock datafile after update!");
+					}
+
+					// Read until end of line
+					while (f.get(c)) {
+						if (c == '\n') {
+							break;
+						}
+					}
+
+					break;
+				}
+			}
+			f.seekg(14, f.cur);
+		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
+			// Read until end of line
+			f.seekg(40, f.cur);
+			while (f.get(c)) {
+				if (c == '\n') {
+					break;
+				}
+			}
+		}
+	}
+
+	// Close datafile
+	filebuf.close();
+	std::fclose(fp);
+
+	return true;
+}
+
+/*
+ * Update AbuseIPDB blacklist sync and generation timestamps
+ */
 bool Data::updateAbuseIPDBSyncData(unsigned long long int syncTime, unsigned long long int blacklistGenTime) {
 	bool recordFound = false;
 	char c;
