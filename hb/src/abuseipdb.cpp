@@ -11,6 +11,8 @@
 #include <string>
 // (get_time, put_time)
 #include <iomanip>
+// Date and time manipulation
+#include <chrono>
 // memcpy
 #include <cstring>
 // cURL
@@ -439,7 +441,12 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 			// HTTP/HTTPs call
 			this->log->debug("Calling " + url);
 			this->log->debug("Data: " + requestParams);
+			clock_t cpuStart = clock(), cpuEnd = cpuStart;
+			auto wallStart = std::chrono::steady_clock::now(), wallEnd = wallStart;
 			res = curl_easy_perform(this->curl);
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			this->log->debug("AbuseIPDB API response in " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 
 			if (res != CURLE_OK) {
 				this->isError = true;
