@@ -2049,6 +2049,8 @@ bool Data::updateIptables(std::string address)
 						createRule = true;
 					}
 				}
+			} else if (this->suspiciousAddresses[address].whitelisted == true && createRule == true) {
+				createRule = false;
 			}
 		}
 	}
