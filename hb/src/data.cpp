@@ -1521,6 +1521,7 @@ bool Data::updateAbuseIPDBAddress(std::string address)
  */
 bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
 {
+	bool recordFound = false;
 	char c;
 	char fAddress[40];
 
@@ -1553,6 +1554,7 @@ bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
 			f.get(fAddress, 40);
 
 			// Check if address needs update
+			recordFound = false;
 			for (auto it = addressList->begin(); it != addressList->end(); ++it) {
 				if (hb::Util::ltrim(std::string(fAddress)) == *it) {
 
@@ -1588,6 +1590,7 @@ bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
 					}
 					f << std::right << std::setw(3) << this->abuseIPDBBlacklist[*it].abuseConfidenceScore;
 					f << std::endl;// endl should flush buffer
+					recordFound = true;
 
 					// Unlock file
 					fs = cfcntl::lockf(fd, F_ULOCK, 0);
@@ -1597,6 +1600,9 @@ bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
 
 					break;
 				}
+			}
+			if (!recordFound) {
+				f.seekg(14, f.cur);
 			}
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
@@ -1720,6 +1726,7 @@ bool Data::removeAbuseIPDBAddress(std::string address)
  */
 bool Data::removeAbuseIPDBAddresses(std::vector<std::string>* addressList)
 {
+	bool recordFound = false;
 	char c;
 	char fAddress[40];
 
@@ -1753,6 +1760,7 @@ bool Data::removeAbuseIPDBAddresses(std::vector<std::string>* addressList)
 			f.get(fAddress, 40);
 
 			// Check if address needs update
+			recordFound = false;
 			for (auto it = addressList->begin(); it != addressList->end(); ++it) {
 				if (hb::Util::ltrim(std::string(fAddress)) == *it) {
 					f.seekg(-40, f.cur);
@@ -1780,6 +1788,7 @@ bool Data::removeAbuseIPDBAddresses(std::vector<std::string>* addressList)
 
 					// Mark record as removed
 					f << 'r';
+					recordFound = true;
 
 					// Unlock file
 					fs = cfcntl::lockf(fd, F_ULOCK, 0);
@@ -1797,7 +1806,9 @@ bool Data::removeAbuseIPDBAddresses(std::vector<std::string>* addressList)
 					break;
 				}
 			}
-			f.seekg(14, f.cur);
+			if (!recordFound) {
+				f.seekg(14, f.cur);
+			}
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
 			f.seekg(40, f.cur);
