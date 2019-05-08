@@ -506,6 +506,7 @@ bool Data::checkIptables()
 		std::map<unsigned int, std::string>::iterator rit;
 		std::size_t checkStart = 0, checkEnd = 0;
 		std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
+		std::map<std::string, AbuseIPDBBlacklistedAddressType>::iterator sbit;
 		std::smatch regexSearchResults;
 		std::string regexSearchResult;
 		std::size_t posip = this->config->iptablesRule.find("%i");
@@ -530,16 +531,18 @@ bool Data::checkIptables()
 
 						// Search for address in map
 						sait = this->suspiciousAddresses.find(regexSearchResult);
+						sbit = this->abuseIPDBBlacklist.find(regexSearchResult);
 						if (sait != this->suspiciousAddresses.end()) {
 							if (sait->second.iptableRule == false) {
 								sait->second.iptableRule = true;
-							} else {
-								this->log->warning("Found duplicate iptables rule for " + sait->first + ", consider:");
-								this->log->warning("$ sudo iptables --list-rules INPUT | grep " + sait->first);
-								this->log->warning("$ sudo iptables -D INPUT " + ruleStart + sait->first + ruleEnd);
 							}
-
-						} else {
+						}
+						if (sbit != this->abuseIPDBBlacklist.end()) {
+							if (sbit->second.iptableRule == false) {
+								sbit->second.iptableRule = true;
+							}
+						}
+						if (sait == this->suspiciousAddresses.end() && sbit == this->abuseIPDBBlacklist.end()) {
 							this->log->warning("Found iptables rule for " + regexSearchResult + " but don't have any information about this address in datafile, please review manually.");
 							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + regexSearchResult);
 						}
