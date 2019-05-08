@@ -358,6 +358,7 @@ bool Data::loadData()
 	} else if (removedRecords > 100) {// If more than 100 removed records detected in datafile
 
 		// Save data without without removed records data file - small space saving
+		this->log->info("Datafile contains more than 100 records marked for removal, performing datafile cleanup...");
 		if (this->saveData() == false) {
 			this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
 			return false;
@@ -554,93 +555,13 @@ bool Data::checkIptables()
 		}
 
 		// Loop through all suspicious address and add iptables rules that are missing
-		bool createRule = false;
-		bool removeRule = false;
-		std::time_t currentRawTime;
-		std::time(&currentRawTime);
-		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
 		for (sait = this->suspiciousAddresses.begin(); sait!=this->suspiciousAddresses.end(); ++sait) {
-			createRule = false;
-			removeRule = false;
+			this->updateIptables(sait->first);
+		}
 
-			if (!sait->second.iptableRule) {// If this address doesn't have rule then check if it needs one
-
-				// Whitelisted addresses must not have rule
-				if (sait->second.whitelisted) {
-					continue;
-				}
-
-				// Blacklisted addresses must have rule
-				if (sait->second.blacklisted) {
-					createRule = true;
-				}
-
-				if (this->config->keepBlockedScoreMultiplier > 0) {
-					// Score multiplier configured, recheck if score is enough to create rule
-					if (sait->second.activityScore > 0
-							&& sait->second.lastActivity + sait->second.activityScore > this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier
-							&& currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier)) {
-						createRule = true;
-					}
-				} else {
-					// Without multiplier rules are kept forever for cases where there is enough score
-					if (sait->second.activityScore >= this->config->activityScoreToBlock) {
-						createRule = true;
-					}
-				}
-			} else {// If this address has rule then check if rule has expired or address is manually added to whitelist so rule should be removed
-				// Blacklisted addresses must have rule
-				if (sait->second.blacklisted == true) {
-					continue;
-				}
-
-				// Whitelisted addresses must not have rule
-				if (sait->second.whitelisted == true) {
-					removeRule = true;
-				}
-
-				if (this->config->keepBlockedScoreMultiplier > 0) {
-					// Score multiplier configured, recheck if score is no longer enough to keep this rule
-					if (currentTime > sait->second.lastActivity + sait->second.activityScore) {
-						removeRule = true;
-					}
-				} else {
-					// Without multiplier rules are kept until score is reset to 0
-					if (sait->second.activityScore == 0) {
-						removeRule = true;
-					}
-				}
-			}
-			if (createRule == true) {
-				this->log->info("Address " + sait->first + " is missing iptables rule, adding...");
-				try {
-					// Append rule
-					if (this->iptables->append("INPUT", ruleStart + sait->first + ruleEnd) == false) {
-						this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
-					} else {
-						sait->second.iptableRule = true;
-					}
-				} catch (std::runtime_error& e) {
-					std::string message = e.what();
-					this->log->error(message);
-					this->log->error("Address " + sait->first + " is missing iptables rule and failed to append rule to chain!");
-				}
-			}
-			if (removeRule == true) {
-				this->log->info("Address " + sait->first + " iptables rule expired, removing...");
-				try {
-					// Remove rule
-					if (this->iptables->remove("INPUT", ruleStart + sait->first + ruleEnd) == false) {
-						this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-					} else {
-						sait->second.iptableRule = false;
-					}
-				} catch (std::runtime_error& e) {
-					std::string message = e.what();
-					this->log->error(message);
-					this->log->error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-				}
-			}
+		// Loop through AbuseIPDB blacklist and add iptables rules that are missing
+		for (sbit = this->abuseIPDBBlacklist.begin(); sbit!=this->abuseIPDBBlacklist.end(); ++sbit) {
+			this->updateIptables(sbit->first);
 		}
 	} catch (std::regex_error& e) {
 		std::string message = e.what();
@@ -2017,7 +1938,7 @@ bool Data::updateIptables(std::string address)
 			}
 
 			// Keep rule for locally blacklisted addresses or if address is in AbuseIPDB blacklist
-			if (this->suspiciousAddresses[address].blacklisted == false && createRule == false) {
+			if (this->suspiciousAddresses[address].blacklisted == false && this->abuseIPDBBlacklist.count(address) == 0) {
 				if (this->config->keepBlockedScoreMultiplier > 0) {
 					// Score multiplier configured, recheck if score is no longer high enough to keep this rule
 					if (currentTime > this->suspiciousAddresses[address].lastActivity + this->suspiciousAddresses[address].activityScore) {
@@ -2092,7 +2013,7 @@ bool Data::updateIptables(std::string address)
 	if (removeRule == true) {
 		this->log->info("Removing rule for " + address + " from iptables chain!");
 		try {
-			if(this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
+			if (this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
 				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
 				return false;
 			} else {
@@ -2217,7 +2138,6 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 
 /*
  * Save AbuseIPDB blacklist record in data->abuseIPDBBlacklist and datafile (add new or update existing)
- * Additionally add/remove iptables rule
  */
 void Data::saveAbuseIPDBRecord(std::string address, unsigned int totalReports, unsigned int abuseConfidenceScore)
 {
@@ -2240,7 +2160,6 @@ void Data::saveAbuseIPDBRecord(std::string address, unsigned int totalReports, u
 		newEntry = true;
 	}
 
-	this->updateIptables(address);
 
 	// Update data file
 	if (newEntry == true) {
