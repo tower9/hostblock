@@ -303,7 +303,7 @@ void LogParser::checkFiles()
 									}
 
 									// Update address data
-									if (this->data->suspiciousAddresses.count(ipAddress) > 0) {
+									if (this->data->suspiciousAddresses.count(ipAddress) > 0 || this->data->abuseIPDBBlacklist.count(ipAddress) > 0) {
 										this->data->saveActivity(ipAddress, itlp->score, 0, 1);
 
 										// Check whether need to send report about match
@@ -421,7 +421,7 @@ void LogParser::checkFiles()
 											this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
 										}
 									} else {
-										this->log->debug("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
+										this->log->warning("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
 									}
 
 									this->log->debug("Match with pattern: " + itlp->patternString);
