@@ -355,12 +355,12 @@ bool Data::loadData()
 		}
 		this->log->warning("Duplicate data found while reading data file! Old data file stored as " + newDataFileName + ", new data file without duplicates saved! Merge manually if needed.");
 
-	} else if (removedRecords > 100) {// If more than 100 removed records detected in datafile
+	} else if (removedRecords > 1000) {// If more than 1000 removed records detected in datafile
 
 		// Save data without without removed records data file - small space saving
-		this->log->info("Datafile contains more than 100 records marked for removal, performing datafile cleanup...");
+		this->log->info("Datafile contains more than 1000 records marked for removal, performing datafile cleanup...");
 		if (this->saveData() == false) {
-			this->log->error("Data file contains more than 100 removed records, tried saving data file without records that are marked for removal, but failed!");
+			this->log->error("Data file contains more than 1000 removed records, tried saving data file without records that are marked for removal, but failed!");
 			return false;
 		}
 	} else if (needUpgrade) {// Need to upgrade datafile
@@ -2162,7 +2162,6 @@ void Data::saveAbuseIPDBRecord(std::string address, unsigned int totalReports, u
 		this->abuseIPDBBlacklist.insert(std::pair<std::string,AbuseIPDBBlacklistedAddressType>(address,data));
 		newEntry = true;
 	}
-
 
 	// Update data file
 	if (newEntry == true) {
