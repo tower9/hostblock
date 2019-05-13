@@ -20,6 +20,8 @@
 #include <mutex>
 // Standard string library
 #include <string>
+// Date and time manipulation
+#include <chrono>
 // For libcurl in abuseipdb.h
 // Note, suspecting that unistd.h includes some headers that are also needed for socket.h, but it gets under cunistd namespace and cannot find type socklen_t...?
 #include <sys/socket.h>
@@ -63,7 +65,7 @@ namespace cstat{
 // Full path to PID file
 const char* PID_PATH = "/var/run/hostblock.pid";
 
-// Variable for main loop, will exit when set to false
+// Variables for loop and thread exception handling
 bool running = false;
 bool reportingThreadRunning = false;
 std::mutex reportingThreadRunningMutex;
@@ -82,7 +84,6 @@ std::mutex abuseipdbReportingQueueMutex;
 std::mutex configMutex;
 bool reloadThreadConfig = false;
 
-
 /*
  * Output short help
  */
@@ -95,14 +96,14 @@ void printUsage()
 	std::cout << " -h             | --help                   - this information" << std::endl;
 	std::cout << " -p             | --print-config           - output configuration" << std::endl;
 	std::cout << " -s             | --statistics             - statistics" << std::endl;
-	std::cout << " -l             | --list                   - list of blocked suspicious IP addresses" << std::endl;
-	std::cout << " -a             | --all                    - list all IP addresses, not only blocked" << std::endl;
-	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count, score and refused count" << std::endl;
-	std::cout << " -lt            | --list --time            - list of blocked suspicious IP addresses with last suspicious activity time" << std::endl;
-	std::cout << " -lct           | --list --count --time    - list of blocked suspicious IP addresses with suspicious activity count, score, refused count and last suspicious activity time" << std::endl;
+	std::cout << " -l             | --list                   - list of blocked suspicious IP addresses (excluding AbuseIPDB blacklist)" << std::endl;
+	std::cout << " -a             | --all                    - list all IP addresses, not only blocked (excluding AbuseIPDB blacklist)" << std::endl;
+	std::cout << " -lc            | --list --count           - list of blocked suspicious IP addresses with suspicious activity count, score and refused count (excluding AbuseIPDB blacklist)" << std::endl;
+	std::cout << " -lt            | --list --time            - list of blocked suspicious IP addresses with last suspicious activity time (excluding AbuseIPDB blacklist)" << std::endl;
+	std::cout << " -lct           | --list --count --time    - list of blocked suspicious IP addresses with suspicious activity count, score, refused count and last suspicious activity time (excluding AbuseIPDB blacklist)" << std::endl;
 	std::cout << " -b<IP address> | --blacklist=<IP address> - toggle whether address is in blacklist" << std::endl;
 	std::cout << " -w<IP address> | --whitelist=<IP address> - toggle whether address is in whitelist" << std::endl;
-	std::cout << " -r<IP address> | --remove=<IP address>    - remove IP address from data file" << std::endl;
+	std::cout << " -r<IP address> | --remove=<IP address>    - remove IP address from data file (excluding AbuseIPDB blacklist)" << std::endl;
 	std::cout << " -d             | --daemon                 - run as daemon" << std::endl;
 	std::cout << "                | --sync-blacklist         - sync AbuseIPDB blacklist" << std::endl;
 }
@@ -192,11 +193,107 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 }
 
 /*
+ * Syncrhonize AbuseIPDB blacklist
+ */
+void blacklistSync(hb::Logger* log, hb::Config* config, hb::Data* data, hb::Iptables* iptables)
+{
+	clock_t cpuStart = clock(), cpuEnd = cpuStart;
+	auto wallStart = std::chrono::steady_clock::now(), wallEnd = wallStart;
+	log->debug("Starting AbuseIPDB blacklist sync...");
+
+	hb::AbuseIPDB apiClient = hb::AbuseIPDB(log);
+	configMutex.lock();
+	apiClient.abuseipdbURL = config->abuseipdbURL;
+	apiClient.abuseipdbKey = config->abuseipdbKey;
+	apiClient.abuseipdbDatetimeFormat = config->abuseipdbDatetimeFormat;
+	configMutex.unlock();
+
+	std::map<std::string, hb::AbuseIPDBBlacklistedAddressType> newBlacklist;
+	unsigned long long int blacklistGenTime;
+
+	if (apiClient.getBlacklist(config->abuseipdbBlockScore, &blacklistGenTime, &newBlacklist) == false) {
+		throw std::runtime_error("Failed to get blacklist from AbuseIPDB API!");
+	} else {
+		std::time_t currentRawTime;
+		std::time(&currentRawTime);
+		unsigned long long int currentTime = (unsigned long long int)currentRawTime;
+		data->abuseIPDBSyncTime = currentTime;
+		std::map<std::string, hb::AbuseIPDBBlacklistedAddressType>::iterator itb;
+
+		log->info("AbuseIPDB blacklist generation time: " + hb::Util::formatDateTime((const time_t)blacklistGenTime, config->dateTimeFormat.c_str()) + " AbuseIPDB blacklist size: " + std::to_string(newBlacklist.size()));
+
+		if (data->abuseIPDBBlacklistGenTime > blacklistGenTime) {
+			log->warning("Received older AbuseIPDB blacklist generation time than with previous sync process!");
+		} else if (data->abuseIPDBBlacklistGenTime == blacklistGenTime) {
+			log->warning("Received the same AbuseIPDB blacklist generation time as in previous sync process! Too frequent syncrhonization process?");
+		}
+		data->abuseIPDBBlacklistGenTime = blacklistGenTime;
+
+		// Loop old blacklist
+		std::vector<std::string> forAppend;
+		std::vector<std::string> forUpdate;
+		std::vector<std::string> forRemoval;
+		for (itb = data->abuseIPDBBlacklist.begin(); itb!=data->abuseIPDBBlacklist.end(); ++itb) {
+			if (newBlacklist.count(itb->first) > 0) {
+				forUpdate.push_back(itb->first);
+				itb->second.totalReports = newBlacklist[itb->first].totalReports;
+				itb->second.abuseConfidenceScore = newBlacklist[itb->first].abuseConfidenceScore;
+			} else {
+				forRemoval.push_back(itb->first);
+				itb = data->abuseIPDBBlacklist.erase(itb);// Returns next item after removed one
+				--itb;// Don't skip the next item
+			}
+		}
+
+		if (forUpdate.size() > 0) {
+			data->updateAbuseIPDBAddresses(&forUpdate);
+		}
+		if (forRemoval.size() > 0) {
+			data->removeAbuseIPDBAddresses(&forRemoval);
+			// Also remove iptables rules
+			// iptables->remove("INPUT", &forRemoval);// Need rule start & end parsed from config
+			for (std::vector<std::string>::iterator itr = forRemoval.begin(); itr != forRemoval.end(); ++itr) {
+				data->updateIptables(*itr);
+			}
+		}
+
+		// Loop new blacklist
+		hb::AbuseIPDBBlacklistedAddressType record;
+		for (itb = newBlacklist.begin(); itb != newBlacklist.end(); ++itb) {
+			if (data->abuseIPDBBlacklist.count(itb->first) == 0) {
+				forAppend.push_back(itb->first);
+				record.totalReports = itb->second.totalReports;
+				record.abuseConfidenceScore = itb->second.abuseConfidenceScore;
+				record.iptableRule = false;
+				data->abuseIPDBBlacklist.insert(std::pair<std::string,hb::AbuseIPDBBlacklistedAddressType>(itb->first, record));
+			}
+		}
+
+		if (forAppend.size() > 0) {
+			data->addAbuseIPDBAddresses(&forAppend);
+		}
+
+		log->info("AbuseIPDB blacklist changes: " + std::to_string(forAppend.size()) + " new, " + std::to_string(forUpdate.size()) + " updated, " + std::to_string(forRemoval.size()) + " removed");
+
+		// Update sync timestamps in datafile
+		if (data->updateAbuseIPDBSyncData(data->abuseIPDBSyncTime, data->abuseIPDBBlacklistGenTime) == false) {
+			throw std::runtime_error("Failed to update AbuseIPDB blacklist sync data in datafile!");
+		}
+
+	}
+
+	cpuEnd = clock();
+	wallEnd = std::chrono::steady_clock::now();
+	log->info("AbuseIPDB blacklist sync in " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
+}
+
+/*
  * Main
  */
 int main(int argc, char *argv[])
 {
-	clock_t initStart = clock(), initEnd;
+	clock_t cpuStart = clock(), cpuEnd = cpuStart;
+	auto wallStart = std::chrono::steady_clock::now(), wallEnd = wallStart;
 
 	// Must have at least one argument
 	if (argc < 2) {
@@ -340,22 +437,25 @@ int main(int argc, char *argv[])
 	if (printConfigFlag) {// Output configuration
 		config.print();
 		if (config.logLevel == "DEBUG") {
-			initEnd = clock();
-			log.debug("Configuration outputed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			log.debug("Configuration outputed in " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 		}
 		exit(0);
 	} else if (statisticsFlag) {// Output statistics
 		data.printStats();
 		if (config.logLevel == "DEBUG") {
-			initEnd = clock();
-			log.debug("Statistics outputed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			log.debug("Statistics outputed in " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 		}
 		exit(0);
 	} else if (listFlag) {// 	Output list of addresses/blocked suspicious addresses
 		data.printBlocked(countFlag, timeFlag, allFlag);
 		if (config.logLevel == "DEBUG") {
-			initEnd = clock();
-			log.debug("List of addresses/blocked addresses outputed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			log.debug("List of addresses/blocked addresses outputed in " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 		}
 		exit(0);
 	} else if (blacklistFlag) {// Toggle whether address is in blacklist
@@ -410,8 +510,9 @@ int main(int argc, char *argv[])
 		}
 
 		if (config.logLevel == "DEBUG") {
-			initEnd = clock();
-			log.debug("Address blacklist change " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			log.debug("Address blacklist change " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 		}
 		exit(0);
 	} else if (whitelistFlag) {// Toggle whether address is in whitelist
@@ -466,8 +567,9 @@ int main(int argc, char *argv[])
 		}
 
 		if (config.logLevel == "DEBUG") {
-			initEnd = clock();
-			log.debug("Address whitelist change " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			log.debug("Address whitelist change " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 		}
 		exit(0);
 	} else if (removeFlag) {// Remove address from datafile
@@ -549,26 +651,47 @@ int main(int argc, char *argv[])
 		}
 
 		if (config.logLevel == "DEBUG") {
-			initEnd = clock();
-			log.debug("Address removed in " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+			cpuEnd = clock();
+			wallEnd = std::chrono::steady_clock::now();
+			log.debug("Address removed in " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 		}
 		exit(0);
-	} else if (daemonFlag) {// Run as daemon
-		// Reopen syslog
-		log.closeLog();
-		log.openLog(LOG_DAEMON);
+	} else if (syncBlacklistFlag) {// Sync AbuseIPDB blacklist
+		std::cout << "Starting AbuseIPDB blacklist sync, please wait..." << std::endl;
 
-		// Restore log level
-		if (config.logLevel == "ERROR") {
-			log.setLevel(LOG_ERR);
-		} else if (config.logLevel == "WARNING") {
-			log.setLevel(LOG_WARNING);
-		} else if (config.logLevel == "INFO") {
-			log.setLevel(LOG_INFO);
-		} else if (config.logLevel == "DEBUG") {
-			log.setLevel(LOG_DEBUG);
+		try {
+			blacklistSync(&log, &config, &data, &iptables);
+		} catch (std::runtime_error& e) {
+			std::string message = e.what();
+			log.error(message);
+			std::cerr << message << std::endl;
+			std::cerr << "AbuseIPDB blacklist sync failed!" << std::endl;
+			exit(1);
 		}
-		log.info("Starting daemon process...");
+
+		// If daemon is running, signal to reload datafile
+		struct cstat::stat buffer;
+		if (cstat::stat(PID_PATH, &buffer) == 0) {
+			// Get PID from file
+			std::ifstream f(PID_PATH);
+			if (f.is_open()){
+				std::string line;
+				std::getline(f, line);
+				pid_t pid = (pid_t)strtoul(line.c_str(), NULL, 10);
+				// If process with this PID exists
+				if (csignal::kill(pid, 0) == 0) {
+					// Send SIGUSR1
+					if (csignal::kill(pid, SIGUSR1) != 0) {
+						std::cout << "Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed." << std::endl;
+						log.warning("Daemon process detected, but failed to signal datafile reload. Restart daemon manually if needed.");
+					}
+				}
+			}
+		}
+
+		std::cout << "Finished" << std::endl;
+		exit(0);
+	} else if (daemonFlag) {// Run as daemon
 
 		// Check if file with PID exists
 		struct cstat::stat buffer;
@@ -615,6 +738,22 @@ int main(int argc, char *argv[])
 			exit(0);
 		} else {// Child (pid == 0), daemon process
 
+			// Reopen syslog
+			log.closeLog();
+			log.openLog(LOG_DAEMON);
+
+			// Restore log level
+			if (config.logLevel == "ERROR") {
+				log.setLevel(LOG_ERR);
+			} else if (config.logLevel == "WARNING") {
+				log.setLevel(LOG_WARNING);
+			} else if (config.logLevel == "INFO") {
+				log.setLevel(LOG_INFO);
+			} else if (config.logLevel == "DEBUG") {
+				log.setLevel(LOG_DEBUG);
+			}
+			log.info("Starting hostblock daemon...");
+
 			// Parse regex patterns
 			if (!config.processPatterns()) {
 				std::cerr << "Failed to parse configured patterns!" << std::endl;
@@ -624,8 +763,7 @@ int main(int argc, char *argv[])
 			// To keep main loop running
 			running = true;
 
-			// For iptables rule removal check
-			bool removeRule = false;
+			// For iptables rule check
 			std::size_t posip = config.iptablesRule.find("%i");
 			std::string ruleStart = "";
 			std::string ruleEnd = "";
@@ -639,8 +777,6 @@ int main(int argc, char *argv[])
 			std::smatch regexSearchResults;
 			std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
 			std::string regexSearchResult;
-
-			// Vars for expired rule removal checkIptables
 			std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
 
 			// Compare data with iptables rules and add/remove rules if needed
@@ -652,7 +788,7 @@ int main(int argc, char *argv[])
 			csignal::signal(SIGTERM, signalHandler);// Stop daemon
 			csignal::signal(SIGUSR1, signalHandler);// Reload datafile
 
-			// Fire up thread for mattched pattern reporting
+			// Fire up thread for matched pattern reporting
 			reportingThreadRunning = true;// No need for mutex, no threads are running yet
 			std::thread abuseipdbReporterThread(&reporterThread, &log, &config);
 
@@ -664,48 +800,28 @@ int main(int argc, char *argv[])
 			// Init object to work with log files (check for suspicious activity)
 			hb::LogParser logParser = hb::LogParser(&log, &config, &data, &abuseipdbReportingQueue, &abuseipdbReportingQueueMutex);
 
-			// File modification times (for main loop to check if there have been changes to files and relaod is needed)
-			/*struct cstat::stat statbuf;
-			time_t dataFileMTime;
-			if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
-				dataFileMTime = statbuf.st_mtime;
-			}*/
 			time_t lastFileMCheck, currentTime, lastLogCheck;
 			time(&lastFileMCheck);
 			lastLogCheck = lastFileMCheck - config.logCheckInterval;
 
-			// For debug purposes write to log file how long each iteration took
-			// clock_t iterStart, iterEnd;
-
 			if (config.logLevel == "DEBUG") {
-				initEnd = clock();
-				log.debug("Daemon initialization exec time: " + std::to_string((double)(initEnd - initStart) / CLOCKS_PER_SEC) + " sec");
+				cpuEnd = clock();
+				wallEnd = std::chrono::steady_clock::now();
+				log.debug("Daemon initialization exec time: " + std::to_string((double)(cpuEnd - cpuStart) / CLOCKS_PER_SEC) + " CPU sec (" + std::to_string((std::chrono::duration<double>(wallEnd - wallStart)).count()) + " sec)");
 			}
 
 			// Main loop
 			while (running) {
-				// Time at start of iteration
-				// if (config.logLevel == "DEBUG") iterStart = clock();
 
 				// Get current time
 				time(&currentTime);
-
-				// Each 60 sec check if datafile is updated and reload is needed
-				/*if (currentTime - lastFileMCheck >= 60) {
-					// Get datafile stats
-					if (cstat::stat(config.dataFilePath.c_str(), &statbuf) == 0) {
-						if (dataFileMTime != statbuf.st_mtime) {
-							log.info("Datafile change detected, reloading data for daemon...");
-							reloadDataFile = true;
-						}
-					}
-					lastFileMCheck = currentTime;
-				}*/
 
 				// Reload configuration
 				if (reloadConfig) {
 					log.info("Daemon configuration reload...");
 					configMutex.lock();
+					ruleStart = config.iptablesRule.substr(0, posip);
+					ruleEnd = config.iptablesRule.substr(posip + 2);
 					if (!config.load()) {
 						log.error("Failed to reload configuration for daemon!");
 					}
@@ -714,13 +830,13 @@ int main(int argc, char *argv[])
 
 					// Parse regex patterns
 					if (!config.processPatterns()) {
-						std::cerr << "Failed to parse configured patterns for daemon!" << std::endl;
+						log.error("Failed to parse configured patterns for daemon!");
 					}
 
 					// Reset config relad flag (so that it is not reladed again on next iteration)
 					reloadConfig = false;
 
-					// Recheck iptables rule since it can be changed in config
+					// Recheck iptables rule after config reload (it might be changed)
 					posip = config.iptablesRule.find("%i");
 					if (posip != std::string::npos) {
 
@@ -776,9 +892,6 @@ int main(int argc, char *argv[])
 							}
 						}
 
-						// Update rule for daemon expired rule check
-						ruleStart = config.iptablesRule.substr(0, posip);
-						ruleEnd = config.iptablesRule.substr(posip + 2);
 					}
 				}
 
@@ -787,8 +900,6 @@ int main(int argc, char *argv[])
 					log.info("Daemon datafile reload...");
 					if (!data.loadData()) {
 						log.error("Failed to reload data for daemon!");
-					} else {
-						// dataFileMTime = statbuf.st_mtime;
 					}
 					if (!data.checkIptables()) {
 						log.error("Failed to compare data with iptables...");
@@ -801,45 +912,13 @@ int main(int argc, char *argv[])
 
 					// Check log files for suspicious activity and update iptables if needed
 					// TODO make this function responsive to kill
-					// TODO check file size also in this function since this proces can take longer than log rotate
+					// TODO check file size also in this function since this proces can take more time than log rotate
 					logParser.checkFiles();
 
 					// Check iptables rules if any are expired and should be removed
-					// TODO: Since needed in multiple places, maybe move this check to new method in Data?
 					for (sait = data.suspiciousAddresses.begin(); sait != data.suspiciousAddresses.end(); ++sait) {
-						// If address has rule
 						if (sait->second.iptableRule) {
-							// Reset rule removal flag
-							removeRule = false;
-							// Blacklisted addresses must have rule
-							if (sait->second.blacklisted == true) {
-								continue;
-							}
-							if (config.keepBlockedScoreMultiplier > 0) {
-								// Score multiplier configured, recheck if score is no longer enough to keep this rule
-								if ((unsigned long long int)currentTime > sait->second.lastActivity + sait->second.activityScore) {
-									removeRule = true;
-								}
-							} else {
-								// Without multiplier rules are kept until score is reset to 0
-								if (sait->second.activityScore == 0) {
-									removeRule = true;
-								}
-							}
-							if (removeRule) {
-								log.info("Address " + sait->first + " iptables rule expired, removing...");
-								try {
-									if (iptables.remove("INPUT", ruleStart + sait->first + ruleEnd) == false) {
-										log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-									} else {
-										sait->second.iptableRule = false;
-									}
-								} catch (std::runtime_error& e) {
-									std::string message = e.what();
-									log.error(message);
-									log.error("Address " + sait->first + " no longer needs iptables rule, but failed to remove rule from chain!");
-								}
-							}
+							data.updateIptables(sait->first);
 						}
 					}
 
@@ -847,9 +926,21 @@ int main(int argc, char *argv[])
 					lastLogCheck = currentTime;
 				}
 
-				// Sleep 1/5 of second
+				// AbuseIPDB blacklist sync
+				if (config.abuseipdbBlacklistInterval > 0 && (unsigned int)(currentTime - data.abuseIPDBSyncTime) >= config.abuseipdbBlacklistInterval) {
+					try {
+						blacklistSync(&log, &config, &data, &iptables);
+						reloadDataFile = true;
+					} catch (std::runtime_error& e) {
+						std::string message = e.what();
+						log.error(message);
+					}
+				}
+
+				// Sleep 1/5 of a second
 				cunistd::usleep(200000);
 			}
+			abuseipdbReporterThread.join();
 			log.info("Hostblock daemon stop");
 		}
 

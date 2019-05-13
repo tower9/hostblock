@@ -10,7 +10,7 @@ Tool for log file monitoring and automatic blocking of remote IP hosts based on 
  - Blacklist to manually blacklist addresses
  - Whitelist to ignore addresses
  - Remove IP address from local data file
- - Automatic reporting to AbuseIPDB using API v2
+ - Automatic reporting and blacklist download from AbuseIPDB (API v2)
 
 # Setup
 
@@ -94,6 +94,9 @@ $ sudo hostblock -s
 Output example
 ```
 Total suspicious IP address count: 1212
+AbuseIPDB blacklist size: 10000
+Last AbuseIPDB blacklist sync time: 2019-05-20 17:17:17
+AbuseIPDB blacklist generation time: 2019-05-20 17:00:02
 Total suspicious activity: 2424
 Total refused: 1313
 Total whitelisted: 5
@@ -104,21 +107,21 @@ Top 5 most active addresses:
 -------------------------------------------------------------------------------------------
      Address     | Count |   Score   | Refused |    Last activity    |       Status        
 -------------------------------------------------------------------------------------------
- 10.10.10.10     | 62782 | 452025926 |    0    | 2016-05-12 18:47:14 | 2030-10-10 13:13:40
- 10.10.10.12     | 13451 | 96833655  |    0    | 2016-06-14 21:40:24 | 2019-07-09 15:14:13
- 10.10.10.16     | 12039 | 86655064  |    0    | 2016-06-13 21:55:21 | 2019-03-13 20:40:60
- 10.10.10.13     | 11958 | 86084822  |    0    | 2016-06-14 20:19:43 | 2019-03-07 04:40:05
- 192.168.0.100   | 10862 | 78204524  |    0    | 2016-06-13 17:10:05 | 2018-12-05 20:30:49
+ 10.10.10.10     | 62782 | 452025926 |    0    | 2019-05-12 18:47:14 | 2033-10-10 13:13:40
+ 10.10.10.12     | 13451 | 96833655  |    0    | 2019-06-14 21:40:24 | 2021-07-09 15:14:13
+ 10.10.10.16     | 12039 | 86655064  |    0    | 2019-06-13 21:55:21 | 2021-03-13 20:40:60
+ 10.10.10.13     | 11958 | 86084822  |    0    | 2019-06-14 20:19:43 | 2021-03-07 04:40:05
+ 192.168.0.100   | 10862 | 78204524  |    0    | 2019-06-13 17:10:05 | 2020-12-05 20:30:49
 
 Last activity:
 -------------------------------------------------------------------------------------------
      Address     | Count |   Score   | Refused |    Last activity    |       Status        
 -------------------------------------------------------------------------------------------
- 192.168.0.5     |   4   |   3600    |    0    | 2016-06-15 08:38:10 |                     
- 10.10.10.11     |  541  |  1898777  |   90    | 2016-06-15 06:23:23 | 2016-06-15 14:00:03
- 192.168.5.143   |  48   |  185872   |    2    | 2016-06-15 06:23:23 |                     
- 192.168.0.6     |  57   |  114681   |    1    | 2016-06-15 06:23:23 | whitelisted         
- 10.10.10.180    |   1   |   3600    |    0    | 2016-06-14 22:23:38 |                     
+ 192.168.0.5     |   4   |   3600    |    0    | 2019-06-15 08:38:10 |                     
+ 10.10.10.11     |  541  |  1898777  |   90    | 2019-06-15 06:23:23 | 2019-06-15 14:00:03
+ 192.168.5.143   |  48   |  185872   |    2    | 2019-06-15 06:23:23 |                     
+ 192.168.0.6     |  57   |  114681   |    1    | 2019-06-15 06:23:23 | whitelisted         
+ 10.10.10.180    |   1   |   3600    |    0    | 2019-06-14 22:23:38 |                     
 ```
  - Address - IP address of host from which some suspicious activity was detected
  - Count - suspicious activity count, how many times configured pattern was matched
@@ -165,7 +168,7 @@ $ sudo hostblock -w192.168.0.2
 
 ### Remove address from data file
 
-To delete information about address
+To delete all information about address
 ```
 $ sudo hostblock -r192.168.0.3
 ```
@@ -183,7 +186,7 @@ Default path for configuration file is /etc/hostblock.conf, which can be changed
 
 Main configuration is under [Global] section. Log file contents are different for each service and can have different log levels. Configuration can be divided into [Log.\*] sections to specify separate patterns for each log group, for example [Log.SSH].
 
-More details can be found in [default configuration file](config/hostblock.conf).
+For more details see comments in [default configuration file](config/hostblock.conf).
 
 ## AbuseIPDB
 
@@ -217,6 +220,20 @@ log.abuseipdb.report = true
 ```
 
 See description of other available parameters like categories to report, comment and hostname masking in [default configuration file](config/hostblock.conf).
+
+Hostblock also allows to synchronize with AbuseIPDB blacklist - get blacklist from AbuseIPDB API v2 and adjust iptables rules based on blacklist.
+
+Specify synchronization interval
+```
+## Interval to sync AbuseIPDB blacklist, use 0 to disable (seconds, default 0)
+## Note, it is recommended to sync no more often than once per 24h, i.e. 86400 seconds
+abuseipdb.blacklist.interval = 0
+```
+
+And specify min score needed to create iptables rule
+```
+abuseipdb.block.score = 90
+```
 
 # Requirements
 
