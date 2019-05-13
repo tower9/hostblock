@@ -1918,6 +1918,14 @@ bool Data::updateIptables(std::string address)
 		removeRule = true;
 	}
 
+	// Sync AbuseIPDB blacklist iptables rule status with suspicious address list to avoid getting duplicate iptables rules
+	if (this->abuseIPDBBlacklist.count(address) > 0 && !this->abuseIPDBBlacklist[address].iptableRule && this->suspiciousAddresses.count(address) > 0 && this->suspiciousAddresses[address].iptableRule) {
+		this->abuseIPDBBlacklist[address].iptableRule = true;
+	}
+	if (this->suspiciousAddresses.count(address) > 0 && !this->suspiciousAddresses[address].iptableRule && this->abuseIPDBBlacklist.count(address) > 0 && this->abuseIPDBBlacklist[address].iptableRule) {
+		this->suspiciousAddresses[address].iptableRule = true;
+	}
+
 	// Check whether need to create rule based on AbuseIPDB blacklist
 	if (this->abuseIPDBBlacklist.count(address) > 0) {
 		if (this->abuseIPDBBlacklist[address].iptableRule == false) {
