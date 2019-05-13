@@ -13,6 +13,8 @@
 #include <sstream>
 // Standard map library
 #include <map>
+// Vector
+#include <vector>
 // Exceptions
 #include <exception>
 // Standard input/output C library (fopen, fgets, fputs, fclose, etc)
@@ -89,6 +91,33 @@ bool Iptables::append(std::string chain, std::string rule)
 }
 
 /*
+ * Append rules to chain
+ */
+bool Iptables::append(std::string chain, std::vector<std::string>* rules)
+{
+	// Need root access to work with iptables
+	if (cunistd::getuid() != 0) {
+		throw std::runtime_error("Error, root access required to work with iptables!");
+	}
+
+	int response = 0;
+	if (!std::system(NULL)) {
+		throw std::runtime_error("Command processor not available.");
+	}
+
+	std::string cmd;
+	for (std::vector<std::string>::iterator it = rules->begin(); it != rules->end(); ++it) {
+		cmd = "iptables -A " + chain + " " + *it;
+		response = std::system(cmd.c_str());
+		if (response != 0) {
+			throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
+		}
+	}
+
+	return true;
+}
+
+/*
  * Delete rule from chain
  */
 bool Iptables::remove(std::string chain, std::string rule)
@@ -114,6 +143,33 @@ bool Iptables::remove(std::string chain, std::string rule)
 	} else {
 		throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
 	}
+}
+
+/*
+ * Delete rules from chain
+ */
+bool Iptables::remove(std::string chain, std::vector<std::string>* rules)
+{
+	// Need root access to work with iptables
+	if (cunistd::getuid() != 0) {
+		throw std::runtime_error("Error, root access required to work with iptables!");
+	}
+
+	int response = 0;
+	if (!std::system(NULL)) {
+		throw std::runtime_error("Command processor not available.");
+	}
+
+	std::string cmd;
+	for (std::vector<std::string>::iterator it = rules->begin(); it != rules->end(); ++it) {
+		cmd = "iptables -D " + chain + " " + *it;
+		response = std::system(cmd.c_str());
+		if (response != 0) {
+			throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
+		}
+	}
+
+	return true;
 }
 
 /*

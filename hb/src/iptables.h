@@ -4,6 +4,8 @@
 
 // Map
 #include <map>
+// Vector
+#include <vector>
 
 #ifndef HBIPTABLES_H
 #define HBIPTABLES_H
@@ -29,11 +31,13 @@ class Iptables{
 		 * Append chain with new rule
 		 */
 		bool append(std::string chain, std::string rule);
+		bool append(std::string chain, std::vector<std::string>* rules);
 
 		/*
 		 * Delete rule from chain
 		 */
 		bool remove(std::string chain, std::string rule);
+		bool remove(std::string chain, std::vector<std::string>* rules);
 
 		/*
 		 * Get rule list
