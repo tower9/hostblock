@@ -2045,11 +2045,6 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 	std::time(&currentRawTime);
 	unsigned long long int currentTime = (unsigned long long int)currentRawTime;
 
-	// Warning if only last activity time changes
-	if (activityScore == 0 && activityCount == 0 && refusedCount == 0) {
-		this->log->warning("Trying to register suspicious activity, but no data about activity! Only last activity time for address " + address + " will be updated!");
-	}
-
 	// Check if new record needs to be added or we need to update existing data
 	bool newEntry = false;
 	if (this->suspiciousAddresses.count(address) > 0) {
