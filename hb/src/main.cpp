@@ -938,6 +938,7 @@ int main(int argc, char *argv[])
 					} catch (std::runtime_error& e) {
 						std::string message = e.what();
 						log.error(message);
+						data.abuseIPDBSyncTime = currentTime + 60;// Wait for a while before retry
 					}
 				}
 
