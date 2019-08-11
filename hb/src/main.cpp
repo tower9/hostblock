@@ -235,13 +235,17 @@ void blacklistSync(hb::Logger* log, hb::Config* config, hb::Data* data, hb::Ipta
 		std::vector<std::string> forRemoval;
 		for (itb = data->abuseIPDBBlacklist.begin(); itb!=data->abuseIPDBBlacklist.end(); ++itb) {
 			if (newBlacklist.count(itb->first) > 0) {
+				// Address in old blacklist is also found in new blacklist
 				forUpdate.push_back(itb->first);
 				itb->second.totalReports = newBlacklist[itb->first].totalReports;
 				itb->second.abuseConfidenceScore = newBlacklist[itb->first].abuseConfidenceScore;
 			} else {
+				// Address in old blacklist is not found in new blacklist
 				forRemoval.push_back(itb->first);
 				itb = data->abuseIPDBBlacklist.erase(itb);// Returns next item after removed one
-				--itb;// Don't skip the next item
+				if (itb != data->abuseIPDBBlacklist.begin()) {
+					--itb;// Don't skip the next item
+				}
 			}
 		}
 
