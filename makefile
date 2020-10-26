@@ -45,6 +45,7 @@ install: hostblock
 	test -d $(prefix)/share || mkdir $(prefix)/share
 	test -d $(prefix)/share/hostblock || mkdir $(prefix)/share/hostblock
 	test -d /usr/lib/systemd/system && install -m 0644 init/systemd /usr/lib/systemd/system/hostblock.service || true
+	test -d /lib/systemd/system && install -m 0644 init/systemd /lib/systemd/system/hostblock.service || true
 	test -d /usr/share/upstart && install -m 0644 init/upstart /etc/init/hostblock.conf || true
 
 test: $(TOBJS)
