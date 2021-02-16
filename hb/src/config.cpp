@@ -46,6 +46,7 @@ Config::Config(hb::Logger* log, std::string configPath)
 
 /*
  * Load configuration from file
+ * TODO think about more dynamic parsing
  */
 bool Config::load()
 {

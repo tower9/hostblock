@@ -34,7 +34,7 @@ Install
 $ sudo make install
 ```
 
-Adjust configuration, review and adjust patterns
+Review and adjust patterns in config file
 ```
 $ sudo vi /etc/hostblock.conf
 ```
@@ -47,6 +47,8 @@ $ sudo iptables -A HB_LOG_AND_DROP -j DROP
 ```
 
 Before first hostblock start consider truncating/rotating/archiving log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.
+
+It is recommended to turn off AbuseIPDB integration for first start to avoid old/outdated suspicious activity reporting. Easiest way to turn off AbuseIPDB reporting functionality is to comment out line containing API key.
 
 `make install` should detect if systemd or upstart is used and install appropriate service script/configuration.
 
@@ -194,7 +196,7 @@ For more details see comments in [default configuration file](config/hostblock.c
 
 Hostblock allows to automatically report suspicious activity to AbuseIPDB using API v2.
 
-Login into your AbuseIPDB account and create an [API key](https://www.abuseipdb.com/account/api). Specify generated key in configuration file (/etc/hostblock.conf):
+Login into your AbuseIPDB account and create an [API key](https://www.abuseipdb.com/account/api). Specify generated key in configuration file (/etc/hostblock.conf)
 ```
 ## AbuseIPDB API Key
 abuseipdb.api.key = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

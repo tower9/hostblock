@@ -28,6 +28,11 @@ class LogParser{
 		 */
 		std::string hostname = "";
 
+		/*
+		 * IP address
+		 */
+		std::vector<std::string> ipAddresses;
+
 	public:
 
 		/*
