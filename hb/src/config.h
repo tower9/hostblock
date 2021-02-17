@@ -39,6 +39,16 @@ class Config{
 		std::string iptablesRule = "-s %i -j DROP";
 
 		/*
+		 * iptables rule to check during startup
+		 */
+		std::string iptablesStartupCheck = "";
+
+		/*
+		 * iptables rules to add if iptablesStartupCheck does not return 0
+		 */
+		std::vector<std::string> iptablesStartupAdd = std::vector<std::string>();
+
+		/*
 		 * Datetime format
 		 */
 		std::string dateTimeFormat = "%Y-%m-%d %H:%M:%S";

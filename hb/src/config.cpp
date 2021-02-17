@@ -158,6 +158,20 @@ bool Config::load()
 									this->log->error("Failed to parse iptables.rules.block, IP address placeholder not found! Will use default value.");
 								}
 							}
+						} else if (line.substr(0, 22) == "iptables.startup.check") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->iptablesStartupCheck = line;
+								if (logDetails) this->log->debug("Iptables startup check: " + this->iptablesStartupCheck);
+							}
+						} else if (line.substr(0, 20) == "iptables.startup.add") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::ltrim(line.substr(pos + 1));
+								this->iptablesStartupAdd.push_back(line);
+								if (logDetails) this->log->debug("Iptables startup rule to add: " + line);
+							}
 						} else if (line.substr(0, 15) == "datetime.format") {
 							pos = line.find_first_of("=");
 							if (pos != std::string::npos) {

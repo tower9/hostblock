@@ -216,7 +216,7 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 /*
  * Exec iptables any command with custom options
  */
-bool Iptables::command(std::string options)
+int Iptables::command(std::string options)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -225,20 +225,12 @@ bool Iptables::command(std::string options)
 
 	// Prepare command
 	std::string cmd = "iptables " + options;
-	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
 	}
 
 	// Exec command
-	response = std::system(cmd.c_str());
-
-	// Check response
-	if (response == 0) {
-		return true;
-	} else {
-		throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
-	}
+	return std::system(cmd.c_str());
 }
 
 /*

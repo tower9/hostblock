@@ -767,6 +767,19 @@ int main(int argc, char *argv[])
 			// To keep main loop running
 			running = true;
 
+			// iptables commands for execution during daemon startup
+			if (!config.iptablesStartupCheck.empty() && iptables.command(config.iptablesStartupCheck + ">/dev/null 2>/dev/null") != 0) {
+				log.info("Executing iptables startup commands...");
+				int response = 0;
+				for (std::vector<std::string>::iterator it = config.iptablesStartupAdd.begin(); it != config.iptablesStartupAdd.end(); ++it) {
+					log.debug("iptables " + *it);
+					response = iptables.command(*it);
+					if (response != 0) {
+						log.error("Failed to execute iptables command '" + *it + "', return code: " + std::to_string(response));
+					}
+				}
+			}
+
 			// For iptables rule check
 			std::size_t posip = config.iptablesRule.find("%i");
 			std::string ruleStart = "";
