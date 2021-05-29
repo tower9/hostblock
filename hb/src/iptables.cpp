@@ -73,7 +73,7 @@ bool Iptables::append(std::string chain, std::string rule)
 	}
 
 	// Prepare command
-	std::string cmd = "iptables -A " + chain + " " + rule;
+	std::string cmd = "iptables -I " + chain + " " + rule;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -107,7 +107,7 @@ bool Iptables::append(std::string chain, std::vector<std::string>* rules)
 
 	std::string cmd;
 	for (std::vector<std::string>::iterator it = rules->begin(); it != rules->end(); ++it) {
-		cmd = "iptables -A " + chain + " " + *it;
+		cmd = "iptables -I " + chain + " " + *it;
 		response = std::system(cmd.c_str());
 		if (response != 0) {
 			throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
