@@ -153,10 +153,21 @@ bool Config::load()
 								posip = line.find("%i");
 								if (posip != std::string::npos) {
 									this->iptablesRule = line;
-									if (logDetails) this->log->debug("Iptables rule to drop packets: " + this->iptablesRule);
+									if (logDetails) this->log->debug("Iptables rule to deny access: " + this->iptablesRule);
 								} else {
 									this->log->error("Failed to parse iptables.rules.block, IP address placeholder not found! Will use default value.");
 								}
+							}
+						} else if (line.substr(0, 18) == "iptables.rules.pos") {
+							pos = line.find_first_of("=");
+							if (pos != std::string::npos) {
+								line = hb::Util::toLower(hb::Util::ltrim(line.substr(pos + 1)));
+								if (line == "tail") {
+									this->iptablesAppend = true;
+								} else {
+									this->iptablesAppend = false;
+								}
+								if (logDetails) this->log->debug("Append iptables rule: " + std::to_string(this->iptablesAppend));
 							}
 						} else if (line.substr(0, 15) == "datetime.format") {
 							pos = line.find_first_of("=");
@@ -523,6 +534,8 @@ void Config::print()
 	std::cout << "address.block.multiplier = " << this->keepBlockedScoreMultiplier << std::endl << std::endl;
 	std::cout << "## Rule to use in IP tables rule (use %i as placeholder to specify IP address)" << std::endl;
 	std::cout << "iptables.rules.block = " << this->iptablesRule << std::endl << std::endl;
+	std::cout << "## Whether to add iptables rule to the head or end of the chain (default head)" << std::endl;
+	std::cout << "iptables.rules.pos =  " << (this->iptablesAppend ? "tail" : "head") << std::endl << std::endl;
 	std::cout << "## Datetime format (default %Y-%m-%d %H:%M:%S)" << std::endl;
 	std::cout << "datetime.format = " << this->dateTimeFormat << std::endl << std::endl;
 	std::cout << "## Datafile location" << std::endl;

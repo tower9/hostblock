@@ -879,7 +879,13 @@ int main(int argc, char *argv[])
 
 											// Add rule based on new config
 											try {
-												if (iptables.append("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2)) == false) {
+												bool res = false;
+												if (config.iptablesAppend) {
+													res = iptables.append("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2));
+												} else {
+													res = iptables.insert("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2), 1);
+												}
+												if (res == false) {
 													log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to add rule based on new configuration!");
 												} else {
 													sait->second.iptableRule = true;

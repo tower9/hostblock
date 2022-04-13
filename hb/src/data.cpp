@@ -2000,8 +2000,14 @@ bool Data::updateIptables(std::string address)
 	if (createRule == true) {
 		this->log->info("Adding rule for " + address + " to iptables chain!");
 		try {
-			if (this->iptables->append("INPUT", ruleStart + address + ruleEnd) == false) {
-				this->log->error("Address " + address + " should have iptables rule, but hostblock failed to append rule to chain!");
+			bool res = false;
+			if (this->config->iptablesAppend) {
+				res = this->iptables->append("INPUT", ruleStart + address + ruleEnd);
+			} else {
+				res = this->iptables->insert("INPUT", ruleStart + address + ruleEnd, 1);
+			}
+			if (res == false) {
+				this->log->error("Address " + address + " should have iptables rule, but hostblock failed to add rule to chain!");
 				return false;
 			} else {
 				if (this->suspiciousAddresses.count(address) > 0) {
@@ -2014,7 +2020,7 @@ bool Data::updateIptables(std::string address)
 		} catch (std::runtime_error& e) {
 			std::string message = e.what();
 			this->log->error(message);
-			this->log->error("Address " + address + " should have iptables rule, but hostblock failed to append rule to chain!");
+			this->log->error("Address " + address + " should have iptables rule, but hostblock failed to add rule to chain!");
 			return false;
 		}
 	}

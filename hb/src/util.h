@@ -12,7 +12,7 @@
 
 namespace hb{
 
-static const std::string kHostblockVersion = "1.0.2";
+static const std::string kHostblockVersion = "1.0.3";
 
 enum Report {
 	False,

@@ -39,6 +39,11 @@ class Config{
 		std::string iptablesRule = "-s %i -j DROP";
 
 		/*
+		 * Whether to append (add to the end) or insert (add to the beginning) iptables rule
+		 */
+		bool iptablesAppend = false;
+
+		/*
 		 * Datetime format
 		 */
 		std::string dateTimeFormat = "%Y-%m-%d %H:%M:%S";

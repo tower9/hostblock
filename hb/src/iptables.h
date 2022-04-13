@@ -28,10 +28,16 @@ class Iptables{
 		bool newChain(std::string chain);
 
 		/*
-		 * Append chain with new rule
+		 * Append new rule(s) to the end of the chain
 		 */
 		bool append(std::string chain, std::string rule);
 		bool append(std::string chain, std::vector<std::string>* rules);
+
+		/*
+		 * Insert rule(s) to the chain at specified position
+		 */
+		bool insert(std::string chain, std::string rule, int pos = 1);
+		bool insert(std::string chain, std::vector<std::string>* rules, int pos = 1);
 
 		/*
 		 * Delete rule from chain
