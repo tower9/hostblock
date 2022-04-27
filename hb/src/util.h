@@ -135,9 +135,9 @@ struct AbuseIPDBCheckResult {
 // };
 
 /*
- * To store JSON result from abuseipdb.com with cURL
+ * Place to store result from abuseipdb.com with cURL
  */
-struct AbuseIPDBJSONData {
+struct CurlData {
 	char *memory;
 	size_t size;
 };

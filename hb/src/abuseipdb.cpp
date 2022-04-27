@@ -9,6 +9,10 @@
 #include <vector>
 // Standard string library
 #include <string>
+// String stream
+#include <sstream>
+// Standard map library
+#include <map>
 // (get_time, put_time)
 #include <iomanip>
 // Date and time manipulation
@@ -59,6 +63,26 @@ AbuseIPDB::~AbuseIPDB()
 	curl_global_cleanup();
 }
 
+std::map<std::string, std::string> AbuseIPDB::parseHeaders(std::string& headersRaw)
+{
+	std::map<std::string, std::string> result;
+	std::size_t pos;
+	std::string line, key, value;
+	// for (std::string line; std::getline(headers, line);) {
+	std::istringstream ss(headersRaw);
+	while (std::getline(ss, line)) {
+		pos = line.find_first_of(":");
+		if (pos != std::string::npos) {
+			key = hb::Util::rtrim(hb::Util::ltrim(line.substr(0, pos)));
+			value = hb::Util::rtrim(hb::Util::ltrim(line.substr(pos + 1)));
+			if (key.length() > 0) {
+				result.insert(std::pair<std::string, std::string>(key, value));
+			}
+		}
+	}
+	return result;
+}
+
 AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 {
 	AbuseIPDBCheckResult result;
@@ -72,7 +96,7 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 
 	if (this->isError == false) {
 		// Init some memory where JSON response will be stored
-		AbuseIPDBJSONData chunk;
+		CurlData chunk;
 		chunk.memory = (char*)malloc(1); // Will be extended with realloc later
 		chunk.size = 0; // No data yet
 		CURLcode res;// cURL response code
@@ -97,9 +121,9 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 			curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, headers);
 
 			// Store results using callback function
-			curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveJSONResultCallback);
+			curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveCurlDataCallback);
 
-			// Store results into AbuseIPDBJSONData
+			// Store results into CurlData
 			curl_easy_setopt(this->curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
 			// User agent
@@ -263,11 +287,23 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 		return false;
 	}
 
+	// Check if limit has been reached
+	std::time_t currentRawTime;
+	std::time(&currentRawTime);
+	unsigned long long int currentTime = (unsigned long long int)currentRawTime;
+	if (currentTime < this->nextReportTimestamp) {
+		this->log->debug("Not calling AbuseIPDB until " + std::to_string(this->nextReportTimestamp));
+		return false;
+	}
+
 	if (this->isError == false) {
 		// Init some memory where JSON response will be stored
-		AbuseIPDBJSONData chunk;
-		chunk.memory = (char*)malloc(1); // Will be extended with realloc later
-		chunk.size = 0; // No data yet
+		CurlData curlRespData;
+		curlRespData.memory = (char*)malloc(1); // Will be extended with realloc later
+		curlRespData.size = 0; // No data yet
+		CurlData curlRespHeaders;
+		curlRespHeaders.memory = (char*)malloc(1); // Will be extended with realloc later
+		curlRespHeaders.size = 0; // No data yet
 		CURLcode res;// cURL response code
 		struct curl_slist *headers=NULL;// Init to NULL is important
 
@@ -298,10 +334,16 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 			curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, headers);
 
 			// Store results using callback function
-			curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveJSONResultCallback);
+			curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveCurlDataCallback);
 
-			// Store results into AbuseIPDBJSONData
-			curl_easy_setopt(this->curl, CURLOPT_WRITEDATA, (void *)&chunk);
+			// Store results into CurlData
+			curl_easy_setopt(this->curl, CURLOPT_WRITEDATA, (void *)&curlRespData);
+
+			// Store resulting headers using callback function
+			curl_easy_setopt(this->curl, CURLOPT_HEADERFUNCTION, AbuseIPDB::SaveCurlDataCallback);
+
+			// Store resulting headers into CurlData
+			curl_easy_setopt(this->curl, CURLOPT_HEADERDATA, (void *)&curlRespHeaders);
 
 			// User agent
 			curl_version_info_data *versionData = curl_version_info(CURLVERSION_NOW);
@@ -330,31 +372,61 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 				long httpCode;
 				curl_easy_getinfo(this->curl, CURLINFO_RESPONSE_CODE, &httpCode);
 				this->log->debug("Response received! HTTP status code: " + std::to_string(httpCode));
+				this->log->debug("Received data size: " + std::to_string(curlRespData.size));
 
-				// Must have http status code 200
+				std::string response = "";
+				bool jsonParsed = false;
+				Json::Reader reader;
+				Json::Value obj;
+				unsigned int i;
+				if (curlRespData.size > 0) {
+					// Convert response to string for libjson
+					for (i = 0; i < curlRespData.size; ++i) {
+						response += curlRespData.memory[i];
+					}
+
+					// Try parsing response as JSON
+					jsonParsed = reader.parse(response, obj);
+				}
+
 				if (httpCode != 200) {
 					this->isError = true;
 					this->log->error("Failed to call AbuseIPDB API address report service! HTTP status code: " + std::to_string(httpCode));
-				} else {
-					this->log->debug("Received data size: " + std::to_string(chunk.size));
-
-					// Convert to string for libjson
-					unsigned int i;
-					std::string response = "";
-					for (i = 0; i < chunk.size; ++i) {
-						response += chunk.memory[i];
+					if (jsonParsed && obj.size() > 0 && obj.isMember("errors")) {
+						this->isError = true;
+						for (i = 0; i < obj["errors"].size(); ++i) {
+							this->log->error(obj["errors"][i]["detail"].asString());
+						}
 					}
-					// std::cout << "Response: " << response << std::endl;
 
-					// Parse JSON
-					Json::Reader reader;
-					Json::Value obj;
-					if (reader.parse(response, obj)) {
-						// std::cout << "count: " << obj.size() << std::endl;
+					// Check if limit has been reached
+					if (httpCode == 429) {
+						// Parse response headers
+						std::string respHeadersRaw = "";
+						if (curlRespHeaders.size > 0) {
+							for (i = 0; i < curlRespHeaders.size; ++i) {
+								respHeadersRaw += curlRespHeaders.memory[i];
+							}
+						}
+						std::map<std::string, std::string> respHeaders = parseHeaders(respHeadersRaw);
+
+						// Check if retry-after is specified to adjust when is the soonest we should send next report
+						for (const auto & it : respHeaders) {
+							if (hb::Util::toLower(it.first) == "retry-after") {
+								this->nextReportTimestamp = currentTime + std::strtoull(it.second.c_str(), NULL, 10);
+								this->log->warning("Reporting to AbuseIPDB disabled until: " + Util::formatDateTime((const time_t)this->nextReportTimestamp, this->abuseipdbDatetimeFormat.c_str()));
+								break;
+							}
+						}
+					}
+
+				} else {
+					if (jsonParsed) {
 						if (obj.size() > 0) {
 							if (obj.isMember("data")) {
 								curl_easy_cleanup(this->curl);
-								free(chunk.memory);
+								free(curlRespData.memory);
+								this->nextReportTimestamp = currentTime;
 								return true;
 							} else if (obj.isMember("errors")) {
 								this->isError = true;
@@ -367,7 +439,7 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 								this->log->error("After calling AbuseIPDB API report servcie, failed to parse AbuseIPDB response!");
 							}
 						} else {
-							// Didn't get any JSON response, assume failure
+							// Did not get any JSON response, assume failure
 							this->isError = true;
 							this->log->error("No response from AbuseIPDB API report service!");
 						}
@@ -383,7 +455,7 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 		}
 
 		// Memory cleanup
-		free(chunk.memory);
+		free(curlRespData.memory);
 	}
 
 	return false;
@@ -401,7 +473,7 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 
 	if (this->isError == false) {
 		// Init some memory where JSON response will be stored
-		AbuseIPDBJSONData chunk;
+		CurlData chunk;
 		chunk.memory = (char*)malloc(1); // Will be extended with realloc later
 		chunk.size = 0; // No data yet
 		CURLcode res;// cURL response code
@@ -422,9 +494,9 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 			curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, headers);
 
 			// Store results using callback function
-			curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveJSONResultCallback);
+			curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, AbuseIPDB::SaveCurlDataCallback);
 
-			// Store results into AbuseIPDBJSONData
+			// Store results into CurlData
 			curl_easy_setopt(this->curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
 			// User agent
@@ -549,10 +621,10 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 	}
 }
 
-size_t AbuseIPDB::SaveJSONResultCallback(void *contents, size_t size, size_t nmemb, void *userp)
+size_t AbuseIPDB::SaveCurlDataCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
 	size_t realSize = size * nmemb;
-	struct AbuseIPDBJSONData *mem = (struct AbuseIPDBJSONData *) userp;
+	struct CurlData *mem = (struct CurlData *) userp;
 
 	mem->memory = (char*)std::realloc(mem->memory, mem->size + realSize + 1);
 	if (mem->memory == NULL) {

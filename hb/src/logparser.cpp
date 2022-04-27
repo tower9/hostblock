@@ -476,7 +476,7 @@ void LogParser::checkFiles()
 											this->log->debug("Information about " + ipAddress + " is put into queue for sending to AbuseIPDB...");
 										}
 									} else {
-										this->log->warning("Matched blocked access pattern, but no previous information about suspicious activity, skipping...");
+										this->log->warning(ipAddress + " matched blocked access pattern, but no previous information about suspicious activity, skipping...");
 									}
 
 									this->log->debug("Match with pattern: " + itlp->patternString);

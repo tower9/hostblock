@@ -17,7 +17,7 @@ using namespace hb;
  */
 std::string Util::ltrim(std::string str)
 {
-	size_t startpos = str.find_first_not_of(" ");
+	size_t startpos = str.find_first_not_of(" \t\n\r");
 	if (startpos != std::string::npos) {
 		return str.substr(startpos);
 	}
@@ -29,7 +29,7 @@ std::string Util::ltrim(std::string str)
  */
 std::string Util::rtrim(std::string str)
 {
-	size_t endpos = str.find_last_not_of(" ");
+	size_t endpos = str.find_last_not_of(" \t\n\r");
 	if (endpos != std::string::npos) {
 		return str.substr(0, endpos + 1);
 	}

@@ -50,7 +50,7 @@ Config::Config(hb::Logger* log, std::string configPath)
  */
 bool Config::load()
 {
-	this->log->debug("Loading config from " + this->configPath);
+	this->log->info("Loading config from " + this->configPath);
 	std::ifstream f(this->configPath);
 	if (f.is_open()) {
 		std::string line;

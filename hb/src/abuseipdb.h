@@ -11,6 +11,8 @@
 #include <vector>
 // Standard string library
 #include <string>
+// Standard map library
+#include <map>
 // cURL
 #include <curl/curl.h>
 // Util
@@ -56,6 +58,11 @@ class AbuseIPDB{
 
 		void init();
 
+		/*
+		 * Parse raw headers
+		 */
+		std::map<std::string, std::string> parseHeaders(std::string& headersRaw);
+
 	public:
 
 		/*
@@ -64,7 +71,7 @@ class AbuseIPDB{
 		hb::Logger* log;
 
 		/*
-		 * Whether function failed with error
+		 * Whether last function call failed with error
 		 */
 		bool isError = false;
 
@@ -82,6 +89,13 @@ class AbuseIPDB{
 		 * AbuseIPDB API date and time format
 		 */
 		std::string abuseipdbDatetimeFormat = "%Y-%m-%dT%H:%M:%S";
+
+		/*
+		 * Timestamps used to respect AbuseIPDB API limits
+		 */
+		unsigned int nextCheckTimestamp = 0;// TODO
+		unsigned int nextReportTimestamp = 0;
+		unsigned int nextBlaclistTimestamp = 0;// TODO
 
 		/*
 		 * Constructor
@@ -112,9 +126,9 @@ class AbuseIPDB{
 		bool getBlacklist(unsigned int confidenceMinimum, unsigned long long int* generatedAt, std::map<std::string, hb::AbuseIPDBBlacklistedAddressType>* blacklist);
 
 		/*
-		 * For cURL response store
+		 * Store cURL response to memmory
 		 */
-		static size_t SaveJSONResultCallback(void *contents, size_t size, size_t nmemb, void *userp);
+		static size_t SaveCurlDataCallback(void *contents, size_t size, size_t nmemb, void *userp);
 
 };
 

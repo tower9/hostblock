@@ -171,23 +171,15 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 			abuseipdbReportingQueue.pop();
 			abuseipdbReportingQueueMutex.unlock();
 
-			// Send report
+			// Send report (API client can decide to not actually report if either per minute or daily limit is reached)
 			if (apiClient.reportAddress(itemToReport.ip, itemToReport.comment, itemToReport.categories)) {
 				log->info("Address " + itemToReport.ip + " reported to AbuseIPDB!");
 				log->debug("Comment: " + itemToReport.comment);
-			} else {
-				log->error("Failed to report " + itemToReport.ip + " to AbuseIPDB!");
 			}
 		}
 
-		// Sleep 1/10 of a second
-		// cunistd::usleep(100000);
-		// Sleep 1 second
-		// Note, AbuseIPDB limits to 60 requests per minute, with 1 sec sleep should have a little lower rate than limitation
-		// Wondering whether this limitation is at API key level...
-		// If it is, then need to sync between multiple hosts or to register multiple accounts
-		// Or to create/use central point which registers abuse
-		cunistd::usleep(1000000);
+		// Sleep a little
+		cunistd::usleep(2000);
 	}
 	log->info("Thread for Activity reporting to AbuseIPDB stopped");
 }
@@ -937,14 +929,13 @@ int main(int argc, char *argv[])
 				}
 
 				// AbuseIPDB blacklist sync
-				if (config.abuseipdbBlacklistInterval > 0 && (unsigned int)(currentTime - data.abuseIPDBSyncTime) >= config.abuseipdbBlacklistInterval) {
+				if (config.abuseipdbKey.size() > 0 && config.abuseipdbBlacklistInterval > 0 && (unsigned int)(currentTime - data.abuseIPDBSyncTime) >= config.abuseipdbBlacklistInterval) {
 					try {
 						blacklistSync(&log, &config, &data, &iptables);
 						reloadDataFile = true;
 					} catch (std::runtime_error& e) {
-						std::string message = e.what();
-						log.error(message);
-						data.abuseIPDBSyncTime = currentTime + 60;// Wait for a while before retry
+						log.error(e.what());
+						data.abuseIPDBSyncTime += 300;// Wait for a while before retry
 					}
 				}
 
