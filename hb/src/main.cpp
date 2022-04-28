@@ -80,9 +80,6 @@ bool reloadConfig = false;
 std::queue<hb::ReportToAbuseIPDB> abuseipdbReportingQueue;
 std::mutex abuseipdbReportingQueueMutex;
 
-// Mutex to work with config object
-std::mutex configMutex;
-bool reloadThreadConfig = false;
 
 /*
  * Output short help
@@ -135,12 +132,7 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 {
 	log->info("Starting thread for activity reporting to AbuseIPDB...");
 	hb::ReportToAbuseIPDB itemToReport;
-	hb::AbuseIPDB apiClient = hb::AbuseIPDB(log);
-	configMutex.lock();
-	apiClient.abuseipdbURL = config->abuseipdbURL;
-	apiClient.abuseipdbKey = config->abuseipdbKey;
-	apiClient.abuseipdbDatetimeFormat = config->abuseipdbDatetimeFormat;
-	configMutex.unlock();
+	hb::AbuseIPDB apiClient = hb::AbuseIPDB(log, config);
 	bool isEmpty = false;
 	while (true) {
 		// Check whether should exit this loop
@@ -150,16 +142,6 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 			break;
 		}
 		reportingThreadRunningMutex.unlock();
-
-		// Check whether config is updated
-		configMutex.lock();
-		if (reloadThreadConfig) {
-			apiClient.abuseipdbURL = config->abuseipdbURL;
-			apiClient.abuseipdbKey = config->abuseipdbKey;
-			apiClient.abuseipdbDatetimeFormat = config->abuseipdbDatetimeFormat;
-			reloadThreadConfig = false;
-		}
-		configMutex.unlock();
 
 		// Take out one item from queue
 		abuseipdbReportingQueueMutex.lock();
@@ -174,7 +156,7 @@ void reporterThread(hb::Logger* log, hb::Config* config)
 			// Send report (API client can decide to not actually report if either per minute or daily limit is reached)
 			if (apiClient.reportAddress(itemToReport.ip, itemToReport.comment, itemToReport.categories)) {
 				log->info("Address " + itemToReport.ip + " reported to AbuseIPDB!");
-				log->debug("Comment: " + itemToReport.comment);
+				// log->debug("Comment: " + itemToReport.comment);
 			}
 		}
 
@@ -193,12 +175,7 @@ void blacklistSync(hb::Logger* log, hb::Config* config, hb::Data* data, hb::Ipta
 	auto wallStart = std::chrono::steady_clock::now(), wallEnd = wallStart;
 	log->debug("Starting AbuseIPDB blacklist sync...");
 
-	hb::AbuseIPDB apiClient = hb::AbuseIPDB(log);
-	configMutex.lock();
-	apiClient.abuseipdbURL = config->abuseipdbURL;
-	apiClient.abuseipdbKey = config->abuseipdbKey;
-	apiClient.abuseipdbDatetimeFormat = config->abuseipdbDatetimeFormat;
-	configMutex.unlock();
+	hb::AbuseIPDB apiClient = hb::AbuseIPDB(log, config);
 
 	std::map<std::string, hb::AbuseIPDBBlacklistedAddressType> newBlacklist;
 	unsigned long long int blacklistGenTime;
@@ -815,14 +792,11 @@ int main(int argc, char *argv[])
 				// Reload configuration
 				if (reloadConfig) {
 					log.info("Daemon configuration reload...");
-					configMutex.lock();
 					ruleStart = config.iptablesRule.substr(0, posip);
 					ruleEnd = config.iptablesRule.substr(posip + 2);
 					if (!config.load()) {
 						log.error("Failed to reload configuration for daemon!");
 					}
-					reloadThreadConfig = true;
-					configMutex.unlock();
 
 					// Parse regex patterns
 					if (!config.processPatterns()) {

@@ -19,6 +19,8 @@
 #include "util.h"
 // Logger
 #include "logger.h"
+// Logger
+#include "config.h"
 
 namespace hb{
 
@@ -56,6 +58,11 @@ class AbuseIPDB{
 		 */
 		CURL* curl;
 
+		/*
+		 * Hostnames and IP address to mask before reporting
+		 */
+		std::vector<std::string> stringsToMask;
+
 		void init();
 
 		/*
@@ -71,24 +78,14 @@ class AbuseIPDB{
 		hb::Logger* log;
 
 		/*
+		 * Config object
+		 */
+		hb::Config const * config;
+
+		/*
 		 * Whether last function call failed with error
 		 */
 		bool isError = false;
-
-		/*
-		 * AbuseIPDB API URL
-		 */
-		std::string abuseipdbURL = "https://www.abuseipdb.com";
-
-		/*
-		 * AbuseIPDB API key
-		 */
-		std::string abuseipdbKey = "";
-
-		/*
-		 * AbuseIPDB API date and time format
-		 */
-		std::string abuseipdbDatetimeFormat = "%Y-%m-%dT%H:%M:%S";
 
 		/*
 		 * Timestamps used to respect AbuseIPDB API limits
@@ -100,10 +97,7 @@ class AbuseIPDB{
 		/*
 		 * Constructor
 		 */
-		AbuseIPDB(hb::Logger* log);
-		AbuseIPDB(hb::Logger* log, std::string abuseipdbURL);
-		AbuseIPDB(hb::Logger* log, std::string abuseipdbURL, std::string abuseipdbKey);
-		AbuseIPDB(hb::Logger* log, std::string abuseipdbURL, std::string abuseipdbKey, std::string abuseipdbDatetimeFormat);
+		AbuseIPDB(hb::Logger* log, hb::Config* config);
 
 		/*
 		 * Deconstructor

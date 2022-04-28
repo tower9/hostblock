@@ -8,12 +8,6 @@
 #include <iostream>
 // File stream library (ifstream)
 #include <fstream>
-// C string
-#include <cstring>
-// Definition for network database operations (NI_MAXHOST, NI_NUMERICHOST)
-#include <netdb.h>
-// Declarations for getting network interface addresses (getifaddrs, freeifaddrs)
-#include <ifaddrs.h>
 // Limits (HOST_NAME_MAX)
 #include <limits.h>
 // Miscellaneous UNIX symbolic constants, types and functions
@@ -40,53 +34,7 @@ using namespace hb;
 LogParser::LogParser(hb::Logger* log, hb::Config* config, hb::Data* data, std::queue<ReportToAbuseIPDB>* abuseipdbReportingQueue, std::mutex* abuseipdbReportingQueueMutex)
 : log(log), config(config), data(data), abuseipdbReportingQueue(abuseipdbReportingQueue), abuseipdbReportingQueueMutex(abuseipdbReportingQueueMutex)
 {
-	if (this->config->abuseipdbReportMask) {
-		int s;
 
-		// Get hostname
-		char hname[HOST_NAME_MAX];
-		s = cunistd::gethostname(hname, HOST_NAME_MAX);
-		if (s != 0) {
-			this->log->warning("Failed to get host name to use for AbuseIPDB report masking! gethostname() returned " + std::to_string(errno) + ": " + std::string(strerror(errno)));
-		} else {
-			this->hostname = std::string(hname);
-			this->log->debug(this->hostname);
-		}
-
-		// Get IP addresses
-		struct ifaddrs *addrs, *ap;
-		int family;
-		char addr[NI_MAXHOST];
-		std::string ipAddress;
-		s = getifaddrs(&addrs);
-		if (s != 0) {
-			this->log->warning("Failed to get IP addresses to use for AbuseIPDB report masking! getifaddrs() returned " + std::to_string(s) + ": " + std::string(gai_strerror(s)));
-		} else {
-			for (ap = addrs; ap != NULL; ap = ap->ifa_next) {
-				if (ap->ifa_addr == NULL) {
-					continue;
-				}
-				family = ap->ifa_addr->sa_family;
-				if (family == AF_INET || family == AF_INET6) {
-					s = getnameinfo(ap->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), addr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-					if (s != 0) {
-						this->log->warning("Failed to get IP addresses to use for AbuseIPDB report masking! getnameinfo() returned: " + std::to_string(s) + ": " + std::string(gai_strerror(s)));
-					} else {
-						ipAddress = std::string(addr);
-						if (family == AF_INET6) {
-							std::size_t posc = ipAddress.find("%");
-							if (posc != std::string::npos) {
-								ipAddress = ipAddress.substr(0, posc);
-							}
-						}
-						this->ipAddresses.push_back(ipAddress);
-						this->log->debug(ipAddress);
-					}
-				}
-			}
-			freeifaddrs(addrs);
-		}
-	}
 }
 
 /*
@@ -113,7 +61,7 @@ void LogParser::checkFiles()
 	ReportToAbuseIPDB reportToSend;
 	std::vector<unsigned int> reportCategories;
 	std::string reportComment = "";
-	std::size_t posc, posh;
+	std::size_t posc;
 	std::map<std::string, hb::SuspiciosAddressType>::iterator itsa;
 	std::string currentTimeFormatted = Util::formatDateTime((const time_t)currentTime, this->config->dateTimeFormat.c_str());
 
@@ -267,22 +215,6 @@ void LogParser::checkFiles()
 										posc = reportComment.find("%m");
 										if (posc != std::string::npos) {
 											reportComment = reportComment.replace(posc, 2, line);
-											if (this->config->abuseipdbReportMask) {
-												// Mask all hostname occurrences
-												posh = reportComment.find(this->hostname);
-												while (posh != std::string::npos) {
-													reportComment = reportComment.replace(posh, this->hostname.length(), std::string(this->hostname.length(), '*'));
-													posh = reportComment.find(this->hostname, posh);
-												}
-												// Mask all IP address occurrences
-												for (std::vector<std::string>::iterator it = this->ipAddresses.begin(); it != this->ipAddresses.end(); ++it) {
-													posh = reportComment.find(*it);
-													while (posh != std::string::npos) {
-														reportComment = reportComment.replace(posh, (*it).length(), std::string((*it).length(), '*'));
-														posh = reportComment.find(*it, posh);
-													}
-												}
-											}
 										}
 										posc = reportComment.find("%d");
 										if (posc != std::string::npos) {
@@ -438,17 +370,7 @@ void LogParser::checkFiles()
 											}
 											posc = reportComment.find("%m");
 											if (posc != std::string::npos) {
-												if (this->config->abuseipdbReportMask) {
-													// TODO put in loop, there can be multiple occurrences
-													posh = line.find(this->hostname);
-													if (posh != std::string::npos) {
-														reportComment = reportComment.replace(posc, 2, line.substr(0, posh) + std::string(this->hostname.length(), '*') + line.substr(posh + this->hostname.length()));
-													} else {
-														reportComment = reportComment.replace(posc, 2, line);
-													}
-												} else {
-													reportComment = reportComment.replace(posc, 2, line);
-												}
+												reportComment = reportComment.replace(posc, 2, line);
 											}
 											posc = reportComment.find("%d");
 											if (posc != std::string::npos) {

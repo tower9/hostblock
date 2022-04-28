@@ -117,7 +117,7 @@ class Config{
 		bool abuseipdbReportAll = false;
 
 		/*
-		 * Whether to mask hostname in comment (if %m is used) before sending report to AbuseIPDB
+		 * Whether to mask hostname/IP address in comment (if %m is used) before sending report to AbuseIPDB
 		 */
 		bool abuseipdbReportMask = true;
 

@@ -34,7 +34,7 @@ logger.o: hb/src/logger.h hb/src/logger.cpp
 util.o: hb/src/util.h hb/src/util.cpp
 	$(CC) $(CFLAGS) hb/src/util.cpp
 
-abuseipdb.o: hb/src/abuseipdb.h hb/src/abuseipdb.cpp
+abuseipdb.o: config.o hb/src/abuseipdb.h hb/src/abuseipdb.cpp
 	$(CC) $(CFLAGS) hb/src/abuseipdb.cpp
 
 .PHONY: install clean

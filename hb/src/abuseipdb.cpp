@@ -19,6 +19,14 @@
 #include <chrono>
 // memcpy
 #include <cstring>
+// Definition for network database operations (NI_MAXHOST, NI_NUMERICHOST)
+#include <netdb.h>
+// Declarations for getting network interface addresses (getifaddrs, freeifaddrs)
+#include <ifaddrs.h>
+// Miscellaneous UNIX symbolic constants, types and functions
+namespace cunistd{
+	#include <unistd.h>
+}
 // cURL
 #include <curl/curl.h>
 // libjsoncpp1
@@ -31,23 +39,8 @@
 // Hostblock namespace
 using namespace hb;
 
-AbuseIPDB::AbuseIPDB(hb::Logger* log)
-: log(log)
-{
-	this->init();
-}
-AbuseIPDB::AbuseIPDB(hb::Logger* log, std::string abuseipdbURL)
-: log(log), abuseipdbURL(abuseipdbURL)
-{
-	this->init();
-}
-AbuseIPDB::AbuseIPDB(hb::Logger* log, std::string abuseipdbURL, std::string abuseipdbKey)
-: log(log), abuseipdbURL(abuseipdbURL), abuseipdbKey(abuseipdbKey)
-{
-	this->init();
-}
-AbuseIPDB::AbuseIPDB(hb::Logger* log, std::string abuseipdbURL, std::string abuseipdbKey, std::string abuseipdbDatetimeFormat)
-: log(log), abuseipdbURL(abuseipdbURL), abuseipdbKey(abuseipdbKey), abuseipdbDatetimeFormat(abuseipdbDatetimeFormat)
+AbuseIPDB::AbuseIPDB(hb::Logger* log, hb::Config* config)
+: log(log), config(config)
 {
 	this->init();
 }
@@ -56,6 +49,61 @@ void AbuseIPDB::init()
 {
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	this->curl = curl_easy_init();
+
+	int s;
+
+	// Get hostname
+	char hname[HOST_NAME_MAX];
+	std::string hostname;
+	s = cunistd::gethostname(hname, HOST_NAME_MAX);
+	if (s != 0) {
+		this->log->warning("Failed to get host name to use for AbuseIPDB report masking! gethostname() returned " + std::to_string(errno) + ": " + std::string(strerror(errno)));
+	} else {
+		hostname = std::string(hname);
+		this->stringsToMask.push_back(hostname);
+		this->log->debug("Hostname to mask: " + hostname);
+		std::size_t pos = hostname.find(".");
+		if (pos != std::string::npos) {
+			// If . is in hostname, then most likely we previously got FQDN, add first part of FQDN also to hostnames vector for masking
+			hostname = hostname.substr(0, pos);
+			this->stringsToMask.push_back(hostname);
+			this->log->debug("Hostname to mask: " + hostname);
+		}
+	}
+
+	// Get IP addresses
+	struct ifaddrs *addrs, *ap;
+	int family;
+	char addr[NI_MAXHOST];
+	std::string ipAddress;
+	s = getifaddrs(&addrs);
+	if (s != 0) {
+		this->log->warning("Failed to get IP addresses to use for AbuseIPDB report masking! getifaddrs() returned " + std::to_string(s) + ": " + std::string(gai_strerror(s)));
+	} else {
+		for (ap = addrs; ap != NULL; ap = ap->ifa_next) {
+			if (ap->ifa_addr == NULL) {
+				continue;
+			}
+			family = ap->ifa_addr->sa_family;
+			if (family == AF_INET || family == AF_INET6) {
+				s = getnameinfo(ap->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), addr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+				if (s != 0) {
+					this->log->warning("Failed to get IP addresses to use for AbuseIPDB report masking! getnameinfo() returned: " + std::to_string(s) + ": " + std::string(gai_strerror(s)));
+				} else {
+					ipAddress = std::string(addr);
+					if (family == AF_INET6) {
+						std::size_t posc = ipAddress.find("%");
+						if (posc != std::string::npos) {
+							ipAddress = ipAddress.substr(0, posc);
+						}
+					}
+					this->stringsToMask.push_back(ipAddress);
+					this->log->debug("IP address to mask: " + ipAddress);
+				}
+			}
+		}
+		freeifaddrs(addrs);
+	}
 }
 
 AbuseIPDB::~AbuseIPDB()
@@ -68,7 +116,6 @@ std::map<std::string, std::string> AbuseIPDB::parseHeaders(std::string& headersR
 	std::map<std::string, std::string> result;
 	std::size_t pos;
 	std::string line, key, value;
-	// for (std::string line; std::getline(headers, line);) {
 	std::istringstream ss(headersRaw);
 	while (std::getline(ss, line)) {
 		pos = line.find_first_of(":");
@@ -89,7 +136,7 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 	this->isError = false;
 
 	// API key is mandatory
-	if (this->abuseipdbKey.size() == 0) {
+	if (this->config->abuseipdbKey.size() == 0) {
 		this->isError = true;
 		this->log->error("Cannot call AbuseIPDB API, API key is not provided!");
 	}
@@ -103,9 +150,9 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 		struct curl_slist *headers=NULL;// Init to NULL is important
 
 		// Prepare URL, header and request parameters
-		std::string url = this->abuseipdbURL;
+		std::string url = this->config->abuseipdbURL;
 		headers = curl_slist_append(headers, "Accept: application/json");
-		headers = curl_slist_append(headers, ("Key: " + this->abuseipdbKey).c_str());
+		headers = curl_slist_append(headers, ("Key: " + this->config->abuseipdbKey).c_str());
 		url += "/api/v2/check";
 		std::string requestParams = "ipAddress=" + address;
 		requestParams += "&maxAgeInDays=7";
@@ -207,7 +254,7 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 
 							// Last activity from this IP address
 							if (obj["data"]["lastReportedAt"].asString().length() > 0) {
-								if (strptime(obj["data"]["lastReportedAt"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+								if (strptime(obj["data"]["lastReportedAt"].asString().c_str(), this->config->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
 									timestamp = timegm(&t);
 									result.lastReportedAt = (unsigned long long int)timestamp;
 								} else {
@@ -222,7 +269,7 @@ AbuseIPDBCheckResult AbuseIPDB::checkAddress(std::string address, bool verbose)
 								AbuseIPDBCheckResultReport report;
 								for (i = 0; i < obj["data"]["reports"].size(); ++i) {
 									// Date&time of report
-									if (strptime(obj["data"]["reports"][i]["reportedAt"].asString().c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+									if (strptime(obj["data"]["reports"][i]["reportedAt"].asString().c_str(), this->config->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
 										timestamp = timegm(&t);
 										report.reportedAt = (unsigned long long int)timestamp;
 									} else {
@@ -281,7 +328,7 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 	}
 
 	// API key is mandatory
-	if (this->abuseipdbKey.size() == 0) {
+	if (this->config->abuseipdbKey.size() == 0) {
 		this->isError = true;
 		this->log->error("Cannot call AbuseIPDB API, API key is not provided!");
 		return false;
@@ -297,6 +344,19 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 	}
 
 	if (this->isError == false) {
+		// Mask part of comment
+		if (this->config->abuseipdbReportMask) {
+			std::size_t pos;
+			// Mask all IP address and hostname occurrences
+			for (auto it = this->stringsToMask.begin(); it != this->stringsToMask.end(); ++it) {
+				pos = comment.find(*it);
+				while (pos != std::string::npos) {
+					comment = comment.replace(pos, (*it).length(), std::string((*it).length(), '*'));
+					pos = comment.find(*it, pos);
+				}
+			}
+		}
+
 		// Init some memory where JSON response will be stored
 		CurlData curlRespData;
 		curlRespData.memory = (char*)malloc(1); // Will be extended with realloc later
@@ -308,9 +368,9 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 		struct curl_slist *headers=NULL;// Init to NULL is important
 
 		// Prepare URL, header and request parameters
-		std::string url = this->abuseipdbURL;
+		std::string url = this->config->abuseipdbURL;
 		headers = curl_slist_append(headers, "Accept: application/json");
-		headers = curl_slist_append(headers, ("Key: " + this->abuseipdbKey).c_str());
+		headers = curl_slist_append(headers, ("Key: " + this->config->abuseipdbKey).c_str());
 		url += "/api/v2/report";
 		std::string requestParams = "categories=";
 		std::vector<unsigned int>::iterator cit;
@@ -414,7 +474,7 @@ bool AbuseIPDB::reportAddress(std::string address, std::string comment, std::vec
 						for (const auto & it : respHeaders) {
 							if (hb::Util::toLower(it.first) == "retry-after") {
 								this->nextReportTimestamp = currentTime + std::strtoull(it.second.c_str(), NULL, 10);
-								this->log->warning("Reporting to AbuseIPDB disabled until: " + Util::formatDateTime((const time_t)this->nextReportTimestamp, this->abuseipdbDatetimeFormat.c_str()));
+								this->log->warning("Reporting to AbuseIPDB disabled until: " + Util::formatDateTime((const time_t)this->nextReportTimestamp, this->config->abuseipdbDatetimeFormat.c_str()));
 								break;
 							}
 						}
@@ -466,7 +526,7 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 	this->isError = false;
 
 	// API key is mandatory
-	if (this->abuseipdbKey.size() == 0) {
+	if (this->config->abuseipdbKey.size() == 0) {
 		this->isError = true;
 		this->log->error("Cannot call AbuseIPDB API, API key is not provided!");
 	}
@@ -480,9 +540,9 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 		struct curl_slist *headers=NULL;// Init to NULL is important
 
 		// Prepare URL, header and request parameters
-		std::string url = this->abuseipdbURL;
+		std::string url = this->config->abuseipdbURL;
 		headers = curl_slist_append(headers, "Accept: application/json");
-		headers = curl_slist_append(headers, ("Key: " + this->abuseipdbKey).c_str());
+		headers = curl_slist_append(headers, ("Key: " + this->config->abuseipdbKey).c_str());
 		url += "/api/v2/blacklist";
 		std::string requestParams = "confidenceMinimum=" + std::to_string(confidenceMinimum);
 
@@ -557,7 +617,7 @@ bool AbuseIPDB::getBlacklist(unsigned int confidenceMinimum, unsigned long long 
 							if (obj["meta"]["generatedAt"].asString().length() > 0) {
 								std::string generatedAtStr = obj["meta"]["generatedAt"].asString();
 								this->log->debug("Blacklist generation time (raw): " + generatedAtStr);
-								if (strptime(generatedAtStr.c_str(), this->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
+								if (strptime(generatedAtStr.c_str(), this->config->abuseipdbDatetimeFormat.c_str(), &t) != 0) {
 									timestamp = timegm(&t);
 									// Workaround for AbuseIPDB provided timezone in format +01:00
 									if ((generatedAtStr.substr(generatedAtStr.length() - 6, 1) == "+" || generatedAtStr.substr(generatedAtStr.length() - 6, 1) == "-") && generatedAtStr.substr(generatedAtStr.length() - 3, 1) == ":") {

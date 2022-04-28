@@ -23,16 +23,6 @@ namespace hb{
 class LogParser{
 	private:
 
-		/*
-		 * Hostname
-		 */
-		std::string hostname = "";
-
-		/*
-		 * IP address
-		 */
-		std::vector<std::string> ipAddresses;
-
 	public:
 
 		/*
