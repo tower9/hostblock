@@ -189,7 +189,7 @@ bool Data::loadData()
 		// First position is record type
 		recordType = line[0];
 
-		if (recordType == 'd' && (line.length() == 92 || line.length() == 112 || line.length() == 113)) {// Data about suspicious address
+		if (recordType == 'd') {// Data about suspicious address
 
 			// IP address
 			address = hb::Util::ltrim(line.substr(1, 39));
@@ -290,9 +290,9 @@ bool Data::loadData()
 			abuseIPDBData.abuseConfidenceScore = std::strtoul(hb::Util::ltrim(line.substr(50, 3)).c_str(), NULL, 10);
 
 			// IP version
-			if (line.length() == 55) {
-				if (line[113] == '4') abuseIPDBData.version = 4;
-				else if (line[113] == '6') abuseIPDBData.version = 6;
+			if (line.length() == 54) {
+				if (line[53] == '4') abuseIPDBData.version = 4;
+				else if (line[53] == '6') abuseIPDBData.version = 6;
 				else abuseIPDBData.version = hb::Util::ipVersion(address);
 			} else {
 				abuseIPDBData.version = hb::Util::ipVersion(address);
