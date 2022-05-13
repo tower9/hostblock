@@ -2277,6 +2277,7 @@ void Data::printStats()
 		hb::SuspiciosAddressStatType address;
 		std::vector<hb::SuspiciosAddressStatType> last5;
 		std::vector<hb::SuspiciosAddressStatType>::iterator l5it;
+		unsigned int addressMaxLen = 7;
 		unsigned int lastActivityMaxLen = 13;
 		unsigned int activityScoreMaxLen = 5;
 		unsigned int activityCountMaxLen = 5;
@@ -2407,8 +2408,10 @@ void Data::printStats()
 		tmp = Util::formatDateTime((const time_t)top5[0].lastActivity, this->config->dateTimeFormat.c_str()).length();
 		if (tmp > lastActivityMaxLen) lastActivityMaxLen = tmp;
 		for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
+			tmp = t5it->address.length();
+			if (tmp > addressMaxLen) addressMaxLen = tmp;
 			tmp = std::to_string(t5it->activityCount).length();
-		if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
+			if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 			tmp = std::to_string(t5it->activityScore).length();
 			if (tmp > activityScoreMaxLen) activityScoreMaxLen = tmp;
 			tmp = std::to_string(t5it->refusedCount).length();
@@ -2425,7 +2428,7 @@ void Data::printStats()
 		// Output top 5 addresses by activity
 		std::cout << std::endl << "Top 5 most active addresses:" << std::endl;
 		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
-		std::cout << "     Address     |";
+		std::cout << ' ' << Data::centerString("Address", addressMaxLen) << " |";
 		std::cout << ' ' << Data::centerString("Count", activityCountMaxLen) << " |";
 		std::cout << ' ' << Data::centerString("Score", activityScoreMaxLen) << " |";
 		std::cout << ' ' << Data::centerString("Refused", refusedCountMaxLen) << " |";
@@ -2434,7 +2437,7 @@ void Data::printStats()
 		std::cout << std::endl;
 		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		for (t5it = top5.begin(); t5it != top5.end(); ++t5it) {
-			std::cout << " " << std::left << std::setw(15) << t5it->address;
+			std::cout << " " << std::left << std::setw(addressMaxLen) << t5it->address;
 			std::cout << " | " << Data::centerString(std::to_string(t5it->activityCount), activityCountMaxLen);
 			std::cout << " | " << Data::centerString(std::to_string(t5it->activityScore), activityScoreMaxLen);
 			std::cout << " | " << Data::centerString(std::to_string(t5it->refusedCount), refusedCountMaxLen);
@@ -2461,11 +2464,14 @@ void Data::printStats()
 		}
 
 		// Recalculate padding
+		addressMaxLen = 7;
 		activityCountMaxLen = 5;
 		activityScoreMaxLen = 5;
 		refusedCountMaxLen = 7;
 		statusMaxLen = 7;
 		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
+			tmp = l5it->address.length();
+			if (tmp > addressMaxLen) addressMaxLen = tmp;
 			tmp = std::to_string(l5it->activityCount).length();
 			if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 			tmp = std::to_string(l5it->activityScore).length();
@@ -2484,7 +2490,7 @@ void Data::printStats()
 		// Output 5 addresses by last activity
 		std::cout << std::endl << "Last activity:" << std::endl;
 		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
-		std::cout << "     Address     |";
+		std::cout << ' ' << Data::centerString("Address", addressMaxLen) << " |";
 		std::cout << ' ' << Data::centerString("Count", activityCountMaxLen) << " |";
 		std::cout << ' ' << Data::centerString("Score", activityScoreMaxLen) << " |";
 		std::cout << ' ' << Data::centerString("Refused", refusedCountMaxLen) << " |";
@@ -2493,7 +2499,7 @@ void Data::printStats()
 		std::cout << std::endl;
 		std::cout << "--------------------------------" << std::string(activityCountMaxLen,'-') << std::string(activityScoreMaxLen,'-') << std::string(refusedCountMaxLen,'-') << std::string(lastActivityMaxLen,'-') << std::string(statusMaxLen,'-') << std::endl;
 		for (l5it = last5.begin(); l5it != last5.end(); ++l5it) {
-			std::cout << " " << std::left << std::setw(15) << l5it->address;
+			std::cout << " " << std::left << std::setw(addressMaxLen) << l5it->address;
 			std::cout << " | " << Data::centerString(std::to_string(l5it->activityCount), activityCountMaxLen);
 			std::cout << " | " << Data::centerString(std::to_string(l5it->activityScore), activityScoreMaxLen);
 			std::cout << " | " << Data::centerString(std::to_string(l5it->refusedCount), refusedCountMaxLen);
@@ -2527,6 +2533,7 @@ void Data::printBlocked(bool count, bool time, bool all)
 {
 	if (this->suspiciousAddresses.size() > 0) {
 		std::map<std::string, SuspiciosAddressType>::iterator sait;
+		unsigned int addressMaxLen = 7;
 		unsigned int lastActivityMaxLen = 13;
 		unsigned int activityCountMaxLen = 1;
 		unsigned int activityScoreMaxLen = 1;
@@ -2541,6 +2548,8 @@ void Data::printBlocked(bool count, bool time, bool all)
 				tmp = Util::formatDateTime((const time_t)sait->second.lastActivity, this->config->dateTimeFormat.c_str()).length();
 				if (tmp > lastActivityMaxLen) lastActivityMaxLen = tmp;
 			}
+			tmp = sait->first.length();
+			if (tmp > addressMaxLen) addressMaxLen = tmp;
 			tmp = std::to_string(sait->second.activityCount).length();
 			if (tmp > activityCountMaxLen) activityCountMaxLen = tmp;
 			tmp = std::to_string(sait->second.activityScore).length();
@@ -2558,7 +2567,7 @@ void Data::printBlocked(bool count, bool time, bool all)
 				|| (this->config->keepBlockedScoreMultiplier > 0 && currentTime < (sait->second.lastActivity + sait->second.activityScore) - (this->config->activityScoreToBlock * this->config->keepBlockedScoreMultiplier))
 				|| (this->config->keepBlockedScoreMultiplier == 0 && sait->second.activityScore > this->config->activityScoreToBlock)
 				|| all) {
-				std::cout << std::left << std::setw(15) << sait->first;
+				std::cout << std::left << std::setw(addressMaxLen) << sait->first;
 				if (count) {
 					std::cout << ' ' << std::left << std::setw(activityCountMaxLen) << sait->second.activityCount;
 					std::cout << ' ' << std::left << std::setw(activityScoreMaxLen) << sait->second.activityScore;
