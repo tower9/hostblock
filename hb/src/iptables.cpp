@@ -284,7 +284,7 @@ void Iptables::listRules(std::string chain, std::vector<std::string>& rules, int
 /*
  * Exec iptables any command with custom options
  */
-bool Iptables::command(std::string options, int version)
+int Iptables::command(std::string options, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -295,20 +295,12 @@ bool Iptables::command(std::string options, int version)
 	std::string cmd = "ip";
 	if (version == 6) cmd += "6";
 	cmd += "tables " + options;
-	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
 	}
 
 	// Exec command
-	response = std::system(cmd.c_str());
-
-	// Check response
-	if (response == 0) {
-		return true;
-	} else {
-		throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
-	}
+	return std::system(cmd.c_str());
 }
 
 /*

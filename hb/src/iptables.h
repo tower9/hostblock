@@ -53,7 +53,7 @@ class Iptables{
 		/*
 		 * Exec iptables any command with custom options
 		 */
-		bool command(std::string options, int version = 4);
+		int command(std::string options, int version = 4);
 
 		/*
 		 * Exec iptables any command with custom options and return stdout in map each line as entry in map
