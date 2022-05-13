@@ -221,7 +221,7 @@ bool Data::loadData()
 			}
 
 			// Timestamp of last report to 3rd party
-			if (line.length() == 112) {
+			if (line.length() >= 112) {
 				data.lastReported = std::strtoull(hb::Util::ltrim(line.substr(92, 20)).c_str(), NULL, 10);
 			}
 
@@ -2031,6 +2031,8 @@ bool Data::updateIptables(std::string address)
 			version = this->suspiciousAddresses[address].version;
 		} else if (this->abuseIPDBBlacklist.count(address) > 0) {
 			version = this->abuseIPDBBlacklist[address].version;
+		} else {
+			version = hb::Util::ipVersion(address);
 		}
 	}
 	if (createRule == true) {
