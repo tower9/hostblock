@@ -225,7 +225,7 @@ void blacklistSync(hb::Logger* log, hb::Config* config, hb::Data* data, hb::Ipta
 			data->removeAbuseIPDBAddresses(&forRemoval);
 			// Also remove iptables rules
 			// iptables->remove("INPUT", &forRemoval);// Need rule start & end parsed from config
-			for (std::vector<std::string>::iterator itr = forRemoval.begin(); itr != forRemoval.end(); ++itr) {
+			for (auto itr = forRemoval.begin(); itr != forRemoval.end(); ++itr) {
 				data->updateIptables(*itr);
 			}
 		}
@@ -238,6 +238,7 @@ void blacklistSync(hb::Logger* log, hb::Config* config, hb::Data* data, hb::Ipta
 				record.totalReports = itb->second.totalReports;
 				record.abuseConfidenceScore = itb->second.abuseConfidenceScore;
 				record.iptableRule = false;
+				record.version = hb::Util::ipVersion(itb->first);
 				data->abuseIPDBBlacklist.insert(std::pair<std::string,hb::AbuseIPDBBlacklistedAddressType>(itb->first, record));
 			}
 		}
@@ -552,14 +553,16 @@ int main(int argc, char *argv[])
 				exit(1);
 			} else {
 				// Check if there is iptables rule for this address
-				std::map<unsigned int, std::string> rules = iptables.listRules("INPUT");
+				std::vector<std::string> rules;
+				iptables.listRules("INPUT", rules, 4);
+				iptables.listRules("INPUT", rules, 6);
 				try {
 
 					// Regex to search for IP address
-					std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+					std::regex ipSearchPattern(hb::kIpSearchPattern);
 
 					// Loop through all rules
-					std::map<unsigned int, std::string>::iterator rit;
+					std::vector<std::string>::iterator rit;
 					std::size_t checkStart = 0, checkEnd = 0;
 					std::smatch regexSearchResults;
 					std::string regexSearchResult;
@@ -570,11 +573,11 @@ int main(int argc, char *argv[])
 						ruleStart = config.iptablesRule.substr(0, posip);
 						ruleEnd = config.iptablesRule.substr(posip + 2);
 					}
-					for(rit=rules.begin(); rit!=rules.end(); ++rit){
-						checkStart = rit->second.find(ruleStart);
-						checkEnd = rit->second.find(ruleEnd);
+					for (rit = rules.begin(); rit != rules.end(); ++rit) {
+						checkStart = (*rit).find(ruleStart);
+						checkEnd = (*rit).find(ruleEnd);
 						if (checkStart != std::string::npos && checkEnd != std::string::npos) {
-							if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
+							if (std::regex_search((*rit), regexSearchResults, ipSearchPattern)) {
 								if (regexSearchResults.size() == 1) {
 									regexSearchResult = regexSearchResults[0].str();
 									if (regexSearchResult == ipAddress) {
@@ -744,11 +747,11 @@ int main(int argc, char *argv[])
 				ruleStart = config.iptablesRule.substr(0, posip);
 				ruleEnd = config.iptablesRule.substr(posip + 2);
 			}
-			std::map<unsigned int, std::string> rules;
-			std::map<unsigned int, std::string>::iterator rit;
+			std::vector<std::string> rules;
+			std::vector<std::string>::iterator rit;
 			std::size_t checkStart = 0, checkEnd = 0;
 			std::smatch regexSearchResults;
-			std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+			std::regex ipSearchPattern(hb::kIpSearchPattern);
 			std::string regexSearchResult;
 			std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
 
@@ -816,17 +819,19 @@ int main(int argc, char *argv[])
 							log.warning("iptables rule changed in configuration, updating iptables...");
 
 							// Get all current rules for INPUT chain
-							rules = iptables.listRules("INPUT");
+							rules.clear();
+							iptables.listRules("INPUT", rules, 4);
+							iptables.listRules("INPUT", rules, 6);
 
 							// Loop all rules
-							for (rit=rules.begin(); rit!=rules.end(); ++rit) {
-								checkStart = rit->second.find(ruleStart);
-								checkEnd = rit->second.find(ruleEnd);
-								checkEnd = rit->second.find(ruleEnd);
+							for (rit = rules.begin(); rit != rules.end(); ++rit) {
+								checkStart = (*rit).find(ruleStart);
+								checkEnd = (*rit).find(ruleEnd);
+								checkEnd = (*rit).find(ruleEnd);
 								if (checkStart != std::string::npos && checkEnd != std::string::npos) {
 
 									// Find address in rule
-									if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
+									if (std::regex_search((*rit), regexSearchResults, ipSearchPattern)) {
 										if (regexSearchResults.size() == 1) {
 											regexSearchResult = regexSearchResults[0].str();
 
@@ -849,7 +854,7 @@ int main(int argc, char *argv[])
 												if (config.iptablesAppend) {
 													res = iptables.append("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2));
 												} else {
-													res = iptables.insert("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2), 1);
+													res = iptables.insert("INPUT", config.iptablesRule.substr(0, posip) + regexSearchResult + config.iptablesRule.substr(posip + 2));
 												}
 												if (res == false) {
 													log.error("Trying to update rule for address " + regexSearchResult + " based on updated configuraiton, but failed to add rule based on new configuration!");

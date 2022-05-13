@@ -12,7 +12,10 @@
 
 namespace hb{
 
-static const std::string kHostblockVersion = "1.0.3";
+static const std::string kHostblockVersion = "1.0.4";
+
+static const std::string kIpSearchPattern = "(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:)|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::|(?:(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))";
+static const std::string kPortSearchPattern = "(\\d{1,5})";
 
 enum Report {
 	False,
@@ -25,7 +28,7 @@ enum Report {
  */
 struct Pattern {
 	std::string patternString = "";// Regex as string
-	bool portSearch = false;// Whether should search for port in pattern
+	int portSearch = -1;// Port position in pattern (before or after IP address, or port not included in pattern)
 	std::regex pattern;// Regex to match
 	unsigned int score = 1;// Score if pattern matched
 	Report abuseipdbReport = Report::NotSet;
@@ -70,6 +73,7 @@ struct SuspiciosAddressType{
 	bool blacklisted = false;
 	bool iptableRule = false;
 	unsigned long long int lastReported = 0;
+	int version = -1;
 };
 struct SuspiciosAddressStatType{
 	unsigned long long int lastActivity = 0;
@@ -86,6 +90,7 @@ struct AbuseIPDBBlacklistedAddressType{
 	unsigned int totalReports = 0;
 	unsigned int abuseConfidenceScore = 0;
 	bool iptableRule = false;
+	int version = -1;
 };
 
 /*
@@ -172,6 +177,15 @@ class Util{
 		 */
 		static std::string regexErrorCode2Text(std::regex_constants::error_type code);
 
+		/*
+		 * Get IP address version
+		 */
+		static int ipVersion(const std::string ipAddress);
+
+		/*
+		 * Parse IPv6 address and return in presentation form
+		 */
+		static std::string ip6Format(std::string ipAddress);
 };
 
 }

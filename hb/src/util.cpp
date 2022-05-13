@@ -6,6 +6,8 @@
 #include <string>
 // std::locale, std::tolower
 #include <locale>
+// inet_pton, inet_ntop
+#include <arpa/inet.h>
 // Header
 #include "util.h"
 
@@ -107,4 +109,25 @@ std::string Util::regexErrorCode2Text(std::regex_constants::error_type code)
 		default:
 			return "Unknown regex error!";
 	}
+}
+
+int Util::ipVersion(const std::string ipAddress)
+{
+	unsigned char buf[sizeof(struct in6_addr)];
+	if (inet_pton(AF_INET, ipAddress.c_str(), buf)) {
+		return 4;
+	} else if (inet_pton(AF_INET6, ipAddress.c_str(), buf)) {
+		return 6;
+	}
+	return -1;
+}
+
+std::string Util::ip6Format(const std::string ipAddress)
+{
+	unsigned char buf[sizeof(struct in6_addr)];
+	char str[INET6_ADDRSTRLEN];
+	if (inet_pton(AF_INET6, ipAddress.c_str(), buf)) {
+		inet_ntop(AF_INET6, buf, str, INET6_ADDRSTRLEN);
+	}
+	return std::string(str);
 }

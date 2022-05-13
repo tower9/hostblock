@@ -112,27 +112,31 @@ void LogParser::checkFiles()
 							 * http://www.cplusplus.com/reference/regex/ECMAScript/#groups
 							 * Match results:
 							 *   index 0 - whole match
-							 *   index 1 - IP address
-							 *   index 2 - port (optional)
+							 *   index 1, 2 - IP address, port (optionally)
 							 */
 							if (std::regex_match(line, patternMatchResults, itlp->pattern)) {
 								if (patternMatchResults.size() > 1) {
 
-									// IP address
-									ipAddress = std::string(patternMatchResults[1]);
-									this->log->debug("Suspicious acitivity pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
-									// TODO check that this result is actually an IP address
-
-									// Port
-									if (itlp->portSearch) {
-										if (patternMatchResults.size() > 2) {
+									// Handle address and port order in results
+									if (itlp->portSearch != -1 && patternMatchResults.size() > 2) {
+										if (itlp->portSearch == 1) {
+											// Port is after IP address
+											ipAddress = std::string(patternMatchResults[1]);
 											port = std::string(patternMatchResults[2]);
-											// TODO check that this regex result is actually a port (0 - 65535)
 										} else {
-											this->log->warning("Port search is specified in pattern, but was not found in matched line!");
-											port = "";
+											// Port is before IP address
+											ipAddress = std::string(patternMatchResults[2]);
+											port = std::string(patternMatchResults[1]);
 										}
+									} else {
+										ipAddress = std::string(patternMatchResults[1]);
 									}
+
+									if (ipAddress.find(':') != std::string::npos) {
+										ipAddress = hb::Util::ip6Format(ipAddress);
+									}
+
+									this->log->debug("Suspicious acitivity pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
 
 									// Update address data
 									this->data->saveActivity(ipAddress, itlp->score, 1, 0);
@@ -267,27 +271,31 @@ void LogParser::checkFiles()
 							 * http://www.cplusplus.com/reference/regex/ECMAScript/#groups
 							 * Match results:
 							 *   index 0 - whole match
-							 *   index 1 - IP address
-							 *   index 2 - port (optional)
+							 *   index 1, 2 - IP address, port (optional)
 							 */
 							if (std::regex_match(line, patternMatchResults, itlp->pattern)) {
 								if (patternMatchResults.size() > 1) {
 
-									// IP address
-									ipAddress = std::string(patternMatchResults[1]);
-									this->log->debug("Blocked access pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
-									// TODO check that this result is actually an IP address
-
-									// Port
-									if (itlp->portSearch) {
-										if (patternMatchResults.size() > 2) {
+									// Handle address and port order in results
+									if (itlp->portSearch != -1 && patternMatchResults.size() > 2) {
+										if (itlp->portSearch == 1) {
+											// Port is after IP address
+											ipAddress = std::string(patternMatchResults[1]);
 											port = std::string(patternMatchResults[2]);
-											// TODO check that this regex result is actually a port (0 - 65535)
 										} else {
-											this->log->warning("Port search is specified in pattern, but was not found in matched line!");
-											port = "";
+											// Port is before IP address
+											ipAddress = std::string(patternMatchResults[2]);
+											port = std::string(patternMatchResults[1]);
 										}
+									} else {
+										ipAddress = std::string(patternMatchResults[1]);
 									}
+
+									if (ipAddress.find(':') != std::string::npos) {
+										ipAddress = hb::Util::ip6Format(ipAddress);
+									}
+
+									this->log->debug("Blocked access pattern match! Address: " + ipAddress + " Score: " + std::to_string(itlp->score));
 
 									// Update address data
 									if (this->data->suspiciousAddresses.count(ipAddress) > 0 || this->data->abuseIPDBBlacklist.count(ipAddress) > 0) {

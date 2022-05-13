@@ -37,7 +37,7 @@ Iptables::Iptables()
 /*
  * Create new chain
  */
-bool Iptables::newChain(std::string chain)
+bool Iptables::newChain(std::string chain, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -45,7 +45,9 @@ bool Iptables::newChain(std::string chain)
 	}
 
 	// Prepare command
-	std::string cmd = "iptables -N " + chain;
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables -N " + chain;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -65,7 +67,7 @@ bool Iptables::newChain(std::string chain)
 /*
  * Append rule to the end of the chain
  */
-bool Iptables::append(std::string chain, std::string rule)
+bool Iptables::append(std::string chain, std::string rule, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -73,7 +75,9 @@ bool Iptables::append(std::string chain, std::string rule)
 	}
 
 	// Prepare command
-	std::string cmd = "iptables -A " + chain + " " + rule;
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables -A " + chain + " " + rule;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -93,7 +97,7 @@ bool Iptables::append(std::string chain, std::string rule)
 /*
  * Append multiple rules to the end of the chain
  */
-bool Iptables::append(std::string chain, std::vector<std::string>* rules)
+bool Iptables::append(std::string chain, std::vector<std::string>* rules, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -107,7 +111,9 @@ bool Iptables::append(std::string chain, std::vector<std::string>* rules)
 
 	std::string cmd;
 	for (std::vector<std::string>::iterator it = rules->begin(); it != rules->end(); ++it) {
-		cmd = "iptables -A " + chain + " " + *it;
+		cmd = "ip";
+		if (version == 6) cmd += "6";
+		cmd += "tables -A " + chain + " " + *it;
 		response = std::system(cmd.c_str());
 		if (response != 0) {
 			throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
@@ -120,7 +126,7 @@ bool Iptables::append(std::string chain, std::vector<std::string>* rules)
 /*
  * Insert rule to the chain at specified position
  */
-bool Iptables::insert(std::string chain, std::string rule, int pos)
+bool Iptables::insert(std::string chain, std::string rule, int version, int pos)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -128,7 +134,9 @@ bool Iptables::insert(std::string chain, std::string rule, int pos)
 	}
 
 	// Prepare command
-	std::string cmd = "iptables -I " + chain + " " + std::to_string(pos) + " " + rule;
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables -I " + chain + " " + std::to_string(pos) + " " + rule;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -146,9 +154,9 @@ bool Iptables::insert(std::string chain, std::string rule, int pos)
 }
 
 /*
- * Append multiple rules at specified position in chain
+ * Insert multiple rules at specified position in chain
  */
-bool Iptables::insert(std::string chain, std::vector<std::string>* rules, int pos)
+bool Iptables::insert(std::string chain, std::vector<std::string>* rules, int version, int pos)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -162,7 +170,9 @@ bool Iptables::insert(std::string chain, std::vector<std::string>* rules, int po
 
 	std::string cmd;
 	for (std::vector<std::string>::iterator it = rules->begin(); it != rules->end(); ++it) {
-		cmd = "iptables -I " + chain + " " + std::to_string(pos) + " " + *it;
+		cmd = "ip";
+		if (version == 6) cmd += "6";
+		cmd += "tables -I " + chain + " " + std::to_string(pos) + " " + *it;
 		response = std::system(cmd.c_str());
 		if (response != 0) {
 			throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
@@ -175,7 +185,7 @@ bool Iptables::insert(std::string chain, std::vector<std::string>* rules, int po
 /*
  * Delete rule from chain
  */
-bool Iptables::remove(std::string chain, std::string rule)
+bool Iptables::remove(std::string chain, std::string rule, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -183,7 +193,9 @@ bool Iptables::remove(std::string chain, std::string rule)
 	}
 
 	// Prepare command
-	std::string cmd = "iptables -D " + chain + " " + rule;
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables -D " + chain + " " + rule;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -203,7 +215,7 @@ bool Iptables::remove(std::string chain, std::string rule)
 /*
  * Delete rules from chain
  */
-bool Iptables::remove(std::string chain, std::vector<std::string>* rules)
+bool Iptables::remove(std::string chain, std::vector<std::string>* rules, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -217,7 +229,9 @@ bool Iptables::remove(std::string chain, std::vector<std::string>* rules)
 
 	std::string cmd;
 	for (std::vector<std::string>::iterator it = rules->begin(); it != rules->end(); ++it) {
-		cmd = "iptables -D " + chain + " " + *it;
+		cmd = "ip";
+		if (version == 6) cmd += "6";
+		cmd += "tables -D " + chain + " " + *it;
 		response = std::system(cmd.c_str());
 		if (response != 0) {
 			throw std::runtime_error("Failed to execute iptables, returned code: " + std::to_string(response));
@@ -230,17 +244,17 @@ bool Iptables::remove(std::string chain, std::vector<std::string>* rules)
 /*
  * List chain rules
  */
-std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
+void Iptables::listRules(std::string chain, std::vector<std::string>& rules, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
 		throw std::runtime_error("Error, root access required to work with iptables!");
 	}
 
-	std::map<unsigned int, std::string> rules;
-	unsigned int ruleInd = 0;
-	rules.clear();
-	std::string cmd = "iptables --list-rules " + chain;
+	// Command
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables --list-rules " + chain;
 
 	// Open pipe stream
 	FILE* pipe = popen(cmd.c_str(), "r");
@@ -262,16 +276,15 @@ std::map<unsigned int, std::string> Iptables::listRules(std::string chain)
 	std::istringstream iss(result);
 	std::string line;
 	for (line = ""; std::getline(iss, line);) {
-		rules.insert(std::pair<unsigned int, std::string>(ruleInd, line));
-		++ruleInd;
+		rules.push_back(line);
 	}
-	return rules;
+	return;
 }
 
 /*
  * Exec iptables any command with custom options
  */
-bool Iptables::command(std::string options)
+bool Iptables::command(std::string options, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -279,7 +292,9 @@ bool Iptables::command(std::string options)
 	}
 
 	// Prepare command
-	std::string cmd = "iptables " + options;
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables " + options;
 	int response = 0;
 	if (!std::system(NULL)) {
 		throw std::runtime_error("Command processor not available.");
@@ -299,7 +314,7 @@ bool Iptables::command(std::string options)
 /*
  * Exec iptables any command with custom options and return stdout in map each line as entry in map
  */
-std::map<unsigned int, std::string> Iptables::custom(std::string options)
+std::map<unsigned int, std::string> Iptables::custom(std::string options, int version)
 {
 	// Need root access to work with iptables
 	if (cunistd::getuid() != 0) {
@@ -309,7 +324,9 @@ std::map<unsigned int, std::string> Iptables::custom(std::string options)
 	std::map<unsigned int, std::string> stdoutResult;
 	unsigned int stdoutResultInd = 0;
 	stdoutResult.clear();
-	std::string cmd = "iptables " + options;
+	std::string cmd = "ip";
+	if (version == 6) cmd += "6";
+	cmd += "tables " + options;
 
 	// Open pipe stream
 	FILE* pipe = popen(cmd.c_str(), "r");

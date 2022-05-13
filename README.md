@@ -44,6 +44,9 @@ To count refused connection count create new iptables chain and adjust hostblock
 $ sudo iptables -N HB_LOG_AND_DROP
 $ sudo iptables -A HB_LOG_AND_DROP -j LOG --log-prefix "IPTABLES-DROPPED: " --log-level 4
 $ sudo iptables -A HB_LOG_AND_DROP -j DROP
+$ sudo ip6tables -N HB_LOG_AND_DROP
+$ sudo ip6tables -A HB_LOG_AND_DROP -j LOG --log-prefix "IPTABLES-DROPPED: " --log-level 4
+$ sudo ip6tables -A HB_LOG_AND_DROP -j DROP
 ```
 
 Before first hostblock start consider truncating/rotating/archiving log files so that hostblock starts monitoring log files from scratch. Otherwise it will take a while to start, depending on log file size can even take couple of hours. Also if historical data will be processed, last activity of all these addresses will be with date of hostblock first start and a lot of addresses can be blacklisted although they might no longer be malicious.

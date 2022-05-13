@@ -2,6 +2,9 @@
  * Class to work with suspicious activity and log file data. Read further for
  * small details about how data file looks like.
  *
+ * What started as a simple file is now turning into a database. TODO Consider
+ * switch to sqlite.
+ *
  * First position means type of record, almost all data is in fixed position
  * left padded with space to fill specified len. As exception to fixed position
  * is file_path. If filename will change, old one will be marked for removal and
@@ -11,14 +14,14 @@
  * (to get rid of them eventually).
  *
  * Data about suspicious activity from address:
- * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted|lastreport
+ * d|addr|lastact|actscore|actcount|refcount|whitelisted|blacklisted|lastreport|version
  *
  * Log file bookmark to check for log rotation and for seekg to read only new
  * lines:
  * b|bookmark|size|file_path
  *
  * Data about IP address received from AbuseIPDB (API blacklist endpoint)
- * a|addr|repcount|confscore
+ * a|addr|repcount|confscore|version
  *
  * Status of data synchronization with AbuseIPDB (API blacklist endpoint)
  * s|synctime|gentime
@@ -26,8 +29,7 @@
  * Marked for removal (any type of line):
  * r
  *
- * addr        - IPv4 address, len 39, current implementation for IPv4, but len
- *               for easier IPv6 implementation in future
+ * addr        - IP address, len 39
  * lastact     - unix timestamp of last activity, len 20
  * actscore    - suspicious activity score, len 10
  * actcount    - suspicious activity count (pattern match count), len 10
@@ -38,6 +40,7 @@
  * blacklisted - flag if this IP address is blacklisted (manual list) and must
  *               be blocked allways, y/n, len 1
  * lastreport  - unix timestamp of last report to AbuseIPDB, len 20
+ * version     - IP protocol version, i.e. IPv4 or IPv6
  *
  * bookmark    - bookmark with how far this file is already parsed, len 20
  * size        - size of file when it was last read, len 20
@@ -186,7 +189,7 @@ bool Data::loadData()
 		// First position is record type
 		recordType = line[0];
 
-		if (recordType == 'd' && (line.length() == 92 || line.length() == 112)) {// Data about suspicious address
+		if (recordType == 'd' && (line.length() == 92 || line.length() == 112 || line.length() == 113)) {// Data about suspicious address
 
 			// IP address
 			address = hb::Util::ltrim(line.substr(1, 39));
@@ -218,10 +221,17 @@ bool Data::loadData()
 			}
 
 			// Timestamp of last report to 3rd party
-			// TODO, introduce data file version to handle upgrade
 			if (line.length() == 112) {
 				data.lastReported = std::strtoull(hb::Util::ltrim(line.substr(92, 20)).c_str(), NULL, 10);
+			}
+
+			// IP version
+			if (line.length() == 113) {
+				if (line[112] == '4') data.version = 4;
+				else if (line[112] == '6') data.version = 6;
+				else data.version = hb::Util::ipVersion(address);
 			} else {
+				data.version = hb::Util::ipVersion(address);
 				needUpgrade = true;
 			}
 
@@ -278,6 +288,16 @@ bool Data::loadData()
 
 			// AbuseIPDB confidence score
 			abuseIPDBData.abuseConfidenceScore = std::strtoul(hb::Util::ltrim(line.substr(50, 3)).c_str(), NULL, 10);
+
+			// IP version
+			if (line.length() == 55) {
+				if (line[113] == '4') abuseIPDBData.version = 4;
+				else if (line[113] == '6') abuseIPDBData.version = 6;
+				else abuseIPDBData.version = hb::Util::ipVersion(address);
+			} else {
+				abuseIPDBData.version = hb::Util::ipVersion(address);
+				needUpgrade = true;
+			}
 
 			// When data is loaded from datafile we do not have yet info whether it has rule in iptables, this will be changed to true later if needed
 			abuseIPDBData.iptableRule = false;
@@ -430,18 +450,19 @@ bool Data::saveData()
 
 	// Loop through all addresses
 	std::map<std::string, SuspiciosAddressType>::iterator it;
-	for (it = this->suspiciousAddresses.begin(); it!=this->suspiciousAddresses.end(); ++it) {
+	for (it = this->suspiciousAddresses.begin(); it != this->suspiciousAddresses.end(); ++it) {
 		f << 'd';
 		f << std::right << std::setw(39) << it->first;// Address, left padded with spaces
 		f << std::right << std::setw(20) << it->second.lastActivity;// Last activity, left padded with spaces
 		f << std::right << std::setw(10) << it->second.activityScore;// Current activity score, left padded with spaces
 		f << std::right << std::setw(10) << it->second.activityCount;// Total activity count, left padded with spaces
 		f << std::right << std::setw(10) << it->second.refusedCount;// Total refused connection count, left padded with spaces
-		if(it->second.whitelisted == true) f << 'y';
+		if (it->second.whitelisted == true) f << 'y';
 		else f << 'n';
-		if(it->second.blacklisted == true) f << 'y';
+		if (it->second.blacklisted == true) f << 'y';
 		else f << 'n';
 		f << std::right << std::setw(20) << it->second.lastReported;// Last report, left padded with spaces
+		f << (it->second.version > 0 ? it->second.version : ' ');// IP version
 		f << "\n";// \n should not flush buffer
 	}
 
@@ -460,7 +481,7 @@ bool Data::saveData()
 
 	// Loop all AbuseIPDB blacklisted addresses
 	std::map<std::string, AbuseIPDBBlacklistedAddressType>::iterator itb;
-	for (itb = this->abuseIPDBBlacklist.begin(); itb!=this->abuseIPDBBlacklist.end(); ++itb) {
+	for (itb = this->abuseIPDBBlacklist.begin(); itb != this->abuseIPDBBlacklist.end(); ++itb) {
 		f << 'a';
 		f << std::right << std::setw(39) << itb->first;// Address, left padded with spaces
 		f << std::right << std::setw(10) << itb->second.totalReports;
@@ -469,6 +490,7 @@ bool Data::saveData()
 		} else {
 			f << std::right << std::setw(3) << 0;
 		}
+		f << (itb->second.version > 0 ? itb->second.version : ' ');// IP version
 		f << "\n";// \n should not flush buffer
 	}
 
@@ -497,14 +519,16 @@ bool Data::saveData()
 bool Data::checkIptables()
 {
 	this->log->info("Checking iptables rules...");
-	std::map<unsigned int, std::string> rules = this->iptables->listRules("INPUT");
+	std::vector<std::string> rules;
+	this->iptables->listRules("INPUT", rules, 4);
+	this->iptables->listRules("INPUT", rules, 6);
 	try {
 
 		// Regex to search for IP address
-		std::regex ipSearchPattern("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+		std::regex ipSearchPattern(hb::kIpSearchPattern);
 
 		// Loop through current rules and mark suspcious addresses which have iptables rule
-		std::map<unsigned int, std::string>::iterator rit;
+		std::vector<std::string>::iterator rit;
 		std::size_t checkStart = 0, checkEnd = 0;
 		std::map<std::string, hb::SuspiciosAddressType>::iterator sait;
 		std::map<std::string, AbuseIPDBBlacklistedAddressType>::iterator sbit;
@@ -518,15 +542,15 @@ bool Data::checkIptables()
 			ruleEnd = this->config->iptablesRule.substr(posip + 2);
 		}
 
-		for (rit=rules.begin(); rit!=rules.end(); ++rit) {
+		for (rit = rules.begin(); rit != rules.end(); ++rit) {
 
 			// Searching for rules similar to ones that are in hostblock configuration to detect if address has iptables rule
-			checkStart = rit->second.find(ruleStart);
-			checkEnd = rit->second.find(ruleEnd);
+			checkStart = (*rit).find(ruleStart);
+			checkEnd = (*rit).find(ruleEnd);
 			if (checkStart != std::string::npos && checkEnd != std::string::npos) {
 
 				// Find address in rule
-				if (std::regex_search(rit->second, regexSearchResults, ipSearchPattern)) {
+				if (std::regex_search((*rit), regexSearchResults, ipSearchPattern)) {
 					if (regexSearchResults.size() == 1) {
 						regexSearchResult = regexSearchResults[0].str();
 
@@ -545,7 +569,6 @@ bool Data::checkIptables()
 						}
 						if (sait == this->suspiciousAddresses.end() && sbit == this->abuseIPDBBlacklist.end()) {
 							this->log->warning("Found iptables rule for " + regexSearchResult + " but don't have any information about this address in datafile, please review manually.");
-							this->log->warning("$ sudo iptables --list-rules INPUT | grep " + regexSearchResult);
 						}
 
 					}
@@ -631,6 +654,7 @@ bool Data::addAddress(std::string address)
 	if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
 	else f << 'n';
 	f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
+	f << (this->suspiciousAddresses[address].version > 0 ? this->suspiciousAddresses[address].version : ' ');// IP version
 	f << std::endl;
 
 	// Unlock file
@@ -718,6 +742,7 @@ bool Data::updateAddress(std::string address)
 				if(this->suspiciousAddresses[address].blacklisted == true) f << 'y';
 				else f << 'n';
 				f << std::right << std::setw(20) << this->suspiciousAddresses[address].lastReported;// Last report, left padded with spaces
+				f << (this->suspiciousAddresses[address].version > 0 ? this->suspiciousAddresses[address].version : ' ');// IP version
 				f << std::endl;// endl should flush buffer
 				recordFound = true;
 
@@ -730,7 +755,7 @@ bool Data::updateAddress(std::string address)
 				break;
 			}
 			// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-			f.seekg(73, f.cur);
+			f.seekg(74, f.cur);
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
 			f.seekg(40, f.cur);
@@ -831,7 +856,7 @@ bool Data::removeAddress(std::string address)
 				break;
 			}
 			// std::cout << "Address: " << hb::Util::ltrim(std::string(fAddress)) << " tellg: " << std::to_string(f.tellg()) << std::endl;
-			f.seekg(73, f.cur);
+			f.seekg(74, f.cur);
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
 			f.seekg(40, f.cur);
@@ -983,7 +1008,7 @@ bool Data::updateFile(std::string filePath)
 	while (f.get(c)) {
 		// std::cerr << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 		if (c == 'd') {// Address record, skip to next one
-			f.seekg(112, f.cur);
+			f.seekg(113, f.cur);
 		} else if (c == 'b') {// Log file record, check if path matches needed one
 			// Save current position, will need later if file path will match needed one
 			tmppos = f.tellg();
@@ -1107,7 +1132,7 @@ bool Data::removeFile(std::string filePath)
 	while (f.get(c)) {
 		// std::cout << "Record type: " << c << " tellg: " << std::to_string(f.tellg()) << std::endl;
 		if (c == 'd') {// Address record, skip to next one
-			f.seekg(112, f.cur);
+			f.seekg(113, f.cur);
 		} else if (c == 'b') {// Log file record, check if path matches needed one
 			// Save current position, will need later if file path will match needed one
 			tmppos = f.tellg();
@@ -1239,6 +1264,7 @@ bool Data::addAbuseIPDBAddress(std::string address)
 		this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
 	}
 	f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
+	f << (this->abuseIPDBBlacklist[address].version > 0 ? this->abuseIPDBBlacklist[address].version : ' ');// IP version
 	f << std::endl;
 
 	// Unlock file
@@ -1316,6 +1342,7 @@ bool Data::addAbuseIPDBAddresses(std::vector<std::string>* addressList)
 			this->abuseIPDBBlacklist[*it].abuseConfidenceScore = 999;
 		}
 		f << std::right << std::setw(3) << this->abuseIPDBBlacklist[*it].abuseConfidenceScore;
+		f << (this->abuseIPDBBlacklist[*it].version > 0 ? this->abuseIPDBBlacklist[*it].version : ' ');// IP version
 		f << std::endl;
 	}
 
@@ -1405,6 +1432,7 @@ bool Data::updateAbuseIPDBAddress(std::string address)
 					this->abuseIPDBBlacklist[address].abuseConfidenceScore = 999;
 				}
 				f << std::right << std::setw(3) << this->abuseIPDBBlacklist[address].abuseConfidenceScore;
+				f << (this->abuseIPDBBlacklist[address].version > 0 ? this->abuseIPDBBlacklist[address].version : ' ');// IP version
 				f << std::endl;// endl should flush buffer
 				recordFound = true;
 
@@ -1416,7 +1444,7 @@ bool Data::updateAbuseIPDBAddress(std::string address)
 
 				break;
 			}
-			f.seekg(14, f.cur);
+			f.seekg(15, f.cur);
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
 			f.seekg(40, f.cur);
@@ -1513,6 +1541,7 @@ bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
 						this->abuseIPDBBlacklist[*it].abuseConfidenceScore = 999;
 					}
 					f << std::right << std::setw(3) << this->abuseIPDBBlacklist[*it].abuseConfidenceScore;
+					f << (this->abuseIPDBBlacklist[*it].version > 0 ? this->abuseIPDBBlacklist[*it].version : ' ');// IP version
 					f << std::endl;// endl should flush buffer
 					recordFound = true;
 
@@ -1526,7 +1555,7 @@ bool Data::updateAbuseIPDBAddresses(std::vector<std::string>* addressList)
 				}
 			}
 			if (!recordFound) {
-				f.seekg(14, f.cur);
+				f.seekg(15, f.cur);
 			}
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
@@ -1621,7 +1650,7 @@ bool Data::removeAbuseIPDBAddress(std::string address)
 
 				break;
 			}
-			f.seekg(14, f.cur);
+			f.seekg(15, f.cur);
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
 			f.seekg(40, f.cur);
@@ -1731,7 +1760,7 @@ bool Data::removeAbuseIPDBAddresses(std::vector<std::string>* addressList)
 				}
 			}
 			if (!recordFound) {
-				f.seekg(14, f.cur);
+				f.seekg(15, f.cur);
 			}
 		} else {// Other type of record (e.g. suspicious activity, file bookmark or removed record)
 			// Read until end of line
@@ -1908,6 +1937,7 @@ bool Data::updateIptables(std::string address)
 {
 	bool createRule = false;
 	bool removeRule = false;
+	int version = 4;
 
 	std::time_t currentRawTime;
 	std::time(&currentRawTime);
@@ -1996,15 +2026,21 @@ bool Data::updateIptables(std::string address)
 			ruleStart = this->config->iptablesRule.substr(0, posip);
 			ruleEnd = this->config->iptablesRule.substr(posip + 2);
 		}
+		// Check IP version
+		if (this->suspiciousAddresses.count(address) > 0) {
+			version = this->suspiciousAddresses[address].version;
+		} else if (this->abuseIPDBBlacklist.count(address) > 0) {
+			version = this->abuseIPDBBlacklist[address].version;
+		}
 	}
 	if (createRule == true) {
 		this->log->info("Adding rule for " + address + " to iptables chain!");
 		try {
 			bool res = false;
 			if (this->config->iptablesAppend) {
-				res = this->iptables->append("INPUT", ruleStart + address + ruleEnd);
+				res = this->iptables->append("INPUT", ruleStart + address + ruleEnd, version);
 			} else {
-				res = this->iptables->insert("INPUT", ruleStart + address + ruleEnd, 1);
+				res = this->iptables->insert("INPUT", ruleStart + address + ruleEnd, version);
 			}
 			if (res == false) {
 				this->log->error("Address " + address + " should have iptables rule, but hostblock failed to add rule to chain!");
@@ -2027,7 +2063,7 @@ bool Data::updateIptables(std::string address)
 	if (removeRule == true) {
 		this->log->info("Removing rule for " + address + " from iptables chain!");
 		try {
-			if (this->iptables->remove("INPUT", ruleStart + address + ruleEnd) == false){
+			if (this->iptables->remove("INPUT", ruleStart + address + ruleEnd, version) == false) {
 				this->log->error("Address " + address + " no longer needs iptables rule, but failed to remove rule from chain!");
 				return false;
 			} else {
@@ -2120,6 +2156,7 @@ void Data::saveActivity(std::string address, unsigned int activityScore, unsigne
 		data.whitelisted = false;
 		data.blacklisted = false;
 		data.lastReported = 0;
+		data.version = hb::Util::ipVersion(address);
 		this->suspiciousAddresses.insert(std::pair<std::string,SuspiciosAddressType>(address,data));
 		newEntry = true;
 	}
@@ -2165,7 +2202,8 @@ void Data::saveAbuseIPDBRecord(std::string address, unsigned int totalReports, u
 		data.totalReports = totalReports;
 		data.abuseConfidenceScore = abuseConfidenceScore;
 		data.iptableRule = false;
-		this->abuseIPDBBlacklist.insert(std::pair<std::string,AbuseIPDBBlacklistedAddressType>(address,data));
+		data.version = hb::Util::ipVersion(address);
+		this->abuseIPDBBlacklist.insert(std::pair<std::string,AbuseIPDBBlacklistedAddressType>(address, data));
 		newEntry = true;
 	}
 
