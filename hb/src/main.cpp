@@ -740,14 +740,29 @@ int main(int argc, char *argv[])
 			running = true;
 
 			// iptables commands for execution during daemon startup
-			if (!config.iptablesStartupCheck.empty() && iptables.command(config.iptablesStartupCheck + ">/dev/null 2>/dev/null") != 0) {
-				log.info("Executing iptables startup commands...");
-				int response = 0;
-				for (std::vector<std::string>::iterator it = config.iptablesStartupAdd.begin(); it != config.iptablesStartupAdd.end(); ++it) {
-					log.debug("iptables " + *it);
-					response = iptables.command(*it);
-					if (response != 0) {
-						log.error("Failed to execute iptables command '" + *it + "', return code: " + std::to_string(response));
+			if (!config.iptablesStartupCheck.empty()) {
+				// IPv4
+				if (iptables.command(config.iptablesStartupCheck + ">/dev/null 2>/dev/null") != 0) {
+					log.info("Executing iptables startup commands...");
+					int response = 0;
+					for (std::vector<std::string>::iterator it = config.iptablesStartupAdd.begin(); it != config.iptablesStartupAdd.end(); ++it) {
+						log.debug("iptables " + *it);
+						response = iptables.command(*it);
+						if (response != 0) {
+							log.error("Failed to execute iptables command '" + *it + "', return code: " + std::to_string(response));
+						}
+					}
+				}
+				// IPv6
+				if (iptables.command(config.iptablesStartupCheck + ">/dev/null 2>/dev/null", 6) != 0) {
+					log.info("Executing ip6tables startup commands...");
+					int response = 0;
+					for (std::vector<std::string>::iterator it = config.iptablesStartupAdd.begin(); it != config.iptablesStartupAdd.end(); ++it) {
+						log.debug("ip6tables " + *it);
+						response = iptables.command(*it, 6);
+						if (response != 0) {
+							log.error("Failed to execute ip6tables command '" + *it + "', return code: " + std::to_string(response));
+						}
 					}
 				}
 			}
